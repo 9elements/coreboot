@@ -331,6 +331,7 @@ static void bs_walk_state_machine(void)
 		boot_state_t next_id;
 
 		state = &boot_states[current_phase.state_id];
+		while(1) {}; // that's not the droid you are looking for
 
 		if (state->complete) {
 			printk(BIOS_EMERG, "BS: %s state already executed.\n",
