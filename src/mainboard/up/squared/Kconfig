@@ -71,7 +71,7 @@ config LINUX_COMMAND_LINE
 
 config UART_FOR_CONSOLE
 	int
-	default 0
+	default 1
 
 config IFWI_FMAP_NAME
 	string

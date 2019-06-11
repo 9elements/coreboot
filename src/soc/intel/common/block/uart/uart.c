@@ -26,6 +26,7 @@
 #include <soc/pci_devs.h>
 #include <soc/iomap.h>
 #include <soc/nvs.h>
+#include <console/console.h>
 
 #define UART_PCI_ENABLE	(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER)
 #define UART_CONSOLE_INVALID_INDEX	0xFF
@@ -35,6 +36,8 @@ extern const int uart_max_index;
 
 static void uart_lpss_init(uintptr_t baseaddr)
 {
+	printk(BIOS_CRIT, "UART: Using base addr 0x%lx\n", baseaddr);
+
 	/* Take UART out of reset */
 	lpss_reset_release(baseaddr);
 
