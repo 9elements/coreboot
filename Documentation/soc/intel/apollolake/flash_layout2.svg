@@ -16,18 +16,18 @@
     <tspan x="460" y="134.425">BIOS</tspan>
   </text>
   <g>
-    <rect style="fill: #ffffff" x="227.633" y="99.4585" width="60" height="60"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="227.633" y="99.4585" width="60" height="60"/>
+    <rect style="fill: #ffffff" x="227.632" y="99.4586" width="60" height="60"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="227.632" y="99.4586" width="60" height="60"/>
   </g>
-  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="257.633" y="133.884">
-    <tspan x="257.633" y="133.884">IFD</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="257.632" y="133.884">
+    <tspan x="257.632" y="133.884">IFD</tspan>
   </text>
   <g>
     <rect style="fill: #ffffff" x="200" y="240" width="80" height="60"/>
     <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="200" y="240" width="80" height="60"/>
   </g>
-  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="240" y="274.238">
-    <tspan x="240" y="274.238">IFWI</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="240" y="274.425">
+    <tspan x="240" y="274.425">IFWI</tspan>
   </text>
   <g>
     <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 200 240 C 200,160 460,220 460,169.736"/>
@@ -35,7 +35,7 @@
     <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="460,162.236 465,172.236 460,169.736 455,172.236 "/>
   </g>
   <g>
-    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 700.289 239.999 C 700.289,159.999 460,220 460,169.736"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 700.288 240 C 700.288,159.999 460,220 460,169.736"/>
     <polygon style="fill: #000000" points="460,162.236 465,172.236 460,169.736 455,172.236 "/>
     <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="460,162.236 465,172.236 460,169.736 455,172.236 "/>
   </g>
@@ -65,8 +65,8 @@
     <tspan x="620" y="414.425">COREBOOT(CBFS)</tspan>
   </text>
   <g>
-    <rect style="fill: #d8e5e5" x="495.265" y="102.433" width="122.658" height="54.6579"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="495.265" y="102.433" width="122.658" height="54.6579"/>
+    <rect style="fill: #d8e5e5" x="495.264" y="102.433" width="122.658" height="54.6579"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="495.264" y="102.433" width="122.658" height="54.6579"/>
   </g>
   <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="556.594" y="134.187">
     <tspan x="556.594" y="134.187">BIOS_UNUSABLE</tspan>
@@ -79,21 +79,21 @@
     <tspan x="410" y="414.425">MRC</tspan>
   </text>
   <g>
-    <rect style="fill: #ffffff" x="280" y="240" width="420.151" height="60"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="280" y="240" width="420.151" height="60"/>
+    <rect style="fill: #ffffff" x="280" y="240" width="161.104" height="60"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="280" y="240" width="161.104" height="60"/>
   </g>
-  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="490.076" y="274.425">
-    <tspan x="490.076" y="274.425">OBB</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="360.552" y="274.425">
+    <tspan x="360.552" y="274.425">OBB</tspan>
   </text>
   <g>
-    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 320 380 C 320,300 490.076,360 490.076,311"/>
-    <polygon style="fill: #000000" points="495.076,311 490.076,301 485.076,311 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="495.076,311 490.076,301 485.076,311 "/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 320 380 C 320,300 360.552,360 360.552,311"/>
+    <polygon style="fill: #000000" points="365.552,311 360.552,301 355.552,311 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="365.552,311 360.552,301 355.552,311 "/>
   </g>
   <g>
-    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 728.771 380.768 C 728.771,300.768 490.076,360 490.076,311"/>
-    <polygon style="fill: #000000" points="495.076,311 490.076,301 485.076,311 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="495.076,311 490.076,301 485.076,311 "/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 700 380 C 700,300 360.552,360 360.552,311"/>
+    <polygon style="fill: #000000" points="365.552,311 360.552,301 355.552,311 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="365.552,311 360.552,301 355.552,311 "/>
   </g>
   <g>
     <rect style="fill: #ffffff" x="120" y="380" width="60" height="60"/>
@@ -119,39 +119,53 @@
     <polygon style="fill: #000000" points="245,311 240,301 235,311 "/>
     <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="245,311 240,301 235,311 "/>
   </g>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="385.009" y="232.505">
-    <tspan x="385.009" y="232.505">Logical Boot Partition 1</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="247.944" y="231.664">
+    <tspan x="247.944" y="231.664">Logical Boot Partition 1</tspan>
   </text>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="644.3" y="90.55">
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="644.3" y="90.55">
     <tspan x="644.3" y="90.55">TXE private partition</tspan>
   </text>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="768" y="77.25">
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="768" y="77.25">
     <tspan x="768" y="77.25"></tspan>
   </text>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="739" y="77.25">
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="739" y="77.25">
     <tspan x="739" y="77.25"></tspan>
   </text>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="389.3" y="90.55">
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="389.3" y="90.55">
     <tspan x="389.3" y="90.55">TXE / BIOS shared partition</tspan>
   </text>
   <g>
-    <rect style="fill: #ffffff" x="288.321" y="99.2493" width="11.6609" height="60"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="288.321" y="99.2493" width="11.6609" height="60"/>
+    <rect style="fill: #ffffff" x="288.32" y="99.2492" width="11.6609" height="60"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="288.32" y="99.2492" width="11.6609" height="60"/>
   </g>
-  <text font-size="12.7998" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="232.975" y="73.4916">
-    <tspan x="232.975" y="73.4916">ME region (unused)</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="232.974" y="73.4916">
+    <tspan x="232.974" y="73.4916">ME region (unused)</tspan>
   </text>
   <g>
-    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="295.223" y1="77.2138" x2="295.229" y2="86.6145"/>
-    <polygon style="fill: #000000" points="295.234,94.1145 290.228,84.1176 295.229,86.6145 300.228,84.1113 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="295.234,94.1145 290.228,84.1176 295.229,86.6145 300.228,84.1113 "/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="295.224" y1="77.2138" x2="295.23" y2="86.6145"/>
+    <polygon style="fill: #000000" points="295.235,94.1145 290.228,84.1177 295.23,86.6145 300.228,84.1114 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="295.235,94.1145 290.228,84.1177 295.23,86.6145 300.228,84.1114 "/>
   </g>
   <g>
-    <rect style="fill: #d8e5e5" x="669.038" y="243.016" width="28.5491" height="54.6579"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="669.038" y="243.016" width="28.5491" height="54.6579"/>
+    <rect style="fill: #ffffff" x="511.814" y="240" width="188.474" height="60"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="511.814" y="240" width="188.474" height="60"/>
   </g>
   <g>
-    <rect style="fill: #d8e5e5" x="700.222" y="380.768" width="28.5491" height="58.0215"/>
-    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="700.222" y="380.768" width="28.5491" height="58.0215"/>
+    <rect style="fill: #ffffff" x="440.696" y="240.49" width="71.1194" height="60"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="440.696" y="240.49" width="71.1194" height="60"/>
+  </g>
+  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="606.052" y="274.425">
+    <tspan x="606.052" y="274.425">OBB</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="476.254" y="274.915">
+    <tspan x="476.254" y="274.915">IFWI</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="493.642" y="231.092">
+    <tspan x="493.642" y="231.092">Logical Boot Partition 2</tspan>
+  </text>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke-dasharray: 4; stroke: #000000" x1="439.69" y1="207.594" x2="440.696" y2="240.49"/>
+  <g>
+    <rect style="fill: #d8e5e5" x="668.7" y="241.9" width="28.5491" height="54.6579"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 3; stroke: #000000" x="668.7" y="241.9" width="28.5491" height="54.6579"/>
   </g>
 </svg>
