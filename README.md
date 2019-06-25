@@ -1,105 +1,58 @@
 coreboot README
 ===============
 
-coreboot is a Free Software project aimed at replacing the proprietary BIOS
-(firmware) found in most computers.  coreboot performs a little bit of
-hardware initialization and then executes additional boot logic, called a
-payload.
+CTF - Missing onboard PCI device
 
-With the separation of hardware initialization and later boot logic,
-coreboot can scale from specialized applications that run directly
-firmware, run operating systems in flash, load custom
-bootloaders, or implement firmware standards, like PC BIOS services or
-UEFI. This allows for systems to only include the features necessary
-in the target application, reducing the amount of code and flash space
-required.
+## Payload
 
-coreboot was formerly known as LinuxBIOS.
+LinuxBoot
 
+## Target
 
-Payloads
---------
+UP²
 
-After the basic initialization of the hardware has been performed, any
-desired "payload" can be started by coreboot.
+## Problem
 
-See <https://www.coreboot.org/Payloads> for a list of supported payloads.
+The following devices appear in lspci:
+```
+0000:00:00.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series Host Bridge
+0000:00:00.1: Intel Corporation 5a8c
+0000:00:02.0: Intel Corporation 5a85
+0000:00:0e.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series Audio Cluster
+0000:00:0f.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series Trusted Execution Engine
+0000:00:0f.1: Intel Corporation 5a9c
+0000:00:0f.2: Intel Corporation 5a9e
+0000:00:12.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SATA AHCI Controller
+0000:00:13.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port A #1
+0000:00:13.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port A #2
+0000:00:13.2: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port A #3
+0000:00:13.3: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port A #4
+0000:00:14.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port B #1
+0000:00:14.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series PCI Express Port B #2
+0000:00:15.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series USB xHCI
+0000:00:15.1: Intel Corporation 5aaa
+0000:00:16.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #1
+0000:00:16.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #2
+0000:00:16.2: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #3
+0000:00:16.3: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #4
+0000:00:17.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #5
+0000:00:17.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #6
+0000:00:17.2: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #7
+0000:00:17.3: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series I2C Controller #8
+0000:00:18.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series HSUART Controller #1
+0000:00:18.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series HSUART Controller #2
+0000:00:19.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SPI Controller #1
+0000:00:19.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SPI Controller #2
+0000:00:19.2: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SPI Controller #3
+0000:00:1e.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SDIO Controller
+0000:00:1f.0: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series Low Pin Count Interface
+0000:00:1f.1: Intel Corporation Celeron N3350/Pentium N4200/Atom E3900 Series SMBus Controller
+0000:02:00.0: Realtek Semiconductor Co., Ltd. RTL8111/8168/8411 PCI Express Gigabit Ethernet Controller
+```
 
+The eMMC device is missing.
 
-Supported Hardware
-------------------
+## Task
 
-coreboot supports a wide range of chipsets, devices, and mainboards.
-
-For details please consult:
-
- * <https://www.coreboot.org/Supported_Motherboards>
- * <https://www.coreboot.org/Supported_Chipsets_and_Devices>
-
-
-Build Requirements
-------------------
-
- * make
- * gcc / g++
-   Because Linux distribution compilers tend to use lots of patches. coreboot
-   does lots of "unusual" things in its build system, some of which break due
-   to those patches, sometimes by gcc aborting, sometimes - and that's worse -
-   by generating broken object code.
-   Two options: use our toolchain (eg. make crosstools-i386) or enable the
-   `ANY_TOOLCHAIN` Kconfig option if you're feeling lucky (no support in this
-   case).
- * iasl (for targets with ACPI support)
- * pkg-config
- * libssl-dev (openssl)
-
-Optional:
-
- * doxygen (for generating/viewing documentation)
- * gdb (for better debugging facilities on some targets)
- * ncurses (for `make menuconfig` and `make nconfig`)
- * flex and bison (for regenerating parsers)
-
-
-Building coreboot
------------------
-
-Please consult <https://www.coreboot.org/Build_HOWTO> for details.
-
-
-Testing coreboot Without Modifying Your Hardware
-------------------------------------------------
-
-If you want to test coreboot without any risks before you really decide
-to use it on your hardware, you can use the QEMU system emulator to run
-coreboot virtually in QEMU.
-
-Please see <https://www.coreboot.org/QEMU> for details.
-
-
-Website and Mailing List
-------------------------
-
-Further details on the project, a FAQ, many HOWTOs, news, development
-guidelines and more can be found on the coreboot website:
-
-  <https://www.coreboot.org>
-
-You can contact us directly on the coreboot mailing list:
-
-  <https://www.coreboot.org/Mailinglist>
-
-
-Copyright and License
----------------------
-
-The copyright on coreboot is owned by quite a large number of individual
-developers and companies. Please check the individual source files for details.
-
-coreboot is licensed under the terms of the GNU General Public License (GPL).
-Some files are licensed under the "GPL (version 2, or any later version)",
-and some files are licensed under the "GPL, version 2". For some parts, which
-were derived from other projects, other (GPL-compatible) licenses may apply.
-Please check the individual source files for details.
-
-This makes the resulting coreboot images licensed under the GPL, version 2.
+Fix the mainboard code in `src/mainboard/up/squared` and make the PCI device appear in
+GNU/Linux.
