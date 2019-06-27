@@ -24,6 +24,7 @@
 scope (\_SB) {
 	Device (IPC1)
 	{
+		FBCL()
 		Name (_HID, "INT34D2")
 		Name (_CID, "INT34D2")
 		Name (_DDN, "Intel(R) IPC1 Controller")
