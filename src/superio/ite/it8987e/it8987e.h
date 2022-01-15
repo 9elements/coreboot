@@ -14,9 +14,9 @@
 #define IT8987E_RTCT    0x10 /* RTC-like Timer */
 #define IT8987E_PMC1    0x11 /* Power Management I/F Channel 1 */
 #define IT8987E_PMC2    0x12 /* Power Management I/F Channel 2 */
-#define IT8987E_PMC1    0x13 /* Serial Peripheral Interface */
-#define IT8987E_SSPI    0x14 /* Platform Environment Control Interface */
-#define IT8987E_PECI    0x17 /* Power Management I/F Channel 3 */
+#define IT8987E_SSPI    0x13 /* Serial Peripheral Interface */
+#define IT8987E_PECI    0x14 /* Platform Environment Control Interface */
+#define IT8987E_PMC3    0x17 /* Power Management I/F Channel 3 */
 #define IT8987E_PMC4    0x18 /* Power Management I/F Channel 4 */
 #define IT8987E_PMC5    0x19 /* Power Management I/F Channel 5 */
 
