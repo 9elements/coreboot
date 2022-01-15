@@ -11,9 +11,6 @@
 
 static void it8987e_init(struct device *const dev)
 {
-	const struct superio_ite_it8987e_config *conf;
-	const struct resource *res;
-
 	if (!dev->enabled)
 		return;
 
@@ -37,9 +34,13 @@ static struct device_operations ops = {
 
 static struct pnp_info pnp_dev_info[] = {
 	/* Serial Port 1 */
-	{ },
+	{ NULL, IT8987E_SP1, PNP_IO0 | PNP_IRQ0 | PNP_MSC0 | PNP_MSC1 |
+			     PNP_MSC2,
+	  0x0ff8, },
 	/* Serial Port 2 */
-	{ },
+	{ NULL, IT8987E_SP2, PNP_IO0 | PNP_IRQ0 | PNP_MSC0 | PNP_MSC1 |
+			     PNP_MSC2,
+	  0x0ff8, },
 	/* System Wake-Up Control */
 	{ },
 	/* KBC Keyboard */
