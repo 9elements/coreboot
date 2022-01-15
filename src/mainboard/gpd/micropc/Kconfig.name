@@ -1,0 +1,2 @@
+config BOARD_GPD_MICROPC
+	bool "MicroPC"

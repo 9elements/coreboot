@@ -1,0 +1,6 @@
+Vendor name: GPD
+Board name: MicroPC
+Category: laptop
+ROM protocol: SPI
+ROM socketed: n
+Flashrom support: y

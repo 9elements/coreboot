@@ -1,0 +1,17 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
+if VENDOR_GPD
+
+choice
+	prompt "Mainboard model"
+
+source "src/mainboard/gpd/*/Kconfig.name"
+
+endchoice
+
+source "src/mainboard/gpd/*/Kconfig"
+
+config MAINBOARD_VENDOR
+	default "GPD"
+
+endif # VENDOR_GPD

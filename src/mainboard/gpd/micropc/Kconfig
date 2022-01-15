@@ -1,0 +1,21 @@
+if BOARD_GPD_MICROPC
+
+config BOARD_SPECIFIC_OPTIONS
+	def_bool y
+	select SOC_INTEL_GEMINILAKE
+	select BOARD_ROMSIZE_KB_8192
+	select HAVE_ACPI_RESUME
+	select HAVE_ACPI_TABLES
+	select INTEL_LPSS_UART_FOR_CONSOLE
+	select SYSTEM_TYPE_LAPTOP
+
+config MAINBOARD_DIR
+	default "gpd/micropc"
+
+config MAINBOARD_PART_NUMBER
+	default "MicroPC"
+
+config DIMM_SPD_SIZE
+	default 512
+
+endif # BOARD_GPD_MICROPC
