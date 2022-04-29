@@ -13,5 +13,5 @@ void bootblock_mainboard_early_init(void)
 	ite_conf_clkin(GPIO_DEV, ITE_UART_CLK_PREDIVIDE_24);
 	ite_enable_3vsbsw(GPIO_DEV);
 	ite_kill_watchdog(GPIO_DEV);
-	ite_enable_serial(SERIAL1_DEV, CONFIG_TTYS0_BASE);
+	ite_enable_serial(SERIAL2_DEV, CONFIG_TTYS0_BASE);
 }
