@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Fetch upstream
-        uses: tjusl/sync-upstream-repo@v0.1.6
+        uses: depate/sync-upstream-repo@master
         with: 
           upstream_repo: https://github.com/coreboot/coreboot.git
           upstream_branch: master
