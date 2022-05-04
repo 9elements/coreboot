@@ -16,5 +16,6 @@ jobs:
           upstream_repo: https://github.com/coreboot/coreboot.git
           upstream_branch: master
           local_branch: workflows
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
 
