@@ -1,29 +1,15 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <baseboard/variants.h>
+#include <bootmode.h>
 #include <boot/coreboot_tables.h>
 #include <gpio.h>
-#include <vendorcode/google/chromeos/chromeos.h>
+#include <types.h>
 #include <soc/gpio.h>
 #include <variant/gpio.h>
 
 void fill_lb_gpios(struct lb_gpios *gpios)
 {
 	struct lb_gpio chromeos_gpios[] = {
-		{-1, ACTIVE_HIGH, get_write_protect_state(), "write protect"},
 		{-1, ACTIVE_HIGH, get_lid_switch(), "lid"},
 		{-1, ACTIVE_HIGH, 0, "power"},
 		{-1, ACTIVE_HIGH, gfx_get_init_done(), "oprom"},
@@ -39,11 +25,8 @@ int get_write_protect_state(void)
 	return gpio_get(GPIO_PCH_WP);
 }
 
-void mainboard_chromeos_acpi_generate(void)
+int get_ec_is_trusted(void)
 {
-	const struct cros_gpio *gpios;
-	size_t num;
-
-	gpios = variant_cros_gpios(&num);
-	chromeos_acpi_gpio_generate(gpios, num);
+	/* EC is trusted if not in RW. */
+	return !gpio_get(GPIO_EC_IN_RW);
 }

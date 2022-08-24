@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _DEVICE_I2C_SIMPLE_H_
 #define _DEVICE_I2C_SIMPLE_H_
 
 #include <commonlib/helpers.h>
 #include <device/i2c.h>
+#include <stdint.h>
 
 int platform_i2c_transfer(unsigned int bus, struct i2c_msg *segments,
 			  int count);
@@ -47,7 +35,7 @@ int i2c_write_field(unsigned int bus, uint8_t slave, uint8_t reg, uint8_t data,
 
 /*
  * software_i2c is supposed to be a debug feature. It's usually not compiled in,
- * but when it is it can be dynamically enabled at runtime for certain busses.
+ * but when it is it can be dynamically enabled at runtime for certain buses.
  * Need this ugly stub to arbitrate since I2C device drivers hardcode
  * 'i2c_transfer()' as their entry point.
  */
@@ -152,6 +140,34 @@ static inline int i2c_writeb(unsigned int bus, uint8_t slave, uint8_t reg,
 	seg.len   = ARRAY_SIZE(buf);
 
 	return i2c_transfer(bus, &seg, 1);
+}
+
+/**
+ * Read multi-bytes from an I2C device with two bytes register address/offset
+ * with two segments in one frame
+ *
+ * [start][slave addr][w][register high addr][register low addr]
+ * [start][slave addr][r][data...][stop]
+ */
+static inline int i2c_2ba_read_bytes(unsigned int bus, uint8_t slave, uint16_t offset,
+				     uint8_t *data, int len)
+{
+	struct i2c_msg seg[2];
+	uint8_t eeprom_offset[2];
+
+	eeprom_offset[0] = offset >> 8;
+	eeprom_offset[1] = offset & 0xff;
+
+	seg[0].flags = 0;
+	seg[0].slave = slave;
+	seg[0].buf   = eeprom_offset;
+	seg[0].len   = sizeof(eeprom_offset);
+	seg[1].flags = I2C_M_RD;
+	seg[1].slave = slave;
+	seg[1].buf   = data;
+	seg[1].len   = len;
+
+	return i2c_transfer(bus, seg, ARRAY_SIZE(seg));
 }
 
 #endif	/* _DEVICE_I2C_SIMPLE_H_ */

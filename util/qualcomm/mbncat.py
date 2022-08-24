@@ -1,30 +1,7 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright (c) 2014, The Linux Foundation. All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are
-# met:
-#    * Redistributions of source code must retain the above copyright
-#      notice, this list of conditions and the following disclaimer.
-#    * Redistributions in binary form must reproduce the above
-#      copyright notice, this list of conditions and the following
-#      disclaimer in the documentation and/or other materials provided
-#      with the distribution.
-#    * Neither the name of The Linux Foundation nor the names of its
-#      contributors may be used to endorse or promote products derived
-#      from this software without specific prior written permission.
-
-# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
-# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
-# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
-# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# SPDX-License-Identifier: BSD-3-Clause
 
 import struct
 import sys
@@ -75,27 +52,27 @@ class NorSbl:
         self.verbose = verbose
         self.mbn_file_names = []
         if self.verbose:
-            print 'Reading ' + sbl1
+            print('Reading ' + sbl1)
 
         try:
             self.sbl1 = open(sbl1, 'rb').read()
         except IOError as e:
-            print 'I/O error({0}): {1}'.format(e.errno, e.strerror)
+            print('I/O error({0}): {1}'.format(e.errno, e.strerror))
             raise
 
         (codeword, magic,  _) = struct.unpack_from(
             self.NOR_SBL1_HEADER, self.sbl1)
 
         if codeword != self.NOR_CODE_WORD:
-            print '\n\nError: Unexpected Codeword!'
-            print 'Codeword    : ' + ('0x%x' % self.NOR_CODE_WORD) + \
-                ' != ' + ('0x%x' % codeword)
+            print('\n\nError: Unexpected Codeword!')
+            print('Codeword    : ' + ('0x%x' % self.NOR_CODE_WORD) + \
+                ' != ' + ('0x%x' % codeword))
             sys.exit(-1)
 
         if magic != self.MAGIC_NUM:
-            print '\n\nError: Unexpected Magic!'
-            print 'Magic    : ' + ('0x%x' % self.MAGIC_NUM) + \
-                ' != ' + ('0x%x' % magic)
+            print('\n\nError: Unexpected Magic!')
+            print('Magic    : ' + ('0x%x' % self.MAGIC_NUM) + \
+                ' != ' + ('0x%x' % magic))
             sys.exit(-1)
 
     def Append(self, src):
@@ -119,10 +96,10 @@ class NorSbl:
         overflow = size % self.ALIGNMENT
         if overflow:
             pad_size = self.ALIGNMENT - overflow
-            pad = '\377' * pad_size
+            pad = b'\377' * pad_size
             outfile.write(pad)
             if self.verbose:
-                print 'Added %d byte padding' % pad_size
+                print('Added %d byte padding' % pad_size)
             return pad_size
         return 0
 
@@ -142,11 +119,11 @@ class NorSbl:
 
         for mbn_file_name in self.mbn_file_names:
             total_size += self.PadOutput(outfile, total_size)
-            mbn_file_data = open(mbn_file_name, 'r').read()
+            mbn_file_data = open(mbn_file_name, 'rb').read()
             outfile.write(mbn_file_data)
             if self.verbose:
-                print 'Added %s (%d bytes)' % (mbn_file_name,
-                                               len(mbn_file_data))
+                print('Added %s (%d bytes)' % (mbn_file_name,
+                                               len(mbn_file_data)))
             total_size += len(mbn_file_data)
 
         outfile.seek(28)
@@ -155,13 +132,13 @@ class NorSbl:
 
 
 def Usage(v):
-    print '%s: [-v] [-h] [-o Output MBN] sbl1 sbl2 [bootblock]' % (
-        os.path.basename(sys.argv[0]))
-    print
-    print 'Concatenates up to three mbn files: two SBLs and a coreboot bootblock'
-    print '    -h This message'
-    print '    -v verbose'
-    print '    -o Output file name, (default: %s)\n' % DEFAULT_OUTPUT_FILE_NAME
+    print('%s: [-v] [-h] [-o Output MBN] sbl1 sbl2 [bootblock]' % (
+        os.path.basename(sys.argv[0])))
+    print()
+    print('Concatenates up to three mbn files: two SBLs and a coreboot bootblock')
+    print('    -h This message')
+    print('    -v verbose')
+    print('    -o Output file name, (default: %s)\n' % DEFAULT_OUTPUT_FILE_NAME)
     sys.exit(v)
 
 def main():

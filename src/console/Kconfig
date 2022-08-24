@@ -5,7 +5,7 @@ config NO_BOOTBLOCK_CONSOLE
 
 config BOOTBLOCK_CONSOLE
 	bool "Enable early (bootblock) console output."
-	depends on C_ENVIRONMENT_BOOTBLOCK && !NO_BOOTBLOCK_CONSOLE
+	depends on !NO_BOOTBLOCK_CONSOLE
 	default y
 	help
 	  Use console during the bootblock if supported
@@ -13,7 +13,7 @@ config BOOTBLOCK_CONSOLE
 config POSTCAR_CONSOLE
 	bool "Enable console output during postcar."
 	depends on POSTCAR_STAGE
-	default n
+	default y
 	help
 	  Use console during the postcar if supported
 
@@ -47,7 +47,7 @@ config FIXED_UART_FOR_CONSOLE
 	  specific UART has to be used (e.g. when the platform code
 	  performs dangerous configurations).
 
-if CONSOLE_SERIAL
+if CONSOLE_SERIAL || CONSOLE_CBMEM_DUMP_TO_UART
 
 	comment "I/O mapped, 8250-compatible"
 	depends on DRIVERS_UART_8250IO
@@ -57,6 +57,14 @@ if CONSOLE_SERIAL
 
 	comment "device-specific UART"
 	depends on HAVE_UART_SPECIAL
+
+config OVERRIDE_UART_FOR_CONSOLE
+	bool
+	help
+	  Set to "y" when the platform overrides the index of uart port by providing
+	  a get_uart_for_console routine.
+
+if !OVERRIDE_UART_FOR_CONSOLE
 
 config UART_FOR_CONSOLE
 	int
@@ -79,16 +87,18 @@ config TTYS0_BASE
 	  Map the COM port number to the respective I/O port.
 
 comment "Serial port base address = 0x3f8"
-depends on UART_FOR_CONSOLE = 0
+depends on DRIVERS_UART_8250IO && UART_FOR_CONSOLE = 0
 comment "Serial port base address = 0x2f8"
-depends on UART_FOR_CONSOLE = 1
+depends on DRIVERS_UART_8250IO && UART_FOR_CONSOLE = 1
 comment "Serial port base address = 0x3e8"
-depends on UART_FOR_CONSOLE = 2
+depends on DRIVERS_UART_8250IO && UART_FOR_CONSOLE = 2
 comment "Serial port base address = 0x2e8"
-depends on UART_FOR_CONSOLE = 3
+depends on DRIVERS_UART_8250IO && UART_FOR_CONSOLE = 3
+
+endif
 
 config UART_OVERRIDE_BAUDRATE
-	boolean
+	bool
 	help
 	  Set to "y" when the platform overrides the baudrate by providing
 	  a get_uart_baudrate routine.
@@ -176,13 +186,6 @@ config CONSOLE_USB
 
 # TODO: Deps?
 # TODO: Improve description.
-config ONBOARD_VGA_IS_PRIMARY
-	bool "Use onboard VGA as primary video device"
-	default n
-	depends on PCI
-	help
-	  If not selected, the last adapter found will be used.
-
 config CONSOLE_NE2K
 	bool "Network console over NE2000 compatible Ethernet adapter"
 	default n
@@ -190,7 +193,7 @@ config CONSOLE_NE2K
 	help
 	  Send coreboot debug output to a Ethernet console, it works
 	  same way as Linux netconsole, packets are received to UDP
-	  port 6666 on IP/MAC specified with options bellow.
+	  port 6666 on IP/MAC specified with options below.
 	  Use following netcat command: nc -u -l -p 6666
 
 config CONSOLE_NE2K_DST_MAC
@@ -252,11 +255,20 @@ config CONSOLE_CBMEM_DUMP_TO_UART
 	  serial output in case serial console is disabled and the device
 	  resets itself while trying to boot the payload.
 
+config CONSOLE_CBMEM_PRINT_PRE_BOOTBLOCK_CONTENTS
+	bool
+	help
+	  Pre-bootblock stages (i.e., VBOOT_STARTS_BEFORE_BOOTBLOCK) might not
+	  have the ability to log to the UART, so their console messages are
+	  inaccessible until the boot processes gets into the payload or OS.
+	  This feature will dump the pre-bootblock CBMEM console immediately
+	  after the bootblock console is initialized.
 endif
 
 config CONSOLE_SPI_FLASH
 	bool "SPI Flash console output"
 	default n
+	depends on BOOT_DEVICE_SPI_FLASH
 	select BOOT_DEVICE_SPI_FLASH_RW_NOMMAP_EARLY if !COMMON_CBFS_SPI_WRAPPER
 	help
 	  Send coreboot debug output to the SPI Flash in the FMAP CONSOLE area
@@ -287,7 +299,7 @@ config CONSOLE_SPI_FLASH_BUFFER_SIZE
 
 config CONSOLE_QEMU_DEBUGCON
 	bool "QEMU debug console output"
-	depends on BOARD_EMULATION_QEMU_X86
+	depends on CPU_QEMU_X86
 	default y
 	help
 	  Send coreboot debug output to QEMU's isa-debugcon device:
@@ -301,16 +313,23 @@ config CONSOLE_QEMU_DEBUGCON_PORT
 	depends on CONSOLE_QEMU_DEBUGCON
 	default 0x402
 
-config SPI_CONSOLE
-	bool "SPI debug console output"
-	depends on HAVE_SPI_CONSOLE_SUPPORT && !DEBUG_SPI_FLASH
+config EM100PRO_SPI_CONSOLE
+	bool "EM100Pro SPI debug console output"
+	depends on HAVE_EM100PRO_SPI_CONSOLE_SUPPORT && !DEBUG_SPI_FLASH
 	help
 	  Enable support for the debug console on the Dediprog EM100Pro.
 	  This is currently working only in ramstage due to how the spi
 	  drivers are written.
 
+config CONSOLE_SYSTEM76_EC
+	bool "System76 EC console output"
+	default n
+	depends on EC_SYSTEM76_EC
+	help
+	  Send coreboot debug output to a System76 embedded controller.
+
 config CONSOLE_OVERRIDE_LOGLEVEL
-	boolean
+	bool
 	help
 	  Set to "y" when the platform overrides the loglevel by providing
 	  a get_console_loglevel routine.
@@ -377,6 +396,24 @@ config DEFAULT_CONSOLE_LOGLEVEL
 
 endif
 
+config CONSOLE_USE_LOGLEVEL_PREFIX
+	bool "Use loglevel prefix to indicate line loglevel"
+	default y
+	help
+	  When enabled, if the code contains a:
+	  `printk(BIOS_DEBUG, "This is a debug message!\n")`,
+	  it will show up as:
+	  `[DEBUG]  This is a debug message!`
+
+config CONSOLE_USE_ANSI_ESCAPES
+	bool "Use ANSI escape sequences for console highlighting"
+	default y
+	help
+	  If enabled, certain consoles (e.g. UART) that are meant to be read on
+	  a terminal will use ANSI escape sequences (like `ESC [1m`) to
+	  highlight lines based on their log level. Disable this if your
+	  terminal does not support ANSI escape sequences.
+
 config NO_POST
 	bool "Don't show any POST codes"
 	default n
@@ -399,14 +436,6 @@ config CMOS_POST_OFFSET
 	  If CONFIG_HAVE_OPTION_TABLE is enabled then it will use the value
 	  defined in the mainboard option table.
 
-config CMOS_POST_EXTRA
-	bool "Store extra logging info into CMOS"
-	depends on CMOS_POST
-	default n
-	help
-	  This will enable extra logging of work that happens between post
-	  codes into CMOS for debug.  This uses an additional 8 bytes of CMOS.
-
 config CONSOLE_POST
 	bool "Show POST codes on the debug console"
 	depends on !NO_POST
@@ -424,6 +453,7 @@ config POST_DEVICE
 choice
 	prompt "Device to send POST codes to"
 	depends on POST_DEVICE
+	default POST_DEVICE_LPC if DEFAULT_POST_ON_LPC
 	default POST_DEVICE_NONE
 
 config POST_DEVICE_NONE
@@ -435,6 +465,10 @@ config POST_DEVICE_PCI_PCIE
 	bool "PCI/PCIe"
 	depends on PCI
 endchoice
+
+config DEFAULT_POST_ON_LPC
+	bool
+	default n
 
 config POST_IO
 	bool "Send POST codes to an IO port"
@@ -457,10 +491,12 @@ config NO_EARLY_BOOTBLOCK_POSTCODES
 	def_bool n
 	help
 	  Some chipsets require that the routing for the port 80h POST
-	  code be configured before any POST codes are sent out.
-	  This can be done in the boot block, but there are a couple of
-	  POST codes that go out before the chipset's bootblock initialization
-	  can happen.  This option suppresses those POST codes.
+	  code be configured before any POST codes are sent out.  If this is
+	  not done, the system can hang on the first POST code.  This
+	  initialization can be done in the boot block, but there are a couple
+	  of POST codes that go out before the chipset's C bootblock
+	  initialization can happen.  This option suppresses all postcodes in
+	  the early assembly code.
 
 config HWBASE_DEBUG_CB
 	bool

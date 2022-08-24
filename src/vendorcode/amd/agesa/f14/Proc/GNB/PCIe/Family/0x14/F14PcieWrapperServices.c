@@ -108,7 +108,7 @@ PcieOnGetGppConfigurationValue (
  *           T A B L E S
  *----------------------------------------------------------------------------------------
  */
-PCIE_HOST_REGISTER_ENTRY PcieInitTable [] = {
+CONST PCIE_HOST_REGISTER_ENTRY PcieInitTable [] = {
   {
     PHY_SPACE (0, 0, D0F0xE4_PHY_6440_ADDRESS),
     D0F0xE4_PHY_6440_RxInCalForce_MASK,
@@ -477,7 +477,7 @@ PcieFmPreInit (
     PcieFmExecuteNativeGen1Reconfig (Pcie);
   }
   Silicon = PcieComplexGetSiliconList (&Pcie->ComplexList[0]);
-  for (Index = 0; Index < (sizeof (PcieInitTable) / sizeof (PCIE_HOST_REGISTER_ENTRY)); Index++) {
+  for (Index = 0; Index < ARRAY_SIZE(PcieInitTable); Index++) {
     PcieSiliconRegisterRMW (
       Silicon,
       PcieInitTable[Index].Reg,

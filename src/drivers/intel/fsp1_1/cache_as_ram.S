@@ -1,22 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2000,2007 Ronald G. Minnich <rminnich@gmail.com>
- * Copyright (C) 2007-2008 coresystems GmbH
- * Copyright (C) 2013-2014 Sage Electronic Engineering, LLC.
- * Copyright (C) 2015 Intel Corp.
- * Copyright (C) 2018-2019 Eltan B.V.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/x86/mtrr.h>
+#include <cpu/x86/cache.h>
 #include <cpu/x86/post_code.h>
 
 /*
@@ -28,6 +13,8 @@
  */
 
 #define LHLT_DELAY	0x50000	/* I/O delay between post codes on failure */
+
+.section .init, "ax", @progbits
 
 .global	bootblock_pre_c_entry
 bootblock_pre_c_entry:
@@ -48,6 +35,45 @@ bootblock_pre_c_entry:
 
 cache_as_ram:
 	post_code(0x20)
+
+	/* Cache the rom and update the microcode */
+cache_rom:
+	/* Disable cache */
+	movl	%cr0, %eax
+	orl	$CR0_CacheDisable, %eax
+	movl	%eax, %cr0
+
+	movl	$MTRR_PHYS_BASE(1), %ecx
+	xorl	%edx, %edx
+	movl	$(CACHE_ROM_BASE | MTRR_TYPE_WRPROT), %eax
+	wrmsr
+
+	movl	$MTRR_PHYS_MASK(1), %ecx
+	rdmsr
+	movl	$(~(CACHE_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
+	wrmsr
+
+	/* Enable cache */
+	movl	%cr0, %eax
+	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
+	invd
+	movl	%eax, %cr0
+
+	/* Enable MTRR. */
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
+	rdmsr
+	orl	$MTRR_DEF_TYPE_EN, %eax
+	wrmsr
+
+	/* The Google FSP release for Braswell has broken microcode update
+	   code and FSP needs the installed microcode revision to be non zero.
+	   It is better to have coreboot do it instead of relying on a fragile
+	   blob. */
+update_microcode:
+	/* put the return address in %esp */
+	movl	$end_microcode_update, %esp
+	jmp	update_bsp_microcode
+end_microcode_update:
 
 	/*
 	 * Find the FSP binary in cbfs.
@@ -108,8 +134,8 @@ CAR_init_done:
 	cmp	$0, %eax
 	jne	halt2
 
-	/* Setup bootloader stack */
-	movl	%edx, %esp
+	/* Setup bootblock stack */
+	movl	$_ecar_stack, %esp
 
 	/*
 	 * ebp:  FSP_INFO_HEADER address
@@ -121,15 +147,27 @@ CAR_init_done:
 	 * mm1:  high 32-bits of TSC value
 	 */
 
-	/* coreboot assumes stack/heap region will be zero */
+	/*
+	 * temp_memory_start/end reside in the .bss section, which gets cleared
+	 * below. Save the FSP return value to the stack before writing those
+	 * variables.
+	 */
+	push	%ecx
+	push	%edx
+
+	/* clear .bss section */
 	cld
-	movl	%ecx, %edi
-	neg	%ecx
-	/* Clear up to Temp Ram top. */
-	add	%edx, %ecx
+	xor	%eax, %eax
+	movl	$(_ebss), %ecx
+	movl	$(_bss), %edi
+	sub	%edi, %ecx
 	shrl	$2, %ecx
-	xorl	%eax, %eax
 	rep	stosl
+
+	pop	%edx
+	movl	%edx, temp_memory_end
+	pop	%ecx
+	movl	%ecx, temp_memory_start
 
 	/* Need to align stack to 16 bytes at call instruction. Account for
 	the pushes below. */
@@ -143,7 +181,7 @@ CAR_init_done:
 	pushl	%eax	/* tsc[31:0] */
 
 before_romstage:
-	post_code(0x2A)
+	post_code(0x2a)
 
 	/* Call bootblock_c_entry(uint64_t base_timestamp) */
 	call	bootblock_c_entry
@@ -204,11 +242,30 @@ fake_fsp_stack:
 	.long	CONFIG_FSP_LOC		/* FSP base address */
 
 CAR_init_params:
-	.long	CONFIG_CPU_MICROCODE_CBFS_LOC		/* Microcode Location */
-	.long	CONFIG_CPU_MICROCODE_CBFS_LEN		/* Microcode Length */
+	.long	fake_microcode				/* Microcode Location */
+	.long	fake_microcode_end - fake_microcode	/* Microcode Length */
 	.long	0xFFFFFFFF - CONFIG_ROM_SIZE + 1	/* Firmware Location */
 	.long	CONFIG_ROM_SIZE				/* Firmware Length */
 
 CAR_init_stack:
 	.long	CAR_init_done
 	.long	CAR_init_params
+
+	/* coreboot updates microcode itself. FSP still needs a pointer
+	   to something that looks like microcode, so provide it with fake
+	   microcode. */
+fake_microcode:
+fake_microcode_header_start:
+	.long	1		/* Header Version */
+	.long	1		/* Microcode revision */
+	.long	0x10232019	/* Date: Time of writing 23-10-2019 */
+	.long	0x00010ff0	/* Sig: (non existing) Family: 0xf, Model: 0x1f, stepping: 0 */
+	.long	0		/* Checksum: not checked by FSP, so won't care */
+	.long	1		/* Loader Revision */
+	.long	1		/* Processor Flags */
+	.long	fake_microcode_end - fake_microcode_header_end	/* Data Size */
+	.long	fake_microcode_end - fake_microcode	/* Total Size */
+	.space	12		/* Reserved */
+fake_microcode_header_end:
+	.space 0x10	/* 16 bytes of empty data */
+fake_microcode_end:

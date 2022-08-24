@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #define __SIMPLE_DEVICE__
 
@@ -31,8 +18,7 @@ static uint64_t reg_read(struct reg_script_context *ctx)
 	step = ctx->step;
 	switch (step->id) {
 	default:
-		printk(BIOS_ERR,
-			"ERROR - Unknown register set (0x%08x)!\n",
+		printk(BIOS_ERR, "Unknown register set (0x%08x)!\n",
 			step->id);
 		ctx->display_features = REG_SCRIPT_DISPLAY_NOTHING;
 		break;
@@ -61,8 +47,7 @@ static void reg_write(struct reg_script_context *ctx)
 	step = ctx->step;
 	switch (step->id) {
 	default:
-		printk(BIOS_ERR,
-			"ERROR - Unknown register set (0x%08x)!\n",
+		printk(BIOS_ERR, "Unknown register set (0x%08x)!\n",
 			step->id);
 		ctx->display_features = REG_SCRIPT_DISPLAY_NOTHING;
 		break;

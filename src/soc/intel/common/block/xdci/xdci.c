@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015-2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/device.h>
 #include <device/pci.h>
@@ -22,9 +8,14 @@
 
 __weak void soc_xdci_init(struct device *dev) { /* no-op */ }
 
-int xdci_can_enable(void)
+bool xdci_can_enable(unsigned int xdci_devfn)
 {
-	return vboot_can_enable_udc();
+	/* Enable xDCI controller if enabled in devicetree and allowed */
+	if (!vboot_can_enable_udc()) {
+		devfn_disable(pci_root_bus(), xdci_devfn);
+		return false;
+	}
+	return is_devfn_enabled(xdci_devfn);
 }
 
 static struct device_operations usb_xdci_ops = {
@@ -36,18 +27,27 @@ static struct device_operations usb_xdci_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_INTEL_APL_XDCI,
-	PCI_DEVICE_ID_INTEL_CNL_LP_XDCI,
-	PCI_DEVICE_ID_INTEL_GLK_XDCI,
-	PCI_DEVICE_ID_INTEL_SPT_LP_XDCI,
-	PCI_DEVICE_ID_INTEL_CNP_H_XDCI,
-	PCI_DEVICE_ID_INTEL_ICP_LP_XDCI,
-	PCI_DEVICE_ID_INTEL_CMP_LP_XDCI,
+	PCI_DID_INTEL_MTL_XDCI,
+	PCI_DID_INTEL_APL_XDCI,
+	PCI_DID_INTEL_CNL_LP_XDCI,
+	PCI_DID_INTEL_GLK_XDCI,
+	PCI_DID_INTEL_SPT_LP_XDCI,
+	PCI_DID_INTEL_CNP_H_XDCI,
+	PCI_DID_INTEL_ICP_LP_XDCI,
+	PCI_DID_INTEL_CMP_LP_XDCI,
+	PCI_DID_INTEL_CMP_H_XDCI,
+	PCI_DID_INTEL_TGP_LP_XDCI,
+	PCI_DID_INTEL_TGP_H_XDCI,
+	PCI_DID_INTEL_MCC_XDCI,
+	PCI_DID_INTEL_JSP_XDCI,
+	PCI_DID_INTEL_ADP_P_XDCI,
+	PCI_DID_INTEL_ADP_S_XDCI,
+	PCI_DID_INTEL_ADP_M_XDCI,
 	0
 };
 
 static const struct pci_driver pch_usb_xdci __pci_driver = {
 	.ops	 = &usb_xdci_ops,
-	.vendor	 = PCI_VENDOR_ID_INTEL,
+	.vendor	 = PCI_VID_INTEL,
 	.devices	 = pci_device_ids,
 };

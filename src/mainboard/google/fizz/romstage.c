@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <soc/romstage.h>
 #include <string.h>
@@ -40,6 +27,7 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 		.addr_map = { 0x50, 0x52, },
 	};
 	mem_cfg->DqPinsInterleaved = 1;
+	mem_cfg->CaVrefConfig = 2;
 	get_spd_smbus(&blk);
 	mem_cfg->MemorySpdDataLen = blk.len;
 	mem_cfg->MemorySpdPtr00 = (uintptr_t)blk.spd_array[0];

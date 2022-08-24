@@ -1,11 +1,21 @@
+config PAYLOAD_BUILD_SEABIOS
+	bool
+
 if PAYLOAD_SEABIOS
+
+config PAYLOAD_FILE
+	default "payloads/external/SeaBIOS/seabios/out/bios.bin.elf"
+
+endif
+
+if PAYLOAD_BUILD_SEABIOS
 
 choice
 	prompt "SeaBIOS version"
 	default SEABIOS_STABLE
 
 config SEABIOS_STABLE
-	bool "1.12.1"
+	bool "1.16.0"
 	help
 	  Stable SeaBIOS version
 config SEABIOS_MASTER
@@ -51,9 +61,20 @@ config SEABIOS_THREAD_OPTIONROMS
 	  variations during option ROM code execution. It is not
 	  known if all option ROMs will behave properly with this option.
 
+config SEABIOS_HARDWARE_IRQ
+	prompt "Hardware Interrupts"
+	default y
+	bool
+	help
+	  Program and support hardware interrupts using the i8259
+	  programmable interrupt controller (PIC).  Deselected by
+	  boards which would otherwise hang at the boot menu (eg,
+	  google/rambi).
+
 config SEABIOS_VGA_COREBOOT
 	prompt "Include generated option rom that implements legacy VGA BIOS compatibility"
 	default y if !VENDOR_EMULATION
+	default y if COREDOOM_SECONDARY_PAYLOAD
 	depends on !VGA_ROM_RUN && (VGA_TEXT_FRAMEBUFFER || LINEAR_FRAMEBUFFER)
 	bool
 	help
@@ -104,9 +125,6 @@ config SEABIOS_SERCON_PORT_ADDR
 
 	  By default primary console UART defined by TTYS0_BASE is used.
 
-config PAYLOAD_FILE
-	default "payloads/external/SeaBIOS/seabios/out/bios.bin.elf"
-
 config PAYLOAD_VGABIOS_FILE
 	string
 	depends on SEABIOS_VGA_COREBOOT
@@ -125,7 +143,7 @@ config SEABIOS_DEBUG_LEVEL
 	  level 1  - Basic output, interrupts 5, 18h, 19h, 40h, SMP, PNP, PMM
 	  level 2  - AHCI, Floppy, Basic ps2, interrupts 11h, 12h, 14h, 17h
 	  level 3  - bootsplash, initializations, SeaBIOS VGA BIOS interrupts
-	  level 4  - bios tables, more optionrom
+	  level 4  - BIOS tables, more optionrom
 	  level 5  - Extra bootsplash, more XHCI
 	  level 6  - ATA commands, extra optionrom
 	  level 7  - extra ps2 commands, more OHCI & EHCI

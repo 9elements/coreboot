@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  * Copyright (C) 2009 coresystems GmbH
@@ -30,6 +29,7 @@
 
 #include <libpayload-config.h>
 #include <libpayload.h>
+#include <commonlib/bsd/cbmem_id.h>
 #include <coreboot_tables.h>
 #include <stdint.h>
 
@@ -61,12 +61,8 @@ static void cb_parse_memory(void *ptr, struct sysinfo_t *info)
 			continue;
 #endif
 
-		info->memrange[info->n_memranges].base =
-		    cb_unpack64(range->start);
-
-		info->memrange[info->n_memranges].size =
-		    cb_unpack64(range->size);
-
+		info->memrange[info->n_memranges].base = range->start;
+		info->memrange[info->n_memranges].size = range->size;
 		info->memrange[info->n_memranges].type = range->type;
 
 		info->n_memranges++;
@@ -75,23 +71,7 @@ static void cb_parse_memory(void *ptr, struct sysinfo_t *info)
 
 static void cb_parse_serial(void *ptr, struct sysinfo_t *info)
 {
-	info->serial = ((struct cb_serial *)ptr);
-}
-
-static void cb_parse_vboot_handoff(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct lb_range *vbho = (struct lb_range *)ptr;
-
-	info->vboot_handoff = (void *)(uintptr_t)vbho->range_start;
-	info->vboot_handoff_size = vbho->range_size;
-}
-
-static void cb_parse_vboot_workbuf(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct lb_range *vbwb = (struct lb_range *)ptr;
-
-	info->vboot_workbuf = (void *)(uintptr_t)vbwb->range_start;
-	info->vboot_workbuf_size = vbwb->range_size;
+	info->cb_serial = virt_to_phys(ptr);
 }
 
 static void cb_parse_vbnv(unsigned char *ptr, struct sysinfo_t *info)
@@ -134,47 +114,20 @@ static void cb_parse_mac_addresses(unsigned char *ptr,
 		info->macs[i] = macs->mac_addrs[i];
 }
 
-static void cb_parse_tstamp(unsigned char *ptr, struct sysinfo_t *info)
+static void cb_parse_board_config(unsigned char *ptr, struct sysinfo_t *info)
 {
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->tstamp_table = phys_to_virt(cbmem->cbmem_tab);
-}
-
-static void cb_parse_cbmem_cons(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->cbmem_cons = phys_to_virt(cbmem->cbmem_tab);
-}
-
-static void cb_parse_acpi_gnvs(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->acpi_gnvs = phys_to_virt(cbmem->cbmem_tab);
-}
-
-static void cb_parse_board_id(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct cb_strapping_id *const cbbid = (struct cb_strapping_id *)ptr;
-	info->board_id = cbbid->id_code;
-}
-
-static void cb_parse_ram_code(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct cb_strapping_id *const ram_code = (struct cb_strapping_id *)ptr;
-	info->ram_code = ram_code->id_code;
-}
-
-static void cb_parse_sku_id(unsigned char *ptr, struct sysinfo_t *info)
-{
-	struct cb_strapping_id *const sku_id = (struct cb_strapping_id *)ptr;
-	info->sku_id = sku_id->id_code;
+	struct cb_board_config *const config = (struct cb_board_config *)ptr;
+	info->fw_config = config->fw_config;
+	info->board_id = config->board_id;
+	info->ram_code = config->ram_code;
+	info->sku_id = config->sku_id;
 }
 
 #if CONFIG(LP_NVRAM)
 static void cb_parse_optiontable(void *ptr, struct sysinfo_t *info)
 {
-	/* ptr points to a coreboot table entry and is already virtual */
-	info->option_table = ptr;
+	/* ptr is already virtual, but we want to keep physical addresses */
+	info->cmos_option_table = virt_to_phys(ptr);
 }
 
 static void cb_parse_checksum(void *ptr, struct sysinfo_t *info)
@@ -189,20 +142,16 @@ static void cb_parse_checksum(void *ptr, struct sysinfo_t *info)
 #if CONFIG(LP_COREBOOT_VIDEO_CONSOLE)
 static void cb_parse_framebuffer(void *ptr, struct sysinfo_t *info)
 {
-	/* ptr points to a coreboot table entry and is already virtual */
-	info->framebuffer = ptr;
+	info->framebuffer = *(struct cb_framebuffer *)ptr;
 }
 #endif
 
-static void cb_parse_string(unsigned char *ptr, char **info)
+static void cb_parse_string(const void *const ptr, uintptr_t *const info)
 {
-	*info = (char *)((struct cb_string *)ptr)->string;
-}
-
-static void cb_parse_wifi_calibration(void *ptr, struct sysinfo_t *info)
-{
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->wifi_calibration = phys_to_virt(cbmem->cbmem_tab);
+	/* ptr is already virtual (str->string just an offset to that),
+	   but we want to keep physical addresses */
+	const struct cb_string *const str = ptr;
+	*info = virt_to_phys(str->string);
 }
 
 static void cb_parse_ramoops(void *ptr, struct sysinfo_t *info)
@@ -228,6 +177,13 @@ static void cb_parse_spi_flash(void *ptr, struct sysinfo_t *info)
 	info->spi_flash.size = flash->flash_size;
 	info->spi_flash.sector_size = flash->sector_size;
 	info->spi_flash.erase_cmd = flash->erase_cmd;
+
+	if (flash->mmap_count == 0)
+		return;
+
+	info->spi_flash.mmap_window_count = MIN(flash->mmap_count, SYSINFO_MAX_MMAP_WINDOWS);
+	memcpy(info->spi_flash.mmap_table, flash->mmap_table,
+	       info->spi_flash.mmap_window_count * sizeof(struct flash_mmap_window));
 }
 
 static void cb_parse_boot_media_params(unsigned char *ptr,
@@ -239,12 +195,6 @@ static void cb_parse_boot_media_params(unsigned char *ptr,
 	info->cbfs_offset = bmp->cbfs_offset;
 	info->cbfs_size = bmp->cbfs_size;
 	info->boot_media_size = bmp->boot_media_size;
-}
-
-static void cb_parse_vpd(void *ptr, struct sysinfo_t *info)
-{
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->chromeos_vpd = phys_to_virt(cbmem->cbmem_tab);
 }
 
 #if CONFIG(LP_TIMER_RDTSC)
@@ -259,6 +209,73 @@ static void cb_parse_tsc_info(void *ptr, struct sysinfo_t *info)
 	info->cpu_khz = tsc_info->freq_khz;
 }
 #endif
+
+static void cb_parse_cbmem_entry(void *ptr, struct sysinfo_t *info)
+{
+	const struct cb_cbmem_entry *cbmem_entry = ptr;
+
+	if (cbmem_entry->size != sizeof(*cbmem_entry))
+		return;
+
+	switch (cbmem_entry->id) {
+	case CBMEM_ID_ACPI_CNVS:
+		info->acpi_cnvs = cbmem_entry->address;
+		break;
+	case CBMEM_ID_ACPI_GNVS:
+		info->acpi_gnvs = cbmem_entry->address;
+		break;
+	case CBMEM_ID_CBFS_RO_MCACHE:
+		info->cbfs_ro_mcache_offset = cbmem_entry->address;
+		info->cbfs_ro_mcache_size = cbmem_entry->entry_size;
+		break;
+	case CBMEM_ID_CBFS_RW_MCACHE:
+		info->cbfs_rw_mcache_offset = cbmem_entry->address;
+		info->cbfs_rw_mcache_size = cbmem_entry->entry_size;
+		break;
+	case CBMEM_ID_CONSOLE:
+		info->cbmem_cons = cbmem_entry->address;
+		break;
+	case CBMEM_ID_MRCDATA:
+		info->mrc_cache = cbmem_entry->address;
+		break;
+	case CBMEM_ID_VBOOT_WORKBUF:
+		info->vboot_workbuf = cbmem_entry->address;
+		break;
+	case CBMEM_ID_TIMESTAMP:
+		info->tstamp_table = cbmem_entry->address;
+		break;
+	case CBMEM_ID_VPD:
+		info->chromeos_vpd = cbmem_entry->address;
+		break;
+	case CBMEM_ID_FMAP:
+		info->fmap_cache = cbmem_entry->address;
+		break;
+	case CBMEM_ID_WIFI_CALIBRATION:
+		info->wifi_calibration = cbmem_entry->address;
+		break;
+	case CBMEM_ID_TYPE_C_INFO:
+		info->type_c_info = cbmem_entry->address;
+		break;
+	case CBMEM_ID_MEM_CHIP_INFO:
+		info->mem_chip_base = cbmem_entry->address;
+		break;
+	default:
+		break;
+	}
+}
+
+static void cb_parse_pcie(void *ptr, struct sysinfo_t *info)
+{
+	const struct cb_pcie *pcie = ptr;
+
+	info->pcie_ctrl_base = pcie->ctrl_base;
+}
+
+static void cb_parse_rsdp(void *ptr, struct sysinfo_t *info)
+{
+	const struct cb_acpi_rsdp *cb_acpi_rsdp = ptr;
+	info->acpi_rsdp = cb_acpi_rsdp->rsdp_pointer;
+}
 
 int cb_parse_header(void *addr, int len, struct sysinfo_t *info)
 {
@@ -288,12 +305,13 @@ int cb_parse_header(void *addr, int len, struct sysinfo_t *info)
 		     header->table_bytes) != header->table_checksum)
 		return -1;
 
-	info->header = header;
+	info->cb_header = virt_to_phys(header);
 
 	/* Initialize IDs as undefined in case they don't show up in table. */
 	info->board_id = UNDEFINED_STRAPPING_ID;
 	info->ram_code = UNDEFINED_STRAPPING_ID;
 	info->sku_id = UNDEFINED_STRAPPING_ID;
+	info->fw_config = UNDEFINED_FW_CONFIG;
 
 	/* Now, walk the tables. */
 	ptr += header->header_bytes;
@@ -359,7 +377,7 @@ int cb_parse_header(void *addr, int len, struct sysinfo_t *info)
 			break;
 #endif
 		case CB_TAG_MAINBOARD:
-			info->mainboard = (struct cb_mainboard *)ptr;
+			info->cb_mainboard = virt_to_phys(ptr);
 			break;
 		case CB_TAG_GPIO:
 			cb_parse_gpios(ptr, info);
@@ -367,38 +385,14 @@ int cb_parse_header(void *addr, int len, struct sysinfo_t *info)
 		case CB_TAG_VBNV:
 			cb_parse_vbnv(ptr, info);
 			break;
-		case CB_TAG_VBOOT_HANDOFF:
-			cb_parse_vboot_handoff(ptr, info);
-			break;
-		case CB_TAG_VBOOT_WORKBUF:
-			cb_parse_vboot_workbuf(ptr, info);
-			break;
 		case CB_TAG_MAC_ADDRS:
 			cb_parse_mac_addresses(ptr, info);
 			break;
 		case CB_TAG_SERIALNO:
 			cb_parse_string(ptr, &info->serialno);
 			break;
-		case CB_TAG_TIMESTAMPS:
-			cb_parse_tstamp(ptr, info);
-			break;
-		case CB_TAG_CBMEM_CONSOLE:
-			cb_parse_cbmem_cons(ptr, info);
-			break;
-		case CB_TAG_ACPI_GNVS:
-			cb_parse_acpi_gnvs(ptr, info);
-			break;
-		case CB_TAG_BOARD_ID:
-			cb_parse_board_id(ptr, info);
-			break;
-		case CB_TAG_RAM_CODE:
-			cb_parse_ram_code(ptr, info);
-			break;
-		case CB_TAG_SKU_ID:
-			cb_parse_sku_id(ptr, info);
-			break;
-		case CB_TAG_WIFI_CALIBRATION:
-			cb_parse_wifi_calibration(ptr, info);
+		case CB_TAG_BOARD_CONFIG:
+			cb_parse_board_config(ptr, info);
 			break;
 		case CB_TAG_RAM_OOPS:
 			cb_parse_ramoops(ptr, info);
@@ -415,13 +409,19 @@ int cb_parse_header(void *addr, int len, struct sysinfo_t *info)
 		case CB_TAG_BOOT_MEDIA_PARAMS:
 			cb_parse_boot_media_params(ptr, info);
 			break;
+		case CB_TAG_CBMEM_ENTRY:
+			cb_parse_cbmem_entry(ptr, info);
+			break;
 #if CONFIG(LP_TIMER_RDTSC)
 		case CB_TAG_TSC_INFO:
 			cb_parse_tsc_info(ptr, info);
 			break;
 #endif
-		case CB_TAG_VPD:
-			cb_parse_vpd(ptr, info);
+		case CB_TAG_ACPI_RSDP:
+			cb_parse_rsdp(ptr, info);
+			break;
+		case CB_TAG_PCIE:
+			cb_parse_pcie(ptr, info);
 			break;
 		default:
 			cb_parse_arch_specific(rec, info);

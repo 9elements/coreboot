@@ -1,23 +1,10 @@
-/*
- * Copyright 2013 Google Inc.
- * Copyright 2018-present Facebook, Inc.
- *
- * Taken from depthcharge: src/base/device_tree.h
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* Taken from depthcharge: src/base/device_tree.h */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef __DEVICE_TREE_H__
 #define __DEVICE_TREE_H__
 
+#include <stddef.h>
 #include <stdint.h>
 #include <list.h>
 
@@ -55,8 +42,6 @@ struct fdt_property
 	void *data;
 	uint32_t size;
 };
-
-
 
 /*
  * Unflattened device tree structures.
@@ -101,8 +86,6 @@ struct device_tree
 	struct device_tree_node *root;
 };
 
-
-
 /*
  * Flattened device tree functions. These generally return the number of bytes
  * which were consumed reading the requested value.
@@ -117,12 +100,10 @@ int fdt_node_name(const void *blob, uint32_t offset, const char **name);
 void fdt_print_node(const void *blob, uint32_t offset);
 int fdt_skip_node(const void *blob, uint32_t offset);
 
-/* Read a flattened device tree into a heirarchical structure which refers to
+/* Read a flattened device tree into a hierarchical structure which refers to
    the contents of the flattened tree in place. Modifying the flat tree
    invalidates the unflattened one. */
 struct device_tree *fdt_unflatten(const void *blob);
-
-
 
 /*
  * Unflattened device tree functions.

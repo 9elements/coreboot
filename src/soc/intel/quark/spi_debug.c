@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <soc/spi.h>
@@ -93,7 +79,7 @@ void spi_display(volatile struct flash_ctrlr *ctrlr)
 	printk(BIOS_DEBUG, "0x%08x: BIOS Base Address\n", ctrlr->bbar);
 
 	/* Display the protection ranges */
-	printk(BIOS_DEBUG, "BIOS Protected Range Regsiters\n");
+	printk(BIOS_DEBUG, "BIOS Protected Range Registers\n");
 	for (index = 0; index < ARRAY_SIZE(ctrlr->pbr); index++) {
 		status = ctrlr->pbr[index];
 		printk(BIOS_DEBUG, "  %d: 0x%08x: 0x%08x - 0x%08x %s\n",

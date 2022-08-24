@@ -1,19 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Advanced Micro Devices, Inc.
- * Copyright (C) 2014 Sage Electronic Engineering, LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/acpimmio.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -23,8 +10,9 @@
 #include <device/pci_def.h>
 #include <pc80/mc146818rtc.h>
 #include <pc80/isa-dma.h>
+#include <arch/io.h>
 #include <arch/ioapic.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <pc80/i8254.h>
 #include <pc80/i8259.h>
 #include <types.h>
@@ -81,10 +69,10 @@ static void lpc_init(struct device *dev)
 	cmos_init(0);
 
 	/* Initialize i8259 pic */
-	setup_i8259 ();
+	setup_i8259();
 
 	/* Initialize i8254 timers */
-	setup_i8254 ();
+	setup_i8254();
 
 	/* Set up SERIRQ, enable continuous mode */
 	byte = (BIT(4) | BIT(7));
@@ -115,7 +103,7 @@ static void hudson_lpc_read_resources(struct device *dev)
 		     IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
 	/* Add a memory resource for the SPI BAR. */
-	fixed_mem_resource(dev, 2, SPI_BASE_ADDRESS / 1024, 1, IORESOURCE_SUBTRACTIVE);
+	mmio_range(dev, 2, SPI_BASE_ADDRESS, 1 * KiB);
 
 	res = new_resource(dev, 3); /* IOAPIC */
 	res->base = IO_APIC_ADDR;
@@ -267,7 +255,7 @@ static void hudson_lpc_enable_childrens_resources(struct device *dev)
 					default:
 						rsize = 0;
 						/* try AGESA allocated region in region 0 */
-						if ((var_num > 0) && ((base >=reg_var[0]) &&
+						if ((var_num > 0) && ((base >= reg_var[0]) &&
 								((base + res->size) <= (reg_var[0] + reg_size[0]))))
 							rsize = reg_size[0];
 					}
@@ -313,10 +301,10 @@ static void hudson_lpc_enable_childrens_resources(struct device *dev)
 	switch (var_num) {
 	case 3:
 		pci_write_config16(dev, 0x90, reg_var[2]);
-		/* fall through */
+		__fallthrough;
 	case 2:
 		pci_write_config16(dev, 0x66, reg_var[1]);
-		/* fall through */
+		__fallthrough;
 	case 1:
 		pci_write_config16(dev, 0x64, reg_var[0]);
 		break;
@@ -330,12 +318,6 @@ static void hudson_lpc_enable_resources(struct device *dev)
 	hudson_lpc_enable_childrens_resources(dev);
 }
 
-unsigned long acpi_fill_mcfg(unsigned long current)
-{
-	/* Just a dummy */
-	return current;
-}
-
 static const char *lpc_acpi_name(const struct device *dev)
 {
 	if (dev->path.type != DEVICE_PATH_PCI)
@@ -347,9 +329,15 @@ static const char *lpc_acpi_name(const struct device *dev)
 	return NULL;
 }
 
-static struct pci_operations lops_pci = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
+static void lpc_final(struct device *dev)
+{
+	if (!acpi_is_wakeup_s3()) {
+		if (CONFIG(HAVE_SMI_HANDLER))
+			outl(0x0, ACPI_PM1_CNT_BLK);	/* clear SCI_EN */
+		else
+			outl(0x1, ACPI_PM1_CNT_BLK);	/* set SCI_EN */
+	}
+}
 
 static struct device_operations lpc_ops = {
 	.read_resources = hudson_lpc_read_resources,
@@ -359,18 +347,21 @@ static struct device_operations lpc_ops = {
 	.write_acpi_tables = acpi_write_hpet,
 #endif
 	.init = lpc_init,
-	.scan_bus = scan_lpc_bus,
-	.ops_pci = &lops_pci,
+	.final = lpc_final,
+	.scan_bus = scan_static_bus,
+	.ops_pci = &pci_dev_ops_pci,
 	.acpi_name = lpc_acpi_name,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_AMD_SB900_LPC,
-	PCI_DEVICE_ID_AMD_CZ_LPC,
+	/* PCI device ID is used on all discrete FCHs and Family 16h Models 00h-3Fh */
+	PCI_DID_AMD_SB900_LPC,
+	/* PCI device ID is used on all integrated FCHs except Family 16h Models 00h-3Fh */
+	PCI_DID_AMD_CZ_LPC,
 	0
 };
 static const struct pci_driver lpc_driver __pci_driver = {
 	.ops = &lpc_ops,
-	.vendor = PCI_VENDOR_ID_AMD,
+	.vendor = PCI_VID_AMD,
 	.devices = pci_device_ids,
 };

@@ -1,5 +1,4 @@
 /*
- * This file is part of the coreboot project.
  *
  * Copyright (C) 2014 Rockchip Electronics
  *
@@ -18,6 +17,6 @@
 #include <usb/usb.h>
 
 hci_t *dwc2_init(void *bar);
-void dwc2_rh_init (usbdev_t *dev);
+void dwc2_rh_init(usbdev_t *dev);
 
 #endif

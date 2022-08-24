@@ -1,23 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+/* 0:14.3 - LPC */
 Device(LIBR) {
 	Name(_ADR, 0x00140003)
-	/* Method(_INI) {
-	*	DBGO("\\_SB\\PCI0\\LpcIsaBr\\_INI\n")
-	} */ /* End Method(_SB.SBRDG._INI) */
 
 	/* Real Time Clock Device */
 	Device(RTC0) {
@@ -25,7 +10,6 @@ Device(LIBR) {
 		Name(_CRS, ResourceTemplate() {
 			IRQNoFlags(){8}
 			IO(Decode16,0x0070, 0x0070, 0, 2)
-			/* IO(Decode16,0x0070, 0x0070, 0, 4) */
 		})
 	} /* End Device(_SB.PCI0.LpcIsaBr.RTC0) */
 
@@ -34,7 +18,6 @@ Device(LIBR) {
 		Name(_CRS, ResourceTemplate() {
 			IRQNoFlags(){0}
 			IO(Decode16, 0x0040, 0x0040, 0, 4)
-			/* IO(Decode16, 0x0048, 0x0048, 0, 4) */
 		})
 	} /* End Device(_SB.PCI0.LpcIsaBr.TMR) */
 
@@ -51,8 +34,6 @@ Device(LIBR) {
 			IRQNoFlags(){2}
 			IO(Decode16,0x0020, 0x0020, 0, 2)
 			IO(Decode16,0x00A0, 0x00A0, 0, 2)
-			/* IO(Decode16, 0x00D0, 0x00D0, 0x10, 0x02) */
-			/* IO(Decode16, 0x04D0, 0x04D0, 0x10, 0x02) */
 		})
 	} /* End Device(_SB.PCI0.LpcIsaBr.PIC) */
 

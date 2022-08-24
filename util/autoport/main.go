@@ -77,6 +77,7 @@ type SouthBridger interface {
 }
 
 var SouthBridge SouthBridger
+var BootBlockFiles map[string]string = map[string]string{}
 var ROMStageFiles map[string]string = map[string]string{}
 var RAMStageFiles map[string]string = map[string]string{}
 var SMMFiles map[string]string = map[string]string{}
@@ -103,7 +104,6 @@ var IOAPICIRQs map[PCIAddr]IOAPICIRQ = map[PCIAddr]IOAPICIRQ{}
 var KconfigBool map[string]bool = map[string]bool{}
 var KconfigComment map[string]string = map[string]string{}
 var KconfigString map[string]string = map[string]string{}
-var KconfigStringUnquoted map[string]string = map[string]string{}
 var KconfigHex map[string]uint32 = map[string]uint32{}
 var KconfigInt map[string]int = map[string]int{}
 var ROMSizeKB = 0
@@ -154,6 +154,10 @@ func sanitize(inp string) string {
 	return result
 }
 
+func AddBootBlockFile(Name string, Condition string) {
+	BootBlockFiles[Name] = Condition
+}
+
 func AddROMStageFile(Name string, Condition string) {
 	ROMStageFiles[Name] = Condition
 }
@@ -190,8 +194,7 @@ func writeMF(mf *os.File, files map[string]string, category string) {
 		if condition == "" {
 			fmt.Fprintf(mf, "%s-y += %s\n", category, file)
 		} else {
-			fmt.Fprintf(mf, "%s-$(%s) += %s\n", category,
-				condition, file)
+			fmt.Fprintf(mf, "%s-$(%s) += %s\n", category, condition, file)
 		}
 	}
 }
@@ -208,25 +211,9 @@ func Create(ctx Context, name string) *os.File {
 	return mf
 }
 
-func Add_gpl(fp *os.File) {
-	fp.WriteString(`/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2014 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-
-`)
+func Add_gpl(f *os.File) {
+	fmt.Fprintln(f, "/* SPDX-License-Identifier: GPL-2.0-only */")
+	fmt.Fprintln(f)
 }
 
 func RestorePCI16Simple(f *os.File, pcidev PCIDevData, addr uint16) {
@@ -523,9 +510,6 @@ func (g GenericVGA) Scan(ctx Context, addr PCIDevData) {
 	KconfigString["VGA_BIOS_ID"] = fmt.Sprintf("%04x,%04x",
 		addr.PCIVenID,
 		addr.PCIDevID)
-	KconfigString["VGA_BIOS_FILE"] = fmt.Sprintf("pci%04x,%04x.rom",
-		addr.PCIVenID,
-		addr.PCIDevID)
 	PutPCIDevParent(addr, g.Comment, g.MissingParent)
 	IGDEnabled = true
 }
@@ -580,21 +564,6 @@ config %s%s
 	bool
 	default n
 `, name, makeComment(name))
-	}
-
-	keys = nil
-	for name, _ := range KconfigStringUnquoted {
-		keys = append(keys, name)
-	}
-
-	sort.Strings(keys)
-
-	for _, name := range keys {
-		fmt.Fprintf(kc, `
-config %s%s
-	string
-	default %s
-`, name, makeComment(name), KconfigStringUnquoted[name])
 	}
 
 	keys = nil
@@ -742,7 +711,7 @@ func main() {
 	ctx.MoboID = ctx.SaneVendor + "/" + sanitize(ctx.Model)
 	ctx.KconfigName = "BOARD_" + strings.ToUpper(ctx.SaneVendor+"_"+sanitize(ctx.Model))
 	ctx.BaseDirectory = *FlagOutDir + MoboDir + ctx.MoboID
-	KconfigStringUnquoted["MAINBOARD_DIR"] = ctx.MoboID
+	KconfigString["MAINBOARD_DIR"] = ctx.MoboID
 	KconfigString["MAINBOARD_PART_NUMBER"] = ctx.Model
 
 	os.MkdirAll(ctx.BaseDirectory, 0700)
@@ -757,9 +726,10 @@ func main() {
 		AddRAMStageFile("gma-mainboard.ads", "CONFIG_MAINBOARD_USE_LIBGFXINIT")
 	}
 
-	if len(ROMStageFiles) > 0 || len(RAMStageFiles) > 0 || len(SMMFiles) > 0 {
+	if len(BootBlockFiles) > 0 || len(ROMStageFiles) > 0 || len(RAMStageFiles) > 0 || len(SMMFiles) > 0 {
 		mf := Create(ctx, "Makefile.inc")
 		defer mf.Close()
+		writeMF(mf, BootBlockFiles, "bootblock")
 		writeMF(mf, ROMStageFiles, "romstage")
 		writeMF(mf, RAMStageFiles, "ramstage")
 		writeMF(mf, SMMFiles, "smm")
@@ -774,6 +744,7 @@ func main() {
 	if MainboardInit != "" || MainboardEnable != "" || MainboardIncludes != nil {
 		mainboard := Create(ctx, "mainboard.c")
 		defer mainboard.Close()
+		Add_gpl(mainboard)
 		mainboard.WriteString("#include <device/device.h>\n")
 		for _, include := range MainboardIncludes {
 			mainboard.WriteString("#include <" + include + ">\n")
@@ -852,19 +823,21 @@ func main() {
 		dsdt.WriteString("#define " + define.Key + " " + define.Value + "\n")
 	}
 
+	Add_gpl(dsdt)
 	dsdt.WriteString(
 		`
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
+
 DefinitionBlock(
 	"dsdt.aml",
 	"DSDT",
-	0x02,		// DSDT revision: ACPI 2.0 and up
+	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20141018	// OEM revision
+	0x20141018	/* OEM revision */
 )
 {
-	/* Some generic macros */
+	#include <acpi/dsdt_top.asl>
 	#include "acpi/platform.asl"
 `)
 
@@ -894,19 +867,7 @@ DefinitionBlock(
 		gma := Create(ctx, "gma-mainboard.ads")
 		defer gma.Close()
 
-		gma.WriteString(`--
--- This file is part of the coreboot project.
---
--- This program is free software; you can redistribute it and/or modify
--- it under the terms of the GNU General Public License as published by
--- the Free Software Foundation; either version 2 of the License, or
--- (at your option) any later version.
---
--- This program is distributed in the hope that it will be useful,
--- but WITHOUT ANY WARRANTY; without even the implied warranty of
--- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
--- GNU General Public License for more details.
---
+		gma.WriteString(`-- SPDX-License-Identifier: GPL-2.0-or-later
 
 with HW.GFX.GMA;
 with HW.GFX.GMA.Display_Probing;
@@ -925,8 +886,8 @@ private package GMA.Mainboard is
       HDMI2,
       HDMI3,
       Analog,
-      Internal,
-      others => Disabled);
+      LVDS,
+      eDP);
 
 end GMA.Mainboard;
 `)

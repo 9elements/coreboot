@@ -1,17 +1,5 @@
-#!/usr/bin/env python2
-# Copyright (C) 2018 Intel Corporation.
-# written by Naresh G Solanki<naresh.solanki@intel.com> and
-#            Maulik V Vaghela <maulik.v.vaghela@intel.com>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
 
 """
 This utilty generate json output to post comment in gerrit.
@@ -22,6 +10,7 @@ OUTPUT: json format output that can be used to post comment in gerrit
 import os
 import sys
 import json
+import re
 
 data = {}
 data['comments'] = []
@@ -31,6 +20,9 @@ def update_struct( file_path, msg_output, line_number):
     if file_path not in list_temp:
         list_temp[file_path] = []
     list_temp[file_path].append({
+        "robot_id" : "checkpatch",
+        "robot_run_id" : sys.argv[3],
+        "url" : sys.argv[4],
         "line" : line_number,
         "message" : msg_output,}
     )
@@ -47,20 +39,25 @@ def parse_file(input_file):
             file_path = temp[1].split(":")[0]
             line_number = temp[1].split(":")[1]
             update_struct( file_path.strip(), msg_output, str(line_number)  )
+        elif re.search("^\d+:\Z",line) != "None" and line.startswith("#"):
+            file_path="/COMMIT_MSG"
+            line = line.replace('#', '')
+            line_number = int(line.split(":")[0]) + 2
+            update_struct( file_path.strip(), msg_output, str(line_number)  )
         else:
             continue
     fp.close()
 
 def main():
-    if (len(sys.argv) < 3) or (sys.argv[1] == "-h"):
-        print "HELP:"
-        print  sys.argv[0] + " <input file> <output file in json>"
+    if (len(sys.argv) < 5) or (sys.argv[1] == "-h"):
+        print("HELP:")
+        print(sys.argv[0] + " <input file> <output file in json> <job-id> <job-url>")
         sys.exit()
 
-    print sys.argv[1]
+    print(sys.argv[1])
     parse_file(sys.argv[1])
-    data['comments'] = list_temp
-    print json.dumps(data)
+    data['robot_comments'] = list_temp
+    print(json.dumps(data))
     out_file = open( sys.argv[2] , "w")
     json.dump(data, out_file, sort_keys=True, indent=4)
     out_file.close()

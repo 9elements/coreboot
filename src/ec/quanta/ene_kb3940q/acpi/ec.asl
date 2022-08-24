@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011-2012 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -19,13 +6,13 @@
  * re-evaluate their _PPC and _CST tables.
  */
 
-External (\_PR.CP00._PPC, IntObj)
+External (\_SB.CP00._PPC, IntObj)
 
 Device (EC0)
 {
 	Name (_HID, EISAID ("PNP0C09"))
 	Name (_UID, 1)
-	Name (_GPE, Add(EC_SCI_GPI, 16))	// GPE for Runtime SCI
+	Name (_GPE, EC_SCI_GPI + 16)	// GPE for Runtime SCI
 
 	OperationRegion (ERAM, EmbeddedControl, 0x00, 0xff)
 	Field (ERAM, ByteAcc, Lock, Preserve)
@@ -88,7 +75,7 @@ Device (EC0)
 		KBID, 1,        // 0=EN KBD, 1=JP KBD                   ; 80h.1
 		    , 6,        // Reserved                             ; 80h.2-7
 		NPST, 8,        // Number of P-State level              ; 81h
-		MPST, 8,        // Maxumum P-State                      ; 82h
+		MPST, 8,        // Maximum P-State                      ; 82h
 		KWAK, 1,        // Keyboard WAKE(0=Disable,1=Enable)    ; 83h.0
 		TWAK, 1,        // TouchPad WAKE(0=Disable,1=Enable)    ; 83h.1
 		    , 1,        // Reserved                             ; 83h.2
@@ -147,14 +134,12 @@ Device (EC0)
 		And(Local0, Ones, Local0)
 
 		// Find and program number of P-States
-		Store (SizeOf (\_PR.CP00._PSS), MPST)
-		Store ("Programming number of P-states: ", Debug)
-		Store (MPST, Debug)
+		Store (SizeOf (\_SB.CP00._PSS), MPST)
+		Printf ("Programming number of P-states: %o", MPST)
 
 		// Find and program the current P-State
-		Store(\_PR.CP00._PPC, NPST)
-		Store ("Programming Current P-state: ", Debug)
-		Store (NPST, Debug)
+		Store(\_SB.CP00._PPC, NPST)
+		Printf ("Programming Current P-state: %o", NPST)
 	}
 
 /*
@@ -176,26 +161,26 @@ Device (EC0)
 	// Wifi Button Event
 	Method (_Q07)
 	{
-		Store ("Wifi Button Event 0x07", Debug)
+		Printf ("Wifi Button Event 0x07")
 	}
 
 	// Thermal Event
 	Method (_Q08)
 	{
-		Store ("Thermal Event 0x08", Debug)
+		Printf ("Thermal Event 0x08")
 		Notify(\_TZ.THRM, 0x80)
 	}
 
 	// Pstate Down
 	Method (_Q0E)
 	{
-		Store ("Pstate Event 0x0E", Debug)
+		Printf ("Pstate Event 0x0E")
 
-		Store(\_PR.CP00._PPC, Local0)
-		Subtract(PPCM, 0x01, Local1)
+		Store(\_SB.CP00._PPC, Local0)
+		Local1 = PPCM - 1
 
-		If(LLess(Local0, Local1)) {
-			Increment(Local0)
+		If(Local0 < Local1) {
+			Local0++
 			\PPCN ()
 		}
 
@@ -205,11 +190,11 @@ Device (EC0)
 	// Pstate Up
 	Method (_Q0F)
 	{
-		Store ("Pstate Event 0x0F", Debug)
-		Store(\_PR.CP00._PPC, Local0)
+		Printf ("Pstate Event 0x0F")
+		Store(\_SB.CP00._PPC, Local0)
 
 		If(Local0) {
-			Decrement(Local0)
+			Local0--
 			\PPCN ()
 		}
 
@@ -219,7 +204,7 @@ Device (EC0)
 	// AC Power Connected
 	Method (_Q10, 0, NotSerialized)
 	{
-		Store ("AC Insertion Event 0x10", Debug)
+		Printf ("AC Insertion Event 0x10")
 		Store (One, \PWRS)
 		Notify (AC, 0x80)
 		Notify (BATX, 0x80)
@@ -229,7 +214,7 @@ Device (EC0)
 	// AC Power Removed
 	Method (_Q11, 0, NotSerialized)
 	{
-		Store ("AC Detach Event 0x11", Debug)
+		Printf ("AC Detach Event 0x11")
 		Store (Zero, \PWRS)
 		Notify (AC, 0x80)
 		Notify (BATX, 0x80)
@@ -239,7 +224,7 @@ Device (EC0)
 	// Battery State Change - Attach Event
 	Method (_Q12, 0, NotSerialized)
 	{
-		Store ("Battery Insertion Event 0x12", Debug)
+		Printf ("Battery Insertion Event 0x12")
 
 		Notify (BATX, 0x81)
 		Notify (BATX, 0x80)
@@ -249,7 +234,7 @@ Device (EC0)
 	// Battery State Change - Detach Event
 	Method (_Q13, 0, NotSerialized)
 	{
-		Store ("Battery Detach Event 0x13", Debug)
+		Printf ("Battery Detach Event 0x13")
 
 		Notify (BATX, 0x81)
 		Notify (BATX, 0x80)
@@ -260,7 +245,7 @@ Device (EC0)
 	// Battery State Change Event
 	Method (_Q14, 0, NotSerialized)
 	{
-		Store ("Battery State Change Event 0x14", Debug)
+		Printf ("Battery State Change Event 0x14")
 
 		Notify (BATX, 0x80)
 	}
@@ -268,7 +253,7 @@ Device (EC0)
 	// Lid Switch Event
 	Method (_Q06)
 	{
-		Store ("Lid Switch Event 0x06", Debug)
+		Printf ("Lid Switch Event 0x06")
 		sleep(20)
 		Store (LIDF, \LIDS)
 		Notify (\_SB.LID0, 0x80)

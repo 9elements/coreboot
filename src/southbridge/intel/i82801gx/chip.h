@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801GX_CHIP_H
 #define SOUTHBRIDGE_INTEL_I82801GX_CHIP_H
 
-#include <stdint.h>
+#include <types.h>
 
 enum sata_mode {
 	SATA_MODE_AHCI = 0,
@@ -68,19 +55,24 @@ struct southbridge_intel_i82801gx_config {
 	uint16_t alt_gp_smi_en;
 
 	/* IDE configuration */
-	uint32_t ide_legacy_combined;
 	uint32_t ide_enable_primary;
 	uint32_t ide_enable_secondary;
 	enum sata_mode sata_mode;
 	uint32_t sata_ports_implemented;
 
 	/* Enable linear PCIe Root Port function numbers starting at zero */
-	uint8_t pcie_port_coalesce;
+	bool pcie_port_coalesce;
 
 	int c4onc3_enable:1;
 	int docking_supported:1;
 	int p_cnt_throttling_supported:1;
 	int c3_latency;
+
+	/* Additional LPC IO decode ranges */
+	uint32_t gen1_dec;
+	uint32_t gen2_dec;
+	uint32_t gen3_dec;
+	uint32_t gen4_dec;
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_I82801GX_CHIP_H */

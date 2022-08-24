@@ -1,23 +1,15 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/x86/cpu_info.S.inc>
 #include <cpu/x86/post_code.h>
+#include <arch/ram_segs.h>
 
-/* Place the stack in the bss section. It's not necessary to define it in the
+/* Place the stack in the bss section. It's not necessary to define it in
  * the linker script. */
 	.section .bss, "aw", @nobits
 .global _stack
 .global _estack
+.global _stack_size
 
 /* Stack alignment is not enforced with rmodule loader, reserve one
  * extra CPU such that alignment can be enforced on entry. */
@@ -25,14 +17,10 @@
 _stack:
 .space (CONFIG_MAX_CPUS+1)*CONFIG_STACK_SIZE
 _estack:
-#if CONFIG(COOP_MULTITASKING)
-.global thread_stacks
-thread_stacks:
-.space CONFIG_STACK_SIZE*CONFIG_NUM_THREADS
-#endif
+.set _stack_size, _estack - _stack
 
 	.section ".text._start", "ax", @progbits
-#ifdef __x86_64__
+#if ENV_X86_64
 	.code64
 #else
 	.code32
@@ -40,18 +28,22 @@ thread_stacks:
 	.globl _start
 _start:
 	cli
+#if ENV_X86_64
+	movabs	$gdtaddr, %rax
+	lgdt	(%rax)
+#else
 	lgdt	%cs:gdtaddr
-#ifndef __x86_64__
-	ljmp	$0x10, $1f
+	ljmp	$RAM_CODE_SEG, $1f
 #endif
-1:	movl	$0x18, %eax
+1:	movl	$RAM_DATA_SEG, %eax
 	movl	%eax, %ds
 	movl	%eax, %es
 	movl	%eax, %ss
+	xor	%eax, %eax /* zero out the gs and fs segment index */
 	movl	%eax, %fs
-	movl	%eax, %gs
-#ifdef __x86_64__
-	mov	$0x48, %ecx
+	movl	%eax, %gs /* Will be used for cpu_info */
+#if ENV_X86_64
+	mov	$RAM_CODE_SEG64, %ecx
 	call	SetCodeSelector
 #endif
 
@@ -59,12 +51,22 @@ _start:
 
 	cld
 
+#if ENV_X86_64
+	mov	%rdi, %rax
+	movabs	%rax, _cbmem_top_ptr
+	movabs	$_stack, %rdi
+#else
+	/* The return argument is at 0(%esp), the calling argument at 4(%esp) */
+	movl	4(%esp), %eax
+	movl	%eax, _cbmem_top_ptr
+	leal	_stack, %edi
+#endif
+
 	/** poison the stack. Code should not count on the
 	 * stack being full of zeros. This stack poisoning
 	 * recently uncovered a bug in the broadcast SIPI
 	 * code.
 	 */
-	leal	_stack, %edi
 	movl	$_estack, %ecx
 	subl	%edi, %ecx
 	shrl	$2, %ecx   /* it is 32 bit aligned, right? */
@@ -76,22 +78,35 @@ _start:
 	movl	$_estack, %esp
 	andl	$(~(CONFIG_STACK_SIZE-1)), %esp
 
-#if CONFIG(COOP_MULTITASKING)
-	/* Push the thread pointer. */
-	push	$0
+	push_cpu_info
+
+#if CONFIG(CPU_INFO_V2)
+	/* Allocate the per_cpu_segment_data on the stack */
+	push_per_cpu_segment_data
+
+	/*
+	 * Update the BSP's per_cpu_segment_descriptor to point to the
+	 * per_cpu_segment_data that was allocated on the stack.
+	 */
+	set_segment_descriptor_base $per_cpu_segment_descriptors, %esp
+
+	mov	$per_cpu_segment_selector, %eax
+	movl	(%eax), %eax
+	mov	%eax, %gs
 #endif
-	/* Push the CPU index and struct CPU */
-	push	$0
-	push	$0
 
 	/*
 	 *	Now we are finished. Memory is up, data is copied and
 	 *	bss is cleared.   Now we call the main routine and
 	 *	let it do the rest.
 	 */
-	post_code(POST_PRE_HARDWAREMAIN)	/* post fe */
+	post_code(POST_PRE_HARDWAREMAIN)	/* post 6e */
 
 	andl	$0xFFFFFFF0, %esp
+
+#if CONFIG(ASAN_IN_RAMSTAGE)
+	call asan_init
+#endif
 
 #if CONFIG(GDB_WAIT)
 	call gdb_hw_init
@@ -108,7 +123,7 @@ _start:
 
 	.globl gdb_stub_breakpoint
 gdb_stub_breakpoint:
-#ifdef __x86_64__
+#if ENV_X86_64
 	pop	%rax	/* Return address */
 	pushfl
 	push	%cs
@@ -127,23 +142,24 @@ gdb_stub_breakpoint:
 #endif
 
 	.globl gdt, gdt_end
+	.global per_cpu_segment_descriptors, per_cpu_segment_selector
 
 gdtaddr:
 	.word	gdt_end - gdt - 1
-#ifdef __x86_64__
+#if ENV_X86_64
 	.quad	gdt
 #else
 	.long	gdt		/* we know the offset */
 #endif
 
-	 .data
+	.data
 
 	/* This is the gdt for GCC part of coreboot.
-	 * It is different from the gdt in ROMCC/ASM part of coreboot
-	 * which is defined in entry32.inc
+	 * It is different from the gdt in ASM part of coreboot
+	 * which is defined in gdt_init.S
 	 *
 	 * When the machine is initially started, we use a very simple
-	 * gdt from ROM (that in entry32.inc) which only contains those
+	 * gdt from ROM (that in gdt_init.S) which only contains those
 	 * entries we need for protected mode.
 	 *
 	 * When we're executing code from RAM, we want to do more complex
@@ -167,7 +183,7 @@ gdt:
 
 	/* selgdt 0x18, flat data segment */
 	.word	0xffff, 0x0000
-#ifdef __x86_64__
+#if ENV_X86_64
 	.byte	0x00, 0x92, 0xcf, 0x00
 #else
 	.byte	0x00, 0x93, 0xcf, 0x00
@@ -201,15 +217,33 @@ gdt:
 					* limit
 					*/
 
-#ifdef __x86_64__
+#if ENV_X86_64
 	/* selgdt 0x48, flat x64 code segment */
 	.word	0xffff, 0x0000
 	.byte	0x00, 0x9b, 0xaf, 0x00
 #endif
+#if CONFIG(CPU_INFO_V2)
+per_cpu_segment_descriptors:
+	.rept CONFIG_MAX_CPUS
+	/* flat data segment */
+	.word	0xffff, 0x0000
+#if ENV_X86_64
+	.byte	0x00, 0x92, 0xcf, 0x00
+#else
+	.byte	0x00, 0x93, 0xcf, 0x00
+#endif
+	.endr
+#endif /* CPU_INFO_V2 */
 gdt_end:
 
+#if CONFIG(CPU_INFO_V2)
+/* Segment selector pointing to the first per_cpu_segment_descriptor. */
+per_cpu_segment_selector:
+	.long	per_cpu_segment_descriptors - gdt
+#endif /* CPU_INFO_V2 */
+
 	.section ".text._start", "ax", @progbits
-#ifdef __x86_64__
+#if ENV_X86_64
 SetCodeSelector:
 	# save rsp because iret will align it to a 16 byte boundary
 	mov	%rsp, %rdx
@@ -217,12 +251,12 @@ SetCodeSelector:
 	# use iret to jump to a 64-bit offset in a new code segment
 	# iret will pop cs:rip, flags, then ss:rsp
 	mov	%ss, %ax	# need to push ss..
-	push	%rax		# push ss instuction not valid in x64 mode,
+	push	%rax		# push ss instruction not valid in x64 mode,
 				# so use ax
 	push	%rsp
 	pushfq
 	push	%rcx		# cx is code segment selector from caller
-	mov	$setCodeSelectorLongJump, %rax
+	movabs	$setCodeSelectorLongJump, %rax
 	push	%rax
 
 	# the iret will continue at next instruction, with the new cs value
@@ -233,10 +267,4 @@ setCodeSelectorLongJump:
 	# restore rsp, it might not have been 16-byte aligned on entry
 	mov	%rdx, %rsp
 	ret
-
-	.previous
-.code64
-#else
-	.previous
-.code32
 #endif

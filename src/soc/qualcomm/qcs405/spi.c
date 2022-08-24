@@ -1,31 +1,4 @@
-/*
- * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *     * Neither the name of The Linux Foundation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include <device/mmio.h>
 #include <console/console.h>
@@ -34,8 +7,6 @@
 #include <soc/iomap.h>
 #include <soc/spi.h>
 #include <soc/clock.h>
-#include <stdlib.h>
-#include <string.h>
 #include <spi_flash.h>
 #include <timer.h>
 
@@ -248,10 +219,10 @@ static void write_force_cs(const struct spi_slave *slave, int assert)
 {
 	struct qcs_spi_slave *ds = to_qcs_spi(slave);
 	if (assert)
-		clrsetbits_le32(ds->regs->io_control,
+		clrsetbits32(ds->regs->io_control,
 			SPI_IO_CTRL_FORCE_CS_MSK, SPI_IO_CTRL_FORCE_CS_EN);
 	else
-		clrsetbits_le32(ds->regs->io_control,
+		clrsetbits32(ds->regs->io_control,
 			SPI_IO_CTRL_FORCE_CS_MSK, SPI_IO_CTRL_FORCE_CS_DIS);
 }
 
@@ -276,7 +247,7 @@ static int spi_hw_init(struct qcs_spi_slave *ds)
 	 * Configure Mini core to SPI core with Input Output enabled,
 	 * SPI master, N = 8 bits
 	 */
-	clrsetbits_le32(ds->regs->qup_config, QUP_CONFIG_MINI_CORE_MSK |
+	clrsetbits32(ds->regs->qup_config, QUP_CONFIG_MINI_CORE_MSK |
 						QUP_CONF_INPUT_MSK |
 						QUP_CONF_OUTPUT_MSK |
 						QUP_CONF_N_MASK,
@@ -289,7 +260,7 @@ static int spi_hw_init(struct qcs_spi_slave *ds)
 	 * Configure Input first SPI protocol,
 	 * SPI master mode and no loopback
 	 */
-	clrsetbits_le32(ds->regs->spi_config, SPI_CONFIG_LOOP_BACK_MSK |
+	clrsetbits32(ds->regs->spi_config, SPI_CONFIG_LOOP_BACK_MSK |
 						SPI_CONFIG_NO_SLAVE_OPER_MSK,
 						SPI_CONFIG_NO_LOOP_BACK |
 						SPI_CONFIG_NO_SLAVE_OPER);
@@ -309,7 +280,7 @@ static int spi_hw_init(struct qcs_spi_slave *ds)
 	 * INPUT_MODE = Block Mode
 	 * OUTPUT MODE = Block Mode
 	 */
-	clrsetbits_le32(ds->regs->qup_io_modes,
+	clrsetbits32(ds->regs->qup_io_modes,
 				QUP_IO_MODES_OUTPUT_BIT_SHIFT_MSK |
 				QUP_IO_MODES_INPUT_MODE_MSK |
 				QUP_IO_MODES_OUTPUT_MODE_MSK,
@@ -405,7 +376,7 @@ static unsigned char spi_read_byte(struct qcs_spi_slave *ds)
 }
 
 /*
- * Function to check wheather Input or Output FIFO
+ * Function to check whether Input or Output FIFO
  * has data to be serviced
  */
 static int check_fifo_status(void *reg_addr)
@@ -434,18 +405,18 @@ static void enable_io_config(struct qcs_spi_slave *ds,
 {
 
 	if (write_cnt) {
-		clrsetbits_le32(ds->regs->qup_config,
+		clrsetbits32(ds->regs->qup_config,
 				QUP_CONF_OUTPUT_MSK, QUP_CONF_OUTPUT_ENA);
 	} else {
-		clrsetbits_le32(ds->regs->qup_config,
+		clrsetbits32(ds->regs->qup_config,
 				QUP_CONF_OUTPUT_MSK, QUP_CONF_NO_OUTPUT);
 	}
 
 	if (read_cnt) {
-		clrsetbits_le32(ds->regs->qup_config,
+		clrsetbits32(ds->regs->qup_config,
 				QUP_CONF_INPUT_MSK, QUP_CONF_INPUT_ENA);
 	} else {
-		clrsetbits_le32(ds->regs->qup_config,
+		clrsetbits32(ds->regs->qup_config,
 				QUP_CONF_INPUT_MSK, QUP_CONF_NO_INPUT);
 	}
 }

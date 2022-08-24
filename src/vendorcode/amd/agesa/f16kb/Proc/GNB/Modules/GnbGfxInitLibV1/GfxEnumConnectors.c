@@ -132,7 +132,7 @@ GfxIntegratedCopyDisplayInfo (
   IN       GFX_PLATFORM_CONFIG         *Gfx
   );
 
-EXT_CONNECTOR_INFO ConnectorInfoTable[] = {
+CONST EXT_CONNECTOR_INFO ConnectorInfoTable[] = {
   {
     ConnectorTypeDP,
     DEVICE_DFP,
@@ -233,7 +233,7 @@ EXT_CONNECTOR_INFO ConnectorInfoTable[] = {
   },
 };
 
-UINT8 ConnectorNumerArray[] = {
+CONST UINT8 ConnectorNumerArray[] = {
 //  DP    eDP   SDVI-D  DDVI-D  HDMI   VGA   LVDS   Auto (eDP, LVDS, DP-to-LVDS)
     6,    1,    6,      6,      6,     1,    1,     2
 };
@@ -247,13 +247,13 @@ UINT8 ConnectorNumerArray[] = {
  * @retval    Pointer to EXT_CONNECTOR_INFO
  * @retval    NULL if connector type unknown.
  */
-STATIC EXT_CONNECTOR_INFO*
+STATIC CONST EXT_CONNECTOR_INFO*
 GfxIntegratedExtConnectorInfo (
   IN       UINT8                         ConnectorType
   )
 {
   UINTN Index;
-  for (Index = 0; Index < (sizeof (ConnectorInfoTable) / sizeof (EXT_CONNECTOR_INFO)); Index++) {
+  for (Index = 0; Index < ARRAY_SIZE(ConnectorInfoTable); Index++) {
     if (ConnectorInfoTable[Index].ConnectorType == ConnectorType) {
       return &ConnectorInfoTable[Index];
     }
@@ -261,7 +261,7 @@ GfxIntegratedExtConnectorInfo (
   return NULL;
 }
 
-EXT_DISPLAY_DEVICE_INFO DisplayDeviceInfoTable[] = {
+CONST EXT_DISPLAY_DEVICE_INFO DisplayDeviceInfoTable[] = {
   {
     DEVICE_CRT,
     1,
@@ -322,7 +322,7 @@ EXT_DISPLAY_DEVICE_INFO DisplayDeviceInfoTable[] = {
  * @retval    Pointer to EXT_DISPLAY_DEVICE_INFO
  * @retval    NULL if can not get display device info
  */
-STATIC EXT_DISPLAY_DEVICE_INFO*
+STATIC CONST EXT_DISPLAY_DEVICE_INFO*
 GfxIntegratedExtDisplayDeviceInfo (
   IN       UINT8                         DisplayDeviceEnum,
   IN       UINT8                         DisplayDeviceIndex
@@ -331,7 +331,7 @@ GfxIntegratedExtDisplayDeviceInfo (
   UINT8 Index;
   UINT8 LastIndex;
   LastIndex = 0xff;
-  for (Index = 0; Index < (sizeof (DisplayDeviceInfoTable) / sizeof (EXT_DISPLAY_DEVICE_INFO)); Index++) {
+  for (Index = 0; Index < ARRAY_SIZE(DisplayDeviceInfoTable); Index++) {
     if (DisplayDeviceInfoTable[Index].DisplayDeviceEnum == DisplayDeviceEnum) {
       LastIndex = Index;
       if (DisplayDeviceInfoTable[Index].DeviceIndex == DisplayDeviceIndex) {
@@ -412,7 +412,7 @@ GfxIntegratedDdiInterfaceCallback (
   )
 {
   CONNECTOR_ENUM_INFO     *ConnectorEnumInfo;
-  EXT_CONNECTOR_INFO      *ExtConnectorInfo;
+  CONST EXT_CONNECTOR_INFO      *ExtConnectorInfo;
   ConnectorEnumInfo = (CONNECTOR_ENUM_INFO*) Buffer;
   ExtConnectorInfo = GfxIntegratedExtConnectorInfo (Engine->Type.Ddi.DdiData.ConnectorType);
   if (ExtConnectorInfo == NULL) {
@@ -452,8 +452,8 @@ GfxIntegratedEnumConnectorsForDevice (
 {
   UINT8                   DisplayDeviceIndex;
   CONNECTOR_ENUM_INFO     ConnectorEnumInfo;
-  EXT_CONNECTOR_INFO      *ExtConnectorInfo;
-  EXT_DISPLAY_DEVICE_INFO *ExtDisplayDeviceInfo;
+  CONST EXT_CONNECTOR_INFO      *ExtConnectorInfo;
+  CONST EXT_DISPLAY_DEVICE_INFO *ExtDisplayDeviceInfo;
   AGESA_STATUS            Status;
   UINT8                   ConnectorIdArray[sizeof (ConnectorNumerArray)];
   ConnectorEnumInfo.Status = AGESA_SUCCESS;
@@ -488,13 +488,11 @@ GfxIntegratedEnumConnectorsForDevice (
     if (ExtDisplayDeviceInfo == NULL) {
       //Run out of supported display device types
       AGESA_STATUS_UPDATE (AGESA_ERROR, ConnectorEnumInfo.Status);
-      Status = AGESA_ERROR;
       PcieConfigDisableEngine (ConnectorEnumInfo.Engine);
     }
 
     if ((Gfx->Gnb3dStereoPinIndex != 0) && (ConnectorEnumInfo.Engine->Type.Ddi.DdiData.HdpIndex == (Gfx->Gnb3dStereoPinIndex - 1))) {
       AGESA_STATUS_UPDATE (AGESA_ERROR, ConnectorEnumInfo.Status);
-      Status = AGESA_ERROR;
       PcieConfigDisableEngine (ConnectorEnumInfo.Engine);
     }
 
@@ -531,8 +529,8 @@ GfxIntegratedCopyDisplayInfo (
   IN       GFX_PLATFORM_CONFIG         *Gfx
   )
 {
-  EXT_CONNECTOR_INFO      *ExtConnectorInfo;
-  EXT_DISPLAY_DEVICE_INFO *ExtDisplayDeviceInfo;
+  CONST EXT_CONNECTOR_INFO      *ExtConnectorInfo;
+  CONST EXT_DISPLAY_DEVICE_INFO *ExtDisplayDeviceInfo;
   ExtConnectorInfo = GfxIntegratedExtConnectorInfo (Engine->Type.Ddi.DdiData.ConnectorType);
   ExtDisplayDeviceInfo = GfxIntegratedExtDisplayDeviceInfo (ExtConnectorInfo->DisplayDeviceEnum, Engine->Type.Ddi.DisplayDeviceId);
   DisplayPath->usDeviceConnector = ExtConnectorInfo->ConnectorEnum | (Engine->Type.Ddi.ConnectorId << 8);

@@ -1,22 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/pci_ops.h>
 #include <assert.h>
 #include <cbmem.h>
-#include <commonlib/cbmem_id.h>
 #include <commonlib/sdhci.h>
 #include <commonlib/storage.h>
 #include <console/console.h>
@@ -173,7 +159,7 @@ void storage_test(uint32_t bar, int full_initialization)
 
 	/* Get the structure addresses */
 	media = NULL;
-	if (ENV_ROMSTAGE)
+	if (ENV_CREATES_CBMEM)
 		media = (struct storage_media *)drivers_storage;
 	else
 		media = cbmem_find(CBMEM_ID_STORAGE_DATA);
@@ -198,8 +184,7 @@ void storage_test(uint32_t bar, int full_initialization)
 		err = sdhci_controller_init(sdhci_ctrlr, (void *)bar);
 		if (err) {
 			display_log();
-			printk(BIOS_ERR,
-				"ERROR - Controller failed to initialize, err = %d\n",
+			printk(BIOS_ERR, "Controller failed to initialize, err = %d\n",
 				err);
 			return;
 		}
@@ -209,8 +194,7 @@ void storage_test(uint32_t bar, int full_initialization)
 		err = storage_setup_media(media, &sdhci_ctrlr->sd_mmc_ctrlr);
 		if (err) {
 			display_log();
-			printk(BIOS_ERR,
-				"ERROR: Device failed to initialize, err = %d\n",
+			printk(BIOS_ERR, "Device failed to initialize, err = %d\n",
 				err);
 			return;
 		}
@@ -241,7 +225,6 @@ void storage_test(uint32_t bar, int full_initialization)
 }
 #endif
 
-#if ENV_ROMSTAGE
 static void copy_storage_structures(int is_recovery)
 {
 	struct storage_media *media;
@@ -258,5 +241,4 @@ static void copy_storage_structures(int is_recovery)
 	media->ctrlr = &sdhci_ctrlr->sd_mmc_ctrlr;
 }
 
-ROMSTAGE_CBMEM_INIT_HOOK(copy_storage_structures);
-#endif
+CBMEM_CREATION_HOOK(copy_storage_structures);

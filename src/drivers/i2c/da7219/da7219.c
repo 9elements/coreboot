@@ -1,26 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
-#include <arch/acpi_device.h>
-#include <arch/acpigen.h>
+#include <acpi/acpi.h>
+#include <acpi/acpi_device.h>
+#include <acpi/acpigen.h>
 #include <console/console.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
 #include <device/path.h>
-#include <stdint.h>
 
 #include "chip.h"
 
@@ -29,7 +15,7 @@
 #define DA7219_ACPI_NAME	"DLG7"
 #define DA7219_ACPI_HID		"DLGS7219"
 
-static void da7219_fill_ssdt(struct device *dev)
+static void da7219_fill_ssdt(const struct device *dev)
 {
 	struct drivers_i2c_da7219_config *config = dev->chip_info;
 	const char *scope = acpi_device_scope(dev);
@@ -41,7 +27,7 @@ static void da7219_fill_ssdt(struct device *dev)
 	};
 	struct acpi_dp *dsd, *aad;
 
-	if (!dev->enabled || !scope)
+	if (!scope)
 		return;
 
 	/* Device */
@@ -50,7 +36,7 @@ static void da7219_fill_ssdt(struct device *dev)
 	acpigen_write_name_string("_HID", DA7219_ACPI_HID);
 	acpigen_write_name_integer("_UID", 1);
 	acpigen_write_name_string("_DDN", dev->chip_ops->name);
-	acpigen_write_name_integer("_S0W", 4);
+	acpigen_write_name_integer("_S0W", ACPI_DEVICE_SLEEP_D3_HOT);
 	acpigen_write_STA(acpi_device_status(dev));
 
 	/* Resources */
@@ -110,12 +96,11 @@ static const char *da7219_acpi_name(const struct device *dev)
 #endif
 
 static struct device_operations da7219_ops = {
-	.read_resources		  = DEVICE_NOOP,
-	.set_resources		  = DEVICE_NOOP,
-	.enable_resources	  = DEVICE_NOOP,
+	.read_resources		= noop_read_resources,
+	.set_resources		= noop_set_resources,
 #if CONFIG(HAVE_ACPI_TABLES)
-	.acpi_name		  = da7219_acpi_name,
-	.acpi_fill_ssdt_generator = da7219_fill_ssdt,
+	.acpi_name		= da7219_acpi_name,
+	.acpi_fill_ssdt		= da7219_fill_ssdt,
 #endif
 };
 

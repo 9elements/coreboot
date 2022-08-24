@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015-2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/io.h>
 #include <bootstate.h>
 #include <console/console.h>
 #include <device/mmio.h>
@@ -23,31 +9,11 @@
 #include <intelblocks/pmc.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/rtc.h>
-#include <reg_script.h>
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 
 #include "chip.h"
 
-void pmc_set_disb(void)
-{
-	/* Set the DISB after DRAM init */
-	u32 disb_val;
-#if defined(__SIMPLE_DEVICE__)
-	pci_devfn_t dev = PCH_DEV_PMC;
-#else
-	struct device *dev = PCH_DEV_PMC;
-#endif
-
-	disb_val = pci_read_config32(dev, GEN_PMCON_A);
-	disb_val |= DISB;
-
-	/* Don't clear bits that are write-1-to-clear */
-	disb_val &= ~(GBL_RST_STS | MS4V);
-	pci_write_config32(dev, GEN_PMCON_A, disb_val);
-}
-
-#if ENV_RAMSTAGE
 /* Fill up PMC resource structure */
 int pmc_soc_get_resources(struct pmc_resource_config *cfg)
 {
@@ -59,83 +25,6 @@ int pmc_soc_get_resources(struct pmc_resource_config *cfg)
 	cfg->abase_size = ACPI_BASE_SIZE;
 
 	return 0;
-}
-
-static const struct reg_script pch_pmc_misc_init_script[] = {
-	/* SLP_S4=4s, SLP_S3=50ms, disable SLP_X stretching after SUS loss. */
-	REG_PCI_RMW16(GEN_PMCON_B,
-			~(S4MAW_MASK | SLP_S3_MIN_ASST_WDTH_MASK),
-			S4MAW_4S | SLP_S3_MIN_ASST_WDTH_50MS |
-			DIS_SLP_X_STRCH_SUS_UP),
-	/* Enable SCI and clear SLP requests. */
-	REG_IO_RMW32(ACPI_BASE_ADDRESS + PM1_CNT, ~SLP_TYP, SCI_EN),
-	REG_SCRIPT_END
-};
-
-static const struct reg_script pmc_write1_to_clear_script[] = {
-	REG_PCI_OR32(GEN_PMCON_A, 0),
-	REG_PCI_OR32(GEN_PMCON_B, 0),
-	REG_PCI_OR32(GEN_PMCON_B, 0),
-	REG_RES_OR32(PWRMBASE, GBLRST_CAUSE0, 0),
-	REG_RES_OR32(PWRMBASE, GBLRST_CAUSE1, 0),
-	REG_SCRIPT_END
-};
-
-/*
- * Set which power state system will be after reapplying
- * the power (from G3 State)
- */
-static void pmc_set_afterg3(struct device *dev, int s5pwr)
-{
-	uint8_t reg8;
-
-	reg8 = pci_read_config8(dev, GEN_PMCON_B);
-
-	switch (s5pwr) {
-	case MAINBOARD_POWER_STATE_OFF:
-		reg8 |= 1;
-		break;
-	case MAINBOARD_POWER_STATE_ON:
-		reg8 &= ~1;
-		break;
-	case MAINBOARD_POWER_STATE_PREVIOUS:
-	default:
-		break;
-	}
-
-	pci_write_config8(dev, GEN_PMCON_B, reg8);
-}
-
-static void pch_power_options(struct device *dev)
-{
-	const char *state;
-
-	const int pwr_on = CONFIG_MAINBOARD_POWER_FAILURE_STATE;
-
-	/*
-	 * Which state do we want to goto after g3 (power restored)?
-	 * 0 == S5 Soft Off
-	 * 1 == S0 Full On
-	 * 2 == Keep Previous State
-	 */
-	switch (pwr_on) {
-	case MAINBOARD_POWER_STATE_OFF:
-		state = "off";
-		break;
-	case MAINBOARD_POWER_STATE_ON:
-		state = "on";
-		break;
-	case MAINBOARD_POWER_STATE_PREVIOUS:
-		state = "state keep";
-		break;
-	default:
-		state = "undefined";
-	}
-	pmc_set_afterg3(dev, pwr_on);
-	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
-
-	/* Set up GPE configuration. */
-	pmc_gpe_init();
 }
 
 static void config_deep_sX(uint32_t offset, uint32_t mask, int sx, int enable)
@@ -181,16 +70,25 @@ static void config_deep_sx(uint32_t deepsx_config)
 
 void pmc_soc_init(struct device *dev)
 {
-	const config_t *config = dev->chip_info;
+	const config_t *config = config_of(dev);
+	uint8_t *const pwrmbase = pmc_mmio_regs();
+	uint32_t reg32;
 
 	rtc_init();
 
-	/* Initialize power management */
-	pch_power_options(dev);
+	pmc_set_power_failure_state(true);
+	pmc_gpe_init();
 
-	/* Note that certain bits may be cleared from running script as
-	 * certain bit fields are write 1 to clear. */
-	reg_script_run_on_dev(dev, pch_pmc_misc_init_script);
+	/* SLP_S4=4s, SLP_S3=50ms, disable SLP_X stretching after SUS loss. */
+	pci_update_config32(dev, GEN_PMCON_B, ~(S4MAW_MASK | SLP_S3_MIN_ASST_WDTH_MASK),
+			    S4MAW_4S | SLP_S3_MIN_ASST_WDTH_50MS | DIS_SLP_X_STRCH_SUS_UP);
+
+	/* Enable SCI and clear SLP requests. */
+	reg32 = inl(ACPI_BASE_ADDRESS + PM1_CNT);
+	reg32 &= ~SLP_TYP;
+	reg32 |= SCI_EN;
+	outl(reg32, ACPI_BASE_ADDRESS + PM1_CNT);
+
 	pmc_set_acpi_mode();
 
 	config_deep_s3(config->deep_s3_enable_ac, config->deep_s3_enable_dc);
@@ -198,16 +96,19 @@ void pmc_soc_init(struct device *dev)
 	config_deep_sx(config->deep_sx_config);
 
 	/* Clear registers that contain write-1-to-clear bits. */
-	reg_script_run_on_dev(dev, pmc_write1_to_clear_script);
-}
+	pci_or_config32(dev, GEN_PMCON_B, 0);
+	pci_or_config32(dev, GEN_PMCON_B, 0);
+	setbits32(pwrmbase + GBLRST_CAUSE0, 0);
+	setbits32(pwrmbase + GBLRST_CAUSE1, 0);
 
-/*
- * Set PMC register to know which state system should be after
- * power reapplied
- */
-void pmc_soc_restore_power_failure(void)
-{
-	pmc_set_afterg3(PCH_DEV_PMC, CONFIG_MAINBOARD_POWER_FAILURE_STATE);
+	/*
+	 * Disable ACPI PM timer based on Kconfig
+	 *
+	 * Disabling ACPI PM timer is necessary for XTAL OSC shutdown.
+	 * Disabling ACPI PM timer also switches off TCO.
+	 */
+	if (!CONFIG(USE_PM_ACPI_TIMER))
+		setbits8(pmc_mmio_regs() + PCH_PWRM_ACPI_TMR_CTL, ACPI_TIM_DIS);
 }
 
 static void pm1_enable_pwrbtn_smi(void *unused)
@@ -233,12 +134,7 @@ BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, pm1_enable_pwrbtn_smi, NULL);
  */
 static void pm1_handle_wake_pin(void *unused)
 {
-	struct device *dev = SA_DEV_ROOT;
-
-	if (!dev || !dev->chip_info)
-		return;
-
-	const config_t *conf = dev->chip_info;
+	const config_t *conf = config_of_soc();
 
 	/* If WAKE# pin is enabled, bail out early. */
 	if (conf->deep_sx_config & DSX_EN_WAKE_PIN)
@@ -249,5 +145,3 @@ static void pm1_handle_wake_pin(void *unused)
 
 BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, pm1_handle_wake_pin, NULL);
 BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_EXIT, pm1_handle_wake_pin, NULL);
-
-#endif

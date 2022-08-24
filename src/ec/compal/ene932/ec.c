@@ -1,20 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-
-#ifndef __PRE_RAM__
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
@@ -40,7 +24,6 @@ static int kbc_input_buffer_empty(void)
 	}
 	return !!timeout;
 }
-
 
 static int kbc_output_buffer_full(void)
 {
@@ -74,7 +57,6 @@ int kbc_cleanup_buffers(void)
 	return !!timeout;
 }
 
-
 /* The ENE 60/64 EC registers are the same command/status IB/OB KBC pair.
  * Check status from 64 port before each command.
  *
@@ -104,7 +86,6 @@ void ec_kbc_write_ib(u8 data)
 	outb(data, KBD_DATA);
 }
 
-
 /*
  * These functions are for accessing the ENE932 device space, but are not
  * currently used.
@@ -125,7 +106,6 @@ static u8 ec_io_read(u16 addr)
 }
 */
 
-#ifndef __SMM__
 static void ene932_init(struct device *dev)
 {
 	if (!dev->enabled)
@@ -133,13 +113,12 @@ static void ene932_init(struct device *dev)
 
 	printk(BIOS_DEBUG, "Compal ENE932: Initializing keyboard.\n");
 	pc_keyboard_init(NO_AUX_DEVICE);
-
 }
 
 static struct device_operations ops = {
 	.init             = ene932_init,
-	.read_resources   = DEVICE_NOOP,
-	.enable_resources = DEVICE_NOOP,
+	.read_resources   = noop_read_resources,
+	.set_resources    = noop_set_resources,
 };
 
 static struct pnp_info pnp_dev_info[] = {
@@ -155,5 +134,3 @@ struct chip_operations ec_compal_ene932_ops = {
 	CHIP_NAME("COMPAL ENE932 EC")
 	.enable_dev = enable_dev
 };
-#endif /* ! __SMM__ */
-#endif /* ! __PRE_RAM__ */

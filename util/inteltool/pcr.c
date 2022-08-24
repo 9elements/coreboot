@@ -1,17 +1,5 @@
-/*
- * inteltool - dump all registers on an Intel CPU + chipset based system.
- *
- * Copyright (C) 2017 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* inteltool - dump all registers on an Intel CPU + chipset based system */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,10 +91,33 @@ void pcr_init(struct pci_dev *const sb)
 	case PCI_DEVICE_ID_INTEL_HM175:
 	case PCI_DEVICE_ID_INTEL_QM175:
 	case PCI_DEVICE_ID_INTEL_CM238:
+	case PCI_DEVICE_ID_INTEL_H270:
+	case PCI_DEVICE_ID_INTEL_Z270:
+	case PCI_DEVICE_ID_INTEL_Q270:
+	case PCI_DEVICE_ID_INTEL_Q250:
+	case PCI_DEVICE_ID_INTEL_B250:
+	case PCI_DEVICE_ID_INTEL_Z370:
+	case PCI_DEVICE_ID_INTEL_H310C:
+	case PCI_DEVICE_ID_INTEL_X299:
+	case PCI_DEVICE_ID_INTEL_C621:
+	case PCI_DEVICE_ID_INTEL_C621A:
+	case PCI_DEVICE_ID_INTEL_C622:
+	case PCI_DEVICE_ID_INTEL_C624:
+	case PCI_DEVICE_ID_INTEL_C625:
+	case PCI_DEVICE_ID_INTEL_C626:
+	case PCI_DEVICE_ID_INTEL_C627:
+	case PCI_DEVICE_ID_INTEL_C628:
+	case PCI_DEVICE_ID_INTEL_C629:
+	case PCI_DEVICE_ID_INTEL_C624_SUPER:
+	case PCI_DEVICE_ID_INTEL_C627_SUPER_1:
+	case PCI_DEVICE_ID_INTEL_C621_SUPER:
+	case PCI_DEVICE_ID_INTEL_C627_SUPER_2:
+	case PCI_DEVICE_ID_INTEL_C628_SUPER:
 	case PCI_DEVICE_ID_INTEL_DNV_LPC:
 		p2sb = pci_get_dev(sb->access, 0, 0, 0x1f, 1);
 		break;
 	case PCI_DEVICE_ID_INTEL_APL_LPC:
+	case PCI_DEVICE_ID_INTEL_GLK_LPC:
 		p2sb = pci_get_dev(sb->access, 0, 0, 0x0d, 0);
 		break;
 	case PCI_DEVICE_ID_INTEL_H310:
@@ -119,7 +130,41 @@ void pcr_init(struct pci_dev *const sb)
 	case PCI_DEVICE_ID_INTEL_QM370:
 	case PCI_DEVICE_ID_INTEL_HM370:
 	case PCI_DEVICE_ID_INTEL_CM246:
+	case PCI_DEVICE_ID_INTEL_Q570:
+	case PCI_DEVICE_ID_INTEL_Z590:
+	case PCI_DEVICE_ID_INTEL_H570:
+	case PCI_DEVICE_ID_INTEL_B560:
+	case PCI_DEVICE_ID_INTEL_H510:
+	case PCI_DEVICE_ID_INTEL_WM590:
+	case PCI_DEVICE_ID_INTEL_QM580:
+	case PCI_DEVICE_ID_INTEL_HM570:
+	case PCI_DEVICE_ID_INTEL_C252:
+	case PCI_DEVICE_ID_INTEL_C256:
+	case PCI_DEVICE_ID_INTEL_W580:
+	case PCI_DEVICE_ID_INTEL_CANNONPOINT_LP_U_PREM:
+	case PCI_DEVICE_ID_INTEL_COMETPOINT_LP_U_PREM:
+	case PCI_DEVICE_ID_INTEL_COMETPOINT_LP_U_BASE:
+	case PCI_DEVICE_ID_INTEL_ICELAKE_LP_U:
+	case PCI_DEVICE_ID_INTEL_TIGERPOINT_U_SUPER:
+	case PCI_DEVICE_ID_INTEL_TIGERPOINT_U_PREM:
+	case PCI_DEVICE_ID_INTEL_TIGERPOINT_U_BASE:
+	case PCI_DEVICE_ID_INTEL_TIGERPOINT_Y_SUPER:
+	case PCI_DEVICE_ID_INTEL_TIGERPOINT_Y_PREM:
 		sbbar_phys = 0xfd000000;
+		use_p2sb = false;
+		break;
+	case PCI_DEVICE_ID_INTEL_H610:
+	case PCI_DEVICE_ID_INTEL_B660:
+	case PCI_DEVICE_ID_INTEL_H670:
+	case PCI_DEVICE_ID_INTEL_Q670:
+	case PCI_DEVICE_ID_INTEL_Z690:
+	case PCI_DEVICE_ID_INTEL_W680:
+	case PCI_DEVICE_ID_INTEL_W685:
+	case PCI_DEVICE_ID_INTEL_WM690:
+	case PCI_DEVICE_ID_INTEL_HM670:
+	case PCI_DEVICE_ID_INTEL_WM790:
+	case PCI_DEVICE_ID_INTEL_HM770:
+		sbbar_phys = 0xe0000000;
 		use_p2sb = false;
 		break;
 	default:

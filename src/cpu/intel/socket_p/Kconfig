@@ -3,7 +3,6 @@ config CPU_INTEL_SOCKET_P
 	select CPU_INTEL_MODEL_1067X
 	select CPU_INTEL_MODEL_6FX
 	select MMX
-	select SSE
 
 if CPU_INTEL_SOCKET_P
 
@@ -13,6 +12,14 @@ config DCACHE_RAM_BASE
 
 config DCACHE_RAM_SIZE
 	hex
-	default 0x8000
+	default 0x10000
+
+config DCACHE_BSP_STACK_SIZE
+	hex
+	default 0x2000
+
+config MAX_CPUS
+	int
+	default 4
 
 endif

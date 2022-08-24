@@ -1,19 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/thermal.h>
+
+External (\PPKG, MethodObj)
 
 /* Thermal Zone */
 
@@ -34,10 +23,10 @@ Scope (\_TZ)
 		/* Convert from Degrees C to 1/10 Kelvin for ACPI */
 		Method (CTOK, 1) {
 			/* 10th of Degrees C */
-			Multiply (Arg0, 10, Local0)
+			Local0 = Arg0 * 10
 
 			/* Convert to Kelvin */
-			Add (Local0, 2732, Local0)
+			Local0 += 2732
 
 			Return (Local0)
 		}
@@ -68,9 +57,8 @@ Scope (\_TZ)
 			/* Critical temperature in deci-kelvin */
 			Store (CTOK (\TCRT), Local1)
 
-			If (LGreaterEqual (Local0, Local1)) {
-				Store ("CRITICAL TEMPERATURE", Debug)
-				Store (Local0, Debug)
+			If (Local0 >= Local1) {
+				Printf ("CRITICAL TEMPERATURE: %o", Local0)
 
 				/* Wait 1 second for EC to re-poll */
 				Sleep (1000)
@@ -78,8 +66,7 @@ Scope (\_TZ)
 				/* Re-read temperature from EC */
 				Store (\_SB.PCI0.LPCB.EC0.TSRD (TMPS), Local0)
 
-				Store ("RE-READ TEMPERATURE", Debug)
-				Store (Local0, Debug)
+				Printf ("RE-READ TEMPERATURE: %o", Local0)
 			}
 
 			Return (Local0)

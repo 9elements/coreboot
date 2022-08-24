@@ -1,18 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/acpimmio.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/device.h>
@@ -20,36 +8,12 @@
 #include <device/pci_def.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
+#include <types.h>
+
 #include "hudson.h"
 #include "imc.h"
 #include "smbus.h"
 #include "smi.h"
-
-/* Offsets from ACPI_MMIO_BASE
- * This is defined by AGESA, but we don't include AGESA headers to avoid
- * polluting the namespace.
- */
-#define PM_MMIO_BASE 0xfed80300
-
-void pm_write8(u8 reg, u8 value)
-{
-	write8((void *)((uintptr_t)PM_MMIO_BASE + reg), value);
-}
-
-u8 pm_read8(u8 reg)
-{
-	return read8((void *)((uintptr_t)PM_MMIO_BASE + reg));
-}
-
-void pm_write16(u8 reg, u16 value)
-{
-	write16((void *)((uintptr_t)PM_MMIO_BASE + reg), value);
-}
-
-u16 pm_read16(u16 reg)
-{
-	return read16((void *)((uintptr_t)PM_MMIO_BASE + reg));
-}
 
 #define PM_REG_USB_ENABLE	0xef
 
@@ -76,16 +40,16 @@ static void hudson_disable_usb(u8 disable)
 
 void hudson_enable(struct device *dev)
 {
-	printk(BIOS_DEBUG, "hudson_enable()\n");
+	printk(BIOS_DEBUG, "%s()\n", __func__);
 	switch (dev->path.pci.devfn) {
 	case PCI_DEVFN(0x14, 5):
 		if (dev->enabled == 0) {
 			u32 usb_device_id = pci_read_config16(dev, PCI_DEVICE_ID);
 			u8 reg8;
-			if (usb_device_id == PCI_DEVICE_ID_AMD_SB900_USB_20_5) {
+			if (usb_device_id == PCI_DID_AMD_SB900_USB_20_5) {
 				/* turn off and remove device 0:14.5 from PCI space */
 				reg8 = pm_read8(0xef);
-				reg8 &= ~(1 << 6);
+				reg8 &= ~BIT(6);
 				pm_write8(0xef, reg8);
 			}
 		}
@@ -96,19 +60,18 @@ void hudson_enable(struct device *dev)
 			u32 sd_device_id = pci_read_config16(dev, PCI_DEVICE_ID);
 			/* turn off the SDHC controller in the PM reg */
 			u8 reg8;
-			if (sd_device_id == PCI_DEVICE_ID_AMD_HUDSON_SD) {
+			if (sd_device_id == PCI_DID_AMD_HUDSON_SD) {
 				reg8 = pm_read8(0xe7);
-				reg8 &= ~(1 << 0);
+				reg8 &= ~BIT(0);
 				pm_write8(0xe7, reg8);
-			}
-			else if (sd_device_id == PCI_DEVICE_ID_AMD_YANGTZE_SD) {
+			} else if (sd_device_id == PCI_DID_AMD_YANGTZE_SD) {
 				reg8 = pm_read8(0xe8);
-				reg8 &= ~(1 << 0);
+				reg8 &= ~BIT(0);
 				pm_write8(0xe8, reg8);
 			}
 			/* remove device 0:14.7 from PCI space */
 			reg8 = pm_read8(0xd3);
-			reg8 &= ~(1 << 6);
+			reg8 &= ~BIT(6);
 			pm_write8(0xd3, reg8);
 		}
 		break;
@@ -117,21 +80,24 @@ void hudson_enable(struct device *dev)
 	case PCI_DEVFN(0x12, 0):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_12_0);
-	case PCI_DEVFN(0x12, 2):	/* Fall through */
+		__fallthrough;
+	case PCI_DEVFN(0x12, 2):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_12_2);
 		break;
 	case PCI_DEVFN(0x13, 0):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_13_0);
-	case PCI_DEVFN(0x13, 2):	/* Fall through */
+		__fallthrough;
+	case PCI_DEVFN(0x13, 2):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_13_2);
 		break;
 	case PCI_DEVFN(0x16, 0):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_16_0);
-	case PCI_DEVFN(0x16, 2):	/* Fall through */
+		__fallthrough;
+	case PCI_DEVFN(0x16, 2):
 		if (dev->enabled == 0)
 			hudson_disable_usb(USB_EN_DEVFN_16_2);
 		break;
@@ -139,7 +105,6 @@ void hudson_enable(struct device *dev)
 		break;
 	}
 }
-
 
 static void hudson_init_acpi_ports(void)
 {
@@ -164,7 +129,7 @@ static void hudson_init_acpi_ports(void)
 	/* AcpiDecodeEnable, When set, SB uses the contents of the PM registers
 	 * at index 60-6B to decode ACPI I/O address. AcpiSmiEn & SmiCmdEn
 	 */
-	pm_write8(0x74, 1<<0 | 1<<1 | 1<<4 | 1<<2);
+	pm_write8(0x74, BIT(0) | BIT(1) | BIT(4) | BIT(2));
 }
 
 static void hudson_init(void *chip_info)
@@ -175,8 +140,7 @@ static void hudson_init(void *chip_info)
 static void hudson_final(void *chip_info)
 {
 	/* AMD AGESA does not enable thermal zone, so we enable it here. */
-	if (CONFIG(HUDSON_IMC_FWM) &&
-			!CONFIG(ACPI_ENABLE_THERMAL_ZONE))
+	if (CONFIG(HUDSON_IMC_FWM) && !CONFIG(ACPI_ENABLE_THERMAL_ZONE))
 		enable_imc_thermal_zone();
 }
 

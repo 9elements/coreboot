@@ -44,6 +44,20 @@
 #ifndef _AGESA_H_
 #define _AGESA_H_
 
+/*
+ * This is the delivery package title.
+ * This string MUST be exactly 16 characters long.
+ *
+ * FIXME: AMD_CODE_HEADER for this platform expects 16 characters, but there's only 8 here.
+ */
+#define AGESA_PACKAGE_STRING {'c', 'b', '_', 'A', 'g', 'e', 's', 'a'}
+
+/*
+ * This is the release version number of the AGESA component.
+ * This string MUST be exactly 12 characters long.
+ */
+#define AGESA_VERSION_STRING {'V', '0', '.', '0', '.', '0', '.', '1', ' ', ' ', ' ', ' '}
+
 #include  "Porting.h"
 #include  "AMD.h"
 
@@ -371,7 +385,7 @@ typedef struct {
   IN       UINT8 Socket;                 ///< The Socket on which this Link is located
   IN       UINT8 Link;                   ///< The Link about to be initialized
   // Customization fields
-  IN       FINAL_LINK_STATE LinkState;   ///< The link may be left unitialized, or powered off.
+  IN       FINAL_LINK_STATE LinkState;   ///< The link may be left uninitialized, or powered off.
 } IGNORE_LINK;
 
 
@@ -1607,9 +1621,10 @@ typedef enum {
 ///
 /// SPD Data for each DIMM.
 ///
+#define DDR3_SPD_SIZE 256
 typedef struct _SPD_DEF_STRUCT {
   IN BOOLEAN DimmPresent;       ///< Indicates that the DIMM is present and Data is valid
-  IN UINT8 Data[256];           ///< Buffer for 256 Bytes of SPD data from DIMM
+  IN UINT8 Data[DDR3_SPD_SIZE]; ///< Buffer for 256 Bytes of SPD data from DIMM
 } SPD_DEF_STRUCT;
 
 ///
@@ -2877,7 +2892,7 @@ typedef struct {
   IN SD_CLOCK_CONTROL CfgFchSdClockControl;       ///< FCH SD Clock Control
   IN SCI_MAP_CONTROL  *CfgFchSciMapControl;       ///< FCH SCI Mapping Control
   IN SATA_PHY_CONTROL *CfgFchSataPhyControl;      ///< FCH SATA PHY Control
-  IN GPIO_CONTROL     *CfgFchGpioControl;         ///< FCH GPIO Control
+  CONST IN GPIO_CONTROL     *CfgFchGpioControl;         ///< FCH GPIO Control
   IN BOOLEAN           CfgFchRtcWorkAround;       ///< FCH RTC Workaround
 } FCH_PLATFORM_POLICY;
 
@@ -3017,7 +3032,7 @@ typedef struct {
                                                   ///< Build-time customizable only - @BldCfgItem{BLDCFG_GFX_LVDS_SPREAD_SPECTRUM}
   IN UINT16  CfgLvdsSpreadSpectrumRate;           ///< Lvds Spread Spectrum Rate
                                                   ///< Build-time customizable only - @BldCfgItem{BLDCFG_GFX_LVDS_SPREAD_SPECTRUM_RATE}
-  IN FCH_PLATFORM_POLICY  *FchBldCfg;             ///< FCH platform build configuration policy
+  CONST IN FCH_PLATFORM_POLICY  *FchBldCfg;             ///< FCH platform build configuration policy
 
   IN BOOLEAN    CfgIommuSupport;                  ///< IOMMU support
   IN UINT8      CfgLvdsPowerOnSeqDigonToDe;       ///< Panel initialization timing

@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef COMMONLIB_COREBOOT_TABLES_H
 #define COMMONLIB_COREBOOT_TABLES_H
@@ -68,20 +57,20 @@ enum {
 	LB_TAG_CBMEM_CONSOLE		= 0x0017,
 	LB_TAG_MRC_CACHE		= 0x0018,
 	LB_TAG_VBNV			= 0x0019,
-	LB_TAG_VBOOT_HANDOFF		= 0x0020,
+	LB_TAG_VBOOT_HANDOFF		= 0x0020,  /* deprecated */
 	LB_TAG_X86_ROM_MTRR		= 0x0021,
 	LB_TAG_DMA			= 0x0022,
 	LB_TAG_RAM_OOPS			= 0x0023,
 	LB_TAG_ACPI_GNVS		= 0x0024,
-	LB_TAG_BOARD_ID			= 0x0025,
+	LB_TAG_BOARD_ID			= 0x0025,  /* deprecated */
 	LB_TAG_VERSION_TIMESTAMP	= 0x0026,
 	LB_TAG_WIFI_CALIBRATION		= 0x0027,
-	LB_TAG_RAM_CODE			= 0x0028,
+	LB_TAG_RAM_CODE			= 0x0028,  /* deprecated */
 	LB_TAG_SPI_FLASH		= 0x0029,
 	LB_TAG_SERIALNO			= 0x002a,
 	LB_TAG_MTC			= 0x002b,
 	LB_TAG_VPD			= 0x002c,
-	LB_TAG_SKU_ID			= 0x002d,
+	LB_TAG_SKU_ID			= 0x002d,  /* deprecated */
 	LB_TAG_BOOT_MEDIA_PARAMS	= 0x0030,
 	LB_TAG_CBMEM_ENTRY		= 0x0031,
 	LB_TAG_TSC_INFO			= 0x0032,
@@ -89,6 +78,16 @@ enum {
 	LB_TAG_VBOOT_WORKBUF		= 0x0034,
 	LB_TAG_MMC_INFO			= 0x0035,
 	LB_TAG_TCPA_LOG			= 0x0036,
+	LB_TAG_FMAP			= 0x0037,
+	LB_TAG_PLATFORM_BLOB_VERSION	= 0x0038,
+	LB_TAG_SMMSTOREV2		= 0x0039,
+	LB_TAG_TPM_PPI_HANDOFF		= 0x003a,
+	LB_TAG_BOARD_CONFIG		= 0x0040,
+	LB_TAG_ACPI_CNVS		= 0x0041,
+	LB_TAG_TYPE_C_INFO		= 0x0042,
+	LB_TAG_ACPI_RSDP                = 0x0043,
+	LB_TAG_PCIE			= 0x0044,
+	/* The following options are CMOS-related */
 	LB_TAG_CMOS_OPTION_TABLE	= 0x00c8,
 	LB_TAG_OPTION			= 0x00c9,
 	LB_TAG_OPTION_ENUM		= 0x00ca,
@@ -101,33 +100,11 @@ enum {
  * 64bit system, a uint64_t would be aligned to 64bit boundaries,
  * breaking the table format.
  *
- * lb_uint64 will keep 64bit coreboot table values aligned to 32bit
- * to ensure compatibility. They can be accessed with the two functions
- * below: unpack_lb64() and pack_lb64()
- *
- * See also: util/lbtdump/lbtdump.c
+ * lb_uint64_t will keep 64bit coreboot table values aligned to 32bit
+ * to ensure compatibility.
  */
 
-struct lb_uint64 {
-	uint32_t lo;
-	uint32_t hi;
-};
-
-static inline uint64_t unpack_lb64(struct lb_uint64 value)
-{
-	uint64_t result;
-	result = value.hi;
-	result = (result << 32) + value.lo;
-	return result;
-}
-
-static inline struct lb_uint64 pack_lb64(uint64_t value)
-{
-	struct lb_uint64 result;
-	result.lo = (value >> 0) & 0xffffffff;
-	result.hi = (value >> 32) & 0xffffffff;
-	return result;
-}
+typedef __aligned(4) uint64_t lb_uint64_t;
 
 struct lb_header {
 	uint8_t  signature[4]; /* LBIO */
@@ -149,10 +126,9 @@ struct lb_record {
 	uint32_t size;		/* size of record (in bytes) */
 };
 
-
 struct lb_memory_range {
-	struct lb_uint64 start;
-	struct lb_uint64 size;
+	lb_uint64_t start;
+	lb_uint64_t size;
 	uint32_t type;
 #define LB_MEM_RAM		 1	/* Memory anyone can use */
 #define LB_MEM_RESERVED		 2	/* Don't use this memory region */
@@ -169,10 +145,18 @@ struct lb_memory {
 	struct lb_memory_range map[0];
 };
 
+struct lb_pcie {
+	uint32_t tag;
+	uint32_t size;
+	lb_uint64_t ctrl_base;		/* Base address of PCIe controller */
+};
+_Static_assert(_Alignof(struct lb_pcie) == 4,
+	       "lb_uint64_t alignment doesn't work as expected for struct lb_pcie!");
+
 struct lb_hwrpb {
 	uint32_t tag;
 	uint32_t size;
-	uint64_t hwrpb;
+	lb_uint64_t hwrpb;
 };
 
 struct lb_mainboard {
@@ -194,7 +178,6 @@ struct lb_timestamp {
 	uint32_t size;
 	uint32_t timestamp;
 };
-
 
 /* 0xe is taken by v3 */
 
@@ -241,7 +224,7 @@ struct lb_console {
 struct lb_forward {
 	uint32_t tag;
 	uint32_t size;
-	uint64_t forward;
+	lb_uint64_t forward;
 };
 
 /**
@@ -283,11 +266,23 @@ struct lb_forward {
  * fields described above. It may, however, only implement a subset
  * of the possible color formats.
  */
+
+/*
+ * Framebuffer orientation, matches drm_connector.h drm_panel_orientation in the
+ * Linux kernel.
+ */
+enum lb_fb_orientation {
+	LB_FB_ORIENTATION_NORMAL = 0,
+	LB_FB_ORIENTATION_BOTTOM_UP = 1,
+	LB_FB_ORIENTATION_LEFT_UP = 2,
+	LB_FB_ORIENTATION_RIGHT_UP = 3,
+};
+
 struct lb_framebuffer {
 	uint32_t tag;
 	uint32_t size;
 
-	uint64_t physical_address;
+	lb_uint64_t physical_address;
 	uint32_t x_resolution;
 	uint32_t y_resolution;
 	uint32_t bytes_per_line;
@@ -300,8 +295,8 @@ struct lb_framebuffer {
 	uint8_t blue_mask_size;
 	uint8_t reserved_mask_pos;
 	uint8_t reserved_mask_size;
+	uint8_t orientation;
 };
-
 
 struct lb_gpio {
 	uint32_t port;
@@ -325,7 +320,7 @@ struct lb_range {
 	uint32_t tag;
 	uint32_t size;
 
-	uint64_t range_start;
+	lb_uint64_t range_start;
 	uint32_t range_size;
 };
 
@@ -335,7 +330,7 @@ struct lb_cbmem_ref {
 	uint32_t tag;
 	uint32_t size;
 
-	uint64_t cbmem_addr;
+	lb_uint64_t cbmem_addr;
 };
 
 struct lb_x86_rom_mtrr {
@@ -345,11 +340,11 @@ struct lb_x86_rom_mtrr {
 	uint32_t index;
 };
 
-
-struct lb_strapping_id {
-	uint32_t tag;
+/* Memory map windows to translate addresses between SPI flash space and host address space. */
+struct flash_mmap_window {
+	uint32_t flash_base;
+	uint32_t host_base;
 	uint32_t size;
-	uint32_t id_code;
 };
 
 struct lb_spi_flash {
@@ -358,16 +353,23 @@ struct lb_spi_flash {
 	uint32_t flash_size;
 	uint32_t sector_size;
 	uint32_t erase_cmd;
+	/*
+	 * Number of mmap windows used by the platform to decode addresses between SPI flash
+	 * space and host address space. This determines the number of entries in mmap_table.
+	 */
+
+	uint32_t mmap_count;
+	struct flash_mmap_window mmap_table[0];
 };
 
 struct lb_boot_media_params {
 	uint32_t tag;
 	uint32_t size;
 	/* offsets are relative to start of boot media */
-	uint64_t fmap_offset;
-	uint64_t cbfs_offset;
-	uint64_t cbfs_size;
-	uint64_t boot_media_size;
+	lb_uint64_t fmap_offset;
+	lb_uint64_t cbfs_offset;
+	lb_uint64_t cbfs_size;
+	lb_uint64_t boot_media_size;
 };
 
 /*
@@ -377,7 +379,7 @@ struct lb_cbmem_entry {
 	uint32_t tag;
 	uint32_t size;
 
-	uint64_t address;
+	lb_uint64_t address;
 	uint32_t entry_size;
 	uint32_t id;
 };
@@ -408,6 +410,33 @@ struct lb_mmc_info {
 	int32_t early_cmd1_status;
 };
 
+/*
+ * USB Type-C Port Information
+ * This record contains board-specific type-c port information.
+ * There will be one record per type-C port.
+ * Orientation fields should be of type enum type_c_orientation.
+ */
+enum type_c_orientation {
+	/* The orientation of the signal follows the orientation of the CC lines. */
+	TYPEC_ORIENTATION_NONE,
+	/* The orientation of the signal is fixed to follow CC1 */
+	TYPEC_ORIENTATION_NORMAL,
+	/* The orientation of the signal is fixed to follow CC2 */
+	TYPEC_ORIENTATION_REVERSE,
+};
+
+struct type_c_port_info {
+	uint8_t usb2_port_number;
+	uint8_t usb3_port_number;
+	uint8_t sbu_orientation;
+	uint8_t data_orientation;
+};
+
+struct type_c_info {
+	uint32_t port_count;
+	struct type_c_port_info port_info[0];
+};
+
 struct lb_macs {
 	uint32_t tag;
 	uint32_t size;
@@ -415,17 +444,27 @@ struct lb_macs {
 	struct mac_address mac_addrs[0];
 };
 
+struct lb_board_config {
+	uint32_t tag;
+	uint32_t size;
+
+	lb_uint64_t fw_config;
+	uint32_t board_id;
+	uint32_t ram_code;
+	uint32_t sku_id;
+};
+
 #define MAX_SERIALNO_LENGTH	32
 
-/* The following structures are for the cmos definitions table */
-/* cmos header record */
+/* The following structures are for the CMOS definitions table */
+/* CMOS header record */
 struct cmos_option_table {
 	uint32_t tag;               /* CMOS definitions table type */
 	uint32_t size;               /* size of the entire table */
 	uint32_t header_length;      /* length of header */
 };
 
-/* cmos entry record
+/* CMOS entry record
  * This record is variable length.  The name field may be
  * shorter than CMOS_MAX_NAME_LENGTH. The entry may start
  * anywhere in the byte, but can not span bytes unless it
@@ -444,8 +483,7 @@ struct cmos_entries {
 					       variable length int aligned */
 };
 
-
-/* cmos enumerations record
+/* CMOS enumerations record
  * This record is variable length.  The text field may be
  * shorter than CMOS_MAX_TEXT_LENGTH.
  */
@@ -459,8 +497,8 @@ struct cmos_enums {
 						variable length int aligned */
 };
 
-/* cmos defaults record
- * This record contains default settings for the cmos ram.
+/* CMOS defaults record
+ * This record contains default settings for the CMOS ram.
  */
 struct cmos_defaults {
 	uint32_t tag;                /* default type */
@@ -483,6 +521,56 @@ struct	cmos_checksum {
 	uint32_t type;		/* Checksum algorithm that is used */
 #define CHECKSUM_NONE	0
 #define CHECKSUM_PCBIOS	1
+};
+
+/* SMMSTOREv2 record
+ * This record contains information to use SMMSTOREv2.
+ */
+
+struct lb_smmstorev2 {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t num_blocks;		/* Number of writeable blocks in SMM */
+	uint32_t block_size;		/* Size of a block in byte. Default: 64 KiB */
+	uint32_t mmap_addr;		/* MMIO address of the store for read only access */
+	uint32_t com_buffer;		/* Physical address of the communication buffer */
+	uint32_t com_buffer_size;	/* Size of the communication buffer in bytes */
+	uint8_t apm_cmd;		/* The command byte to write to the APM I/O port */
+	uint8_t unused[3];		/* Set to zero */
+};
+
+enum lb_tmp_ppi_tpm_version {
+	LB_TPM_VERSION_UNSPEC = 0,
+	LB_TPM_VERSION_TPM_VERSION_1_2,
+	LB_TPM_VERSION_TPM_VERSION_2,
+};
+
+/*
+ * Handoff buffer for TPM Physical Presence Interface.
+ * * ppi_address   Pointer to PPI buffer shared with ACPI
+ *                 The layout of the buffer matches the QEMU virtual memory device
+ *                 that is generated by QEMU.
+ *                 See files 'hw/i386/acpi-build.c' and 'include/hw/acpi/tpm.h'
+ *                 for details.
+ * * tpm_version   TPM version: 1 for TPM1.2, 2 for TPM2.0
+ * * ppi_version   BCD encoded version of TPM PPI interface
+ */
+struct lb_tpm_physical_presence {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t ppi_address;	/* Address of ACPI PPI communication buffer */
+	uint8_t tpm_version;	/* 1: TPM1.2, 2: TPM2.0 */
+	uint8_t ppi_version;	/* BCD encoded */
+};
+
+
+/*
+ * Handoff the ACPI RSDP
+ */
+struct lb_acpi_rsdp {
+	uint32_t tag;
+	uint32_t size;
+	lb_uint64_t rsdp_pointer; /* Address of the ACPI RSDP */
 };
 
 #endif

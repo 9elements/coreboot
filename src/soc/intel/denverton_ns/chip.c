@@ -1,30 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 - 2017 Intel Corp.
- * Copyright (C) 2017 Online SAS.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <bootstate.h>
 #include <cbfs.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <device/pci_ops.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
 #include <intelblocks/fast_spi.h>
+#include <intelblocks/acpi.h>
+#include <intelblocks/gpio.h>
 #include <soc/iomap.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/pci_devs.h>
@@ -33,25 +19,108 @@
 #include <spi-generic.h>
 #include <soc/hob_mem.h>
 
-static void pci_domain_set_resources(struct device *dev)
+const char *soc_acpi_name(const struct device *dev)
 {
-	assign_resources(dev->link_list);
+	if (dev->path.type == DEVICE_PATH_DOMAIN)
+		return "PCI0";
+
+	if (dev->path.type == DEVICE_PATH_USB) {
+		switch (dev->path.usb.port_type) {
+		case 0:
+			/* Root Hub */
+			return "RHUB";
+		case 2:
+			/* USB2 ports */
+			switch (dev->path.usb.port_id) {
+			case 0: return "HS01";
+			case 1: return "HS02";
+			case 2: return "HS03";
+			case 3: return "HS04";
+			}
+			break;
+		case 3:
+			/* USB3 ports */
+			switch (dev->path.usb.port_id) {
+			case 4: return "SS01";
+			case 5: return "SS02";
+			case 6: return "SS03";
+			case 7: return "SS04";
+			}
+			break;
+		}
+		return NULL;
+	}
+
+	if (dev->path.type != DEVICE_PATH_PCI)
+		return NULL;
+
+	switch (dev->path.pci.devfn) {
+	case SA_DEVFN_ROOT:
+		return "MCHC";
+	case PCH_DEVFN_XHCI:
+		return "XHCI";
+	case PCH_DEVFN_UART0:
+		return "UAR0";
+	case PCH_DEVFN_UART1:
+		return "UAR1";
+	case PCH_DEVFN_UART2:
+		return "UAR2";
+	case PCH_DEVFN_PCIE1:
+		return "RP01";
+	case PCH_DEVFN_PCIE2:
+		return "RP02";
+	case PCH_DEVFN_PCIE3:
+		return "RP03";
+	case PCH_DEVFN_PCIE4:
+		return "RP04";
+	case PCH_DEVFN_PCIE5:
+		return "RP05";
+	case PCH_DEVFN_PCIE6:
+		return "RP06";
+	case PCH_DEVFN_PCIE7:
+		return "RP07";
+	case PCH_DEVFN_PCIE8:
+		return "RP08";
+	case PCH_DEVFN_LPC:
+		return "LPCB";
+	case PCH_DEVFN_SMBUS:
+		return "SBUS";
+	case PCH_DEVFN_SATA_0:
+		return "SAT0";
+	case PCH_DEVFN_SATA_1:
+		return "SAT1";
+	case PCH_DEVFN_EMMC:
+		return "EMMC";
+	case PCH_DEVFN_SPI:
+		return "SPI0";
+	case PCH_DEVFN_PMC:
+		return "PMC_";
+	case PCH_DEVFN_QAT:
+		return "QAT_";
+	case PCH_DEVFN_LAN0:
+		return "LAN0";
+	case PCH_DEVFN_LAN1:
+		return "LAN1";
+	}
+
+	return NULL;
 }
 
 static struct device_operations pci_domain_ops = {
 	.read_resources = &pci_domain_read_resources,
 	.set_resources = &pci_domain_set_resources,
 	.scan_bus = &pci_domain_scan_bus,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_name = &soc_acpi_name,
+#endif
 };
 
 static struct device_operations cpu_bus_ops = {
-	.read_resources = DEVICE_NOOP,
-	.set_resources = DEVICE_NOOP,
-	.enable_resources = DEVICE_NOOP,
-	.init = denverton_init_cpus,
-	.scan_bus = NULL,
+	.read_resources = noop_read_resources,
+	.set_resources = noop_set_resources,
+	.init = mp_cpu_bus_init,
 #if CONFIG(HAVE_ACPI_TABLES)
-	.acpi_fill_ssdt_generator = generate_cpu_entries,
+	.acpi_fill_ssdt = generate_cpu_entries,
 #endif
 };
 
@@ -62,11 +131,13 @@ static void soc_enable_dev(struct device *dev)
 		dev->ops = &pci_domain_ops;
 	else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER)
 		dev->ops = &cpu_bus_ops;
+	else if (dev->path.type == DEVICE_PATH_GPIO)
+		block_gpio_enable(dev);
 }
 
 static void soc_init(void *data)
 {
-	fsp_silicon_init(false);
+	fsp_silicon_init();
 	soc_save_dimm_info();
 }
 
@@ -88,12 +159,6 @@ static void soc_silicon_init_params(FSPS_UPD *silupd)
 	if (get_fiamux_hsio_info(supported_hsio_lanes, num, &hsio_config))
 		die("HSIO Configuration is invalid, please correct it!");
 
-	/* Check the requested FIA MUX Configuration */
-	if (!(&hsio_config->FiaConfig)) {
-		die("Requested FIA MUX Configuration is invalid,"
-		    " please correct it!");
-	}
-
 	/* Initialize PCIE Bifurcation & HSIO configuration */
 	silupd->FspsConfig.PcdBifurcationPcie0 = hsio_config->PcieBifCtr[0];
 	silupd->FspsConfig.PcdBifurcationPcie1 = hsio_config->PcieBifCtr[1];
@@ -107,8 +172,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 	const struct microcode *microcode_file;
 	size_t microcode_len;
 
-	microcode_file = cbfs_boot_map_with_leak("cpu_microcode_blob.bin",
-		CBFS_TYPE_MICROCODE, &microcode_len);
+	microcode_file = cbfs_map("cpu_microcode_blob.bin", &microcode_len);
 
 	if ((microcode_file != NULL) && (microcode_len != 0)) {
 		/* Update CPU Microcode patch base address/size */

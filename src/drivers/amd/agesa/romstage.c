@@ -1,49 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Kyösti Mälkki
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <amdblocks/biosram.h>
+#include <acpi/acpi.h>
 #include <arch/cpu.h>
+#include <arch/romstage.h>
 #include <cbmem.h>
-#include <cpu/amd/car.h>
-#include <cpu/x86/bist.h>
 #include <console/console.h>
+#include <cpu/x86/lapic.h>
 #include <halt.h>
 #include <program_loading.h>
 #include <romstage_handoff.h>
 #include <smp/node.h>
 #include <string.h>
 #include <timestamp.h>
+#include <romstage_common.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
 #include <northbridge/amd/agesa/state_machine.h>
 
-#if !CONFIG(POSTCAR_STAGE)
-#error "Only POSTCAR_STAGE is supported."
-#endif
-#if HAS_LEGACY_WRAPPER
-#error "LEGACY_WRAPPER code not supported"
-#endif
-
-void asmlinkage early_all_cores(void)
-{
-	amd_initmmio();
-}
-
-void __weak platform_once(struct sysinfo *cb)
-{
-	board_BeforeAgesa(cb);
-}
+void __weak board_BeforeAgesa(struct sysinfo *cb) { }
 
 static void fill_sysinfo(struct sysinfo *cb)
 {
@@ -53,44 +27,38 @@ static void fill_sysinfo(struct sysinfo *cb)
 	agesa_set_interface(cb);
 }
 
-void *asmlinkage romstage_main(unsigned long bist)
+/* APs will enter directly here from bootblock, bypassing verstage
+ * and potential fallback / normal bootflow detection.
+ */
+static void ap_romstage_main(void);
+
+void __noreturn romstage_main(void)
 {
-	struct postcar_frame pcf;
 	struct sysinfo romstage_state;
 	struct sysinfo *cb = &romstage_state;
-	u8 initial_apic_id = (u8) (cpuid_ebx(1) >> 24);
 	int cbmem_initted = 0;
+
+	printk(BIOS_DEBUG, "APIC %02u: CPU Family_Model = %08x\n",
+	       initial_lapicid(), cpuid_eax(1));
 
 	fill_sysinfo(cb);
 
-	if ((initial_apic_id == 0) && boot_cpu()) {
+	board_BeforeAgesa(cb);
 
-		timestamp_init(timestamp_get());
-		timestamp_add_now(TS_START_ROMSTAGE);
-
-		platform_once(cb);
-
-		console_init();
-	}
-
-	printk(BIOS_DEBUG, "APIC %02d: CPU Family_Model = %08x\n",
-		initial_apic_id, cpuid_eax(1));
-
-	/* Halt if there was a built in self test failure */
-	report_bist_failure(bist);
+	set_ap_entry_ptr(ap_romstage_main);
 
 	agesa_execute_state(cb, AMD_INIT_RESET);
 
 	agesa_execute_state(cb, AMD_INIT_EARLY);
 
-	timestamp_add_now(TS_BEFORE_INITRAM);
+	timestamp_add_now(TS_INITRAM_START);
 
 	if (!cb->s3resume)
 		agesa_execute_state(cb, AMD_INIT_POST);
 	else
 		agesa_execute_state(cb, AMD_INIT_RESUME);
 
-	timestamp_add_now(TS_AFTER_INITRAM);
+	timestamp_add_now(TS_INITRAM_END);
 
 	/* Work around AGESA setting all memory as WB on normal
 	 * boot path.
@@ -106,10 +74,27 @@ void *asmlinkage romstage_main(unsigned long bist)
 
 	romstage_handoff_init(cb->s3resume);
 
-	postcar_frame_init(&pcf, HIGH_ROMSTAGE_STACK_SIZE);
-	recover_postcar_frame(&pcf, cb->s3resume);
-
-	run_postcar_phase(&pcf);
+	prepare_and_run_postcar();
 	/* We do not return. */
-	return NULL;
+}
+
+static void ap_romstage_main(void)
+{
+	struct sysinfo romstage_state;
+	struct sysinfo *cb = &romstage_state;
+
+	fill_sysinfo(cb);
+
+	agesa_execute_state(cb, AMD_INIT_RESET);
+
+	agesa_execute_state(cb, AMD_INIT_EARLY);
+
+	/* Not reached. */
+	halt();
+}
+
+void *cbmem_top_chipset(void)
+{
+	/* Top of CBMEM is at highest usable DRAM address below 4GiB. */
+	return (void *)restore_top_of_low_cacheable();
 }

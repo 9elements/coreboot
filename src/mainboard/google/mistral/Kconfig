@@ -21,24 +21,13 @@ config VBOOT
 	select GBB_FLAG_FORCE_DEV_SWITCH_ON
 
 config MAINBOARD_DIR
-	string
-	default google/mistral
-
-config MAINBOARD_VENDOR
-	string
-	default "Google"
+	default "google/mistral"
 
 ##########################################################
 #### Update below when adding a new derivative board. ####
 ##########################################################
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "Mistral" if BOARD_GOOGLE_MISTRAL
-
-config GBB_HWID
-	string
-	depends on CHROMEOS
-	default "MISTRAL TEST 1859" if BOARD_GOOGLE_MISTRAL
 
 endif # BOARD_GOOGLE_MISTRAL_COMMON

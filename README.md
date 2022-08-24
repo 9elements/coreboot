@@ -34,7 +34,6 @@ coreboot supports a wide range of chipsets, devices, and mainboards.
 For details please consult:
 
  * <https://www.coreboot.org/Supported_Motherboards>
- * <https://www.coreboot.org/Supported_Chipsets_and_Devices>
 
 
 Build Requirements
@@ -55,8 +54,7 @@ Build Requirements
 
 Optional:
 
- * doxygen (for generating/viewing documentation)
- * gdb (for better debugging facilities on some targets)
+  * gdb (for better debugging facilities on some targets)
  * ncurses (for `make menuconfig` and `make nconfig`)
  * flex and bison (for regenerating parsers)
 

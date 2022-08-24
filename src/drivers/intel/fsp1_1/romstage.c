@@ -1,29 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015-2016 Intel Corporation.
- * Copyright (C) 2018 Eltan B.V.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stddef.h>
-#include <arch/acpi.h>
-#include <arch/cbfs.h>
+#include <acpi/acpi.h>
 #include <assert.h>
 #include <console/console.h>
 #include <cbmem.h>
 #include <cf9_reset.h>
 #include <cpu/intel/microcode.h>
-#include <cpu/x86/mtrr.h>
 #include <ec/google/chromeec/ec.h>
 #include <ec/google/chromeec/ec_commands.h>
 #include <elog.h>
@@ -35,47 +18,44 @@
 #include <stage_cache.h>
 #include <string.h>
 #include <timestamp.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 
 static void raminit_common(struct romstage_params *params)
 {
 	bool s3wake;
-	struct region_device rdev;
+	size_t mrc_size;
 
 	post_code(0x32);
 
-	timestamp_add_now(TS_BEFORE_INITRAM);
+	timestamp_add_now(TS_INITRAM_START);
 
 	s3wake = params->power_state->prev_sleep_state == ACPI_S3;
 
-	if (CONFIG(ELOG_BOOT_COUNT) && !s3wake)
-		boot_count_increment();
+	elog_boot_notify(s3wake);
 
-	/* Perform remaining SOC initialization */
-	soc_pre_ram_init(params);
 	post_code(0x33);
 
 	/* Check recovery and MRC cache */
 	params->saved_data_size = 0;
 	params->saved_data = NULL;
 	if (!params->disable_saved_data) {
-		if (vboot_recovery_mode_enabled()) {
-			/* Recovery mode does not use MRC cache */
-			printk(BIOS_DEBUG,
-			       "Recovery mode: not using MRC cache.\n");
-		} else if (CONFIG(CACHE_MRC_SETTINGS)
-			&& (!mrc_cache_get_current(MRC_TRAINING_DATA,
-							params->fsp_version,
-							&rdev))) {
+		/* Assume boot device is memory mapped. */
+		assert(CONFIG(BOOT_DEVICE_MEMORY_MAPPED));
+
+		params->saved_data = NULL;
+		if (CONFIG(CACHE_MRC_SETTINGS))
+			params->saved_data =
+				mrc_cache_current_mmap_leak(MRC_TRAINING_DATA,
+							    params->fsp_version,
+							    &mrc_size);
+		if (params->saved_data) {
 			/* MRC cache found */
-			params->saved_data_size = region_device_sz(&rdev);
-			params->saved_data = rdev_mmap_full(&rdev);
-			/* Assume boot device is memory mapped. */
-			assert(CONFIG(BOOT_DEVICE_MEMORY_MAPPED));
+			params->saved_data_size = mrc_size;
+
 		} else if (s3wake) {
 			/* Waking from S3 and no cache. */
 			printk(BIOS_DEBUG,
-			       "No MRC cache found in S3 resume path.\n");
+			       "No MRC cache "
+			       "found in S3 resume path.\n");
 			post_code(POST_RESUME_FAILURE);
 			/* FIXME: A "system" reset is likely enough: */
 			full_reset();
@@ -86,7 +66,7 @@ static void raminit_common(struct romstage_params *params)
 
 	/* Initialize RAM */
 	raminit(params);
-	timestamp_add_now(TS_AFTER_INITRAM);
+	timestamp_add_now(TS_INITRAM_END);
 
 	/* Save MRC output */
 	if (CONFIG(CACHE_MRC_SETTINGS)) {
@@ -120,16 +100,12 @@ void cache_as_ram_stage_main(FSP_INFO_HEADER *fih)
 
 	post_code(0x30);
 
-	timestamp_add_now(TS_START_ROMSTAGE);
-
-	/* Load microcode before RAM init */
-	if (CONFIG(SUPPORT_CPU_UCODE_IN_CBFS))
-		intel_update_microcode_from_cbfs();
+	timestamp_add_now(TS_ROMSTAGE_START);
 
 	/* Display parameters */
-	if (!CONFIG(NO_MMCONF_SUPPORT))
-		printk(BIOS_SPEW, "CONFIG_MMCONF_BASE_ADDRESS: 0x%08x\n",
-			CONFIG_MMCONF_BASE_ADDRESS);
+	if (!CONFIG(NO_ECAM_MMCONF_SUPPORT))
+		printk(BIOS_SPEW, "CONFIG_ECAM_MMCONF_BASE_ADDRESS: 0x%08x\n",
+			CONFIG_ECAM_MMCONF_BASE_ADDRESS);
 	printk(BIOS_INFO, "Using FSP 1.1\n");
 
 	/* Display FSP banner */
@@ -151,12 +127,6 @@ void cache_as_ram_stage_main(FSP_INFO_HEADER *fih)
 
 	soc_after_ram_init(&params);
 	post_code(0x38);
-}
-
-/* Initialize the power state */
-__weak struct chipset_power_state *fill_power_state(void)
-{
-	return NULL;
 }
 
 /* Board initialization before and after RAM is enabled */
@@ -182,7 +152,7 @@ __weak void mainboard_save_dimm_info(
 
 	/* Locate the memory info HOB, presence validated by raminit */
 	hob_list_ptr = fsp_get_hob_list();
-	hob_ptr = get_next_guid_hob(&memory_info_hob_guid, hob_list_ptr);
+	hob_ptr = get_guid_hob(&memory_info_hob_guid, hob_list_ptr);
 	memory_info_hob = (FSP_SMBIOS_MEMORY_INFO *)(hob_ptr + 1);
 
 	/* Display the data in the FSP_SMBIOS_MEMORY_INFO HOB */
@@ -225,7 +195,7 @@ __weak void mainboard_save_dimm_info(
 	 * table 17
 	 */
 	mem_info = cbmem_add(CBMEM_ID_MEMINFO, sizeof(*mem_info));
-	printk(BIOS_DEBUG, "CBMEM entry for DIMM info: 0x%p\n", mem_info);
+	printk(BIOS_DEBUG, "CBMEM entry for DIMM info: %p\n", mem_info);
 	if (mem_info == NULL)
 		return;
 	memset(mem_info, 0, sizeof(*mem_info));
@@ -281,51 +251,10 @@ __weak void mainboard_save_dimm_info(
 						MEMORY_BUS_WIDTH_128;
 					break;
 				}
-
-				/* Add any mainboard specific information */
-				mainboard_add_dimm_info(params, mem_info,
-							channel, dimm, index);
 				index++;
 			}
 		}
 	}
 	mem_info->dimm_cnt = index;
 	printk(BIOS_DEBUG, "%d DIMMs found\n", mem_info->dimm_cnt);
-}
-
-/* Add any mainboard specific information */
-__weak void mainboard_add_dimm_info(
-	struct romstage_params *params,
-	struct memory_info *mem_info,
-	int channel, int dimm, int index)
-{
-}
-
-/* Get the memory configuration data */
-__weak int mrc_cache_get_current(int type, uint32_t version,
-				struct region_device *rdev)
-{
-	return -1;
-}
-
-/* Save the memory configuration data */
-__weak int mrc_cache_stash_data(int type, uint32_t version,
-					const void *data, size_t size)
-{
-	return -1;
-}
-
-/* Display the memory configuration */
-__weak void report_memory_config(void)
-{
-}
-
-/* SOC initialization after RAM is enabled */
-__weak void soc_after_ram_init(struct romstage_params *params)
-{
-}
-
-/* SOC initialization before RAM is enabled */
-__weak void soc_pre_ram_init(struct romstage_params *params)
-{
 }

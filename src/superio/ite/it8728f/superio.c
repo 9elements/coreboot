@@ -1,24 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Edward O'Callaghan <eocallaghan@alterapraxis.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/device.h>
 #include <device/pnp.h>
 #include <superio/conf_mode.h>
 #include <pc80/keyboard.h>
-#include <stdlib.h>
 #include <superio/ite/common/env_ctrl.h>
 
 #include "chip.h"
@@ -35,7 +20,7 @@ static void it8728f_init(struct device *dev)
 	switch (dev->path.pnp.device) {
 	/* TODO: Might potentially need code for FDC etc. */
 	case IT8728F_EC:
-		res = find_resource(dev, PNP_IDX_IO0);
+		res = probe_resource(dev, PNP_IDX_IO0);
 		if (!conf || !res)
 			break;
 		ite_ec_init(res->base, &conf->ec);

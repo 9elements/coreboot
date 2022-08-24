@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
 #include <string.h>
@@ -73,8 +59,7 @@ static const struct GPIO_GROUP_INFO mGpioGroupInfo[] = {
 static struct GPIO_GROUP_INFO *
 GpioGetGroupInfoTable(uint32_t *GpioGroupInfoTableLength)
 {
-	*GpioGroupInfoTableLength =
-		sizeof(mGpioGroupInfo) / sizeof(struct GPIO_GROUP_INFO);
+	*GpioGroupInfoTableLength = ARRAY_SIZE(mGpioGroupInfo);
 	return (struct GPIO_GROUP_INFO *)mGpioGroupInfo;
 }
 
@@ -440,24 +425,19 @@ void gpio_configure_dnv_pads(const struct dnv_pad_config *gpio, size_t num)
 		//
 		// Update value to be programmed in HOSTSW_OWN register
 		//
-		HostSoftOwnRegMask[GroupIndex] |= LShiftU64(
-			(uint64_t)GpioData->GpioConfig.HostSoftPadOwn & 0x1,
-			PadNumber);
-		HostSoftOwnReg[GroupIndex] |= LShiftU64(
-			(uint64_t)GpioData->GpioConfig.HostSoftPadOwn >> 0x1,
-			PadNumber);
+		HostSoftOwnRegMask[GroupIndex] |=
+			((uint64_t)GpioData->GpioConfig.HostSoftPadOwn & 0x1) << PadNumber;
+		HostSoftOwnReg[GroupIndex] |=
+			((uint64_t)GpioData->GpioConfig.HostSoftPadOwn >> 0x1) << PadNumber;
 
 		//
 		// Update value to be programmed in GPI_GPE_EN register
 		//
-		GpiGpeEnRegMask[GroupIndex] |= LShiftU64(
-			(uint64_t)(GpioData->GpioConfig.InterruptConfig & 0x1),
-			PadNumber);
-		GpiGpeEnReg[GroupIndex] |= LShiftU64(
-			(uint64_t)(GpioData->GpioConfig.InterruptConfig &
-				   GpioIntSci) >>
-				3,
-			PadNumber);
+		GpiGpeEnRegMask[GroupIndex] |=
+			((uint64_t)GpioData->GpioConfig.InterruptConfig & 0x1) << PadNumber;
+		GpiGpeEnReg[GroupIndex] |=
+			(((uint64_t)GpioData->GpioConfig.InterruptConfig & GpioIntSci) >> 3)
+			<< PadNumber;
 	}
 
 	for (Index = 0; Index < NumberOfGroups; Index++) {
@@ -478,10 +458,8 @@ void gpio_configure_dnv_pads(const struct dnv_pad_config *gpio, size_t num)
 					GpioGroupInfo[Index].Community,
 					GpioGroupInfo[Index].HostOwnOffset +
 						0x4),
-				~(uint32_t)(RShiftU64(HostSoftOwnRegMask[Index],
-						      32)),
-				(uint32_t)(
-					RShiftU64(HostSoftOwnReg[Index], 32)));
+				~(uint32_t)(HostSoftOwnRegMask[Index] >> 32),
+				(uint32_t)(HostSoftOwnReg[Index] >> 32));
 		}
 
 		//
@@ -501,9 +479,8 @@ void gpio_configure_dnv_pads(const struct dnv_pad_config *gpio, size_t num)
 					GpioGroupInfo[Index].Community,
 					GpioGroupInfo[Index].GpiGpeEnOffset +
 						0x4),
-				~(uint32_t)(
-					RShiftU64(GpiGpeEnRegMask[Index], 32)),
-				(uint32_t)(RShiftU64(GpiGpeEnReg[Index], 32)));
+				~(uint32_t)(GpiGpeEnRegMask[Index] >> 32),
+				(uint32_t)(GpiGpeEnReg[Index] >> 32));
 		}
 	}
 }

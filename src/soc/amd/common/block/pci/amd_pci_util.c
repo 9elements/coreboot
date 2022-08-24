@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Sage Electronic Engineering, LLC.
- * Copyright (C) 2017 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/pci.h>
@@ -81,11 +67,11 @@ void write_pci_int_table(void)
 	 */
 	for (i = 0 ; i < limit; i++) {
 		byte = idx_name[i].index;
-		write_pci_int_idx(byte, 0, (u8) picr_data_ptr[byte]);
+		write_pci_int_idx(byte, 0, (u8)picr_data_ptr[byte]);
 		printk(BIOS_DEBUG, "0x%02X\t\t%-20s 0x%02X\t",
 				byte, idx_name[i].name,
 				read_pci_int_idx(byte, 0));
-		write_pci_int_idx(byte, 1, (u8) intr_data_ptr[byte]);
+		write_pci_int_idx(byte, 1, (u8)intr_data_ptr[byte]);
 		printk(BIOS_DEBUG, "0x%02X\n", read_pci_int_idx(byte, 1));
 	}
 }
@@ -111,7 +97,7 @@ void write_pci_cfg_irqs(void)
 
 	idx_name = sb_get_apic_reg_association(&limit);
 	if (pirq_data_ptr == NULL) {
-		printk(BIOS_WARNING, "Warning: Can't write PCI IRQ assignments"
+		printk(BIOS_WARNING, "Can't write PCI IRQ assignments"
 				" because 'mainboard_pirq_data' structure does"
 				" not exist\n");
 		return;

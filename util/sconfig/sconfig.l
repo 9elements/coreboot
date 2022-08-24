@@ -1,19 +1,6 @@
 %{
-/*
- * sconfig, coreboot device tree compiler
- *
- * Copyright (C) 2010 coresystems GmbH
- *   written by Patrick Georgi <patrick@georgi-clan.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* sconfig, coreboot device tree compiler */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include "sconfig.tab.h"
 
@@ -26,10 +13,19 @@ int linenum = 0;
 \r?\n			{linenum++;}
 chip			{return(CHIP);}
 device			{return(DEVICE);}
+alias			{return(ALIAS);}
+use			{return(REFERENCE);}
+ref			{return(REFERENCE);}
+as			{return(ASSOCIATION);}
 register		{return(REGISTER);}
+fw_config		{return(FW_CONFIG_TABLE);}
+field			{return(FW_CONFIG_FIELD);}
+option			{return(FW_CONFIG_OPTION);}
+probe			{return(FW_CONFIG_PROBE);}
 on			{yylval.number=1; return(BOOL);}
 off			{yylval.number=0; return(BOOL);}
-hidden			{yylval.number=3; return(HIDDEN);}
+hidden			{yylval.number=3; return(STATUS);}
+mandatory		{yylval.number=5; return(STATUS);}
 pci			{yylval.number=PCI; return(BUS);}
 ioapic			{yylval.number=IOAPIC; return(BUS);}
 pnp			{yylval.number=PNP; return(BUS);}
@@ -42,6 +38,7 @@ generic			{yylval.number=GENERIC; return(BUS);}
 mmio			{yylval.number=MMIO; return(BUS);}
 spi			{yylval.number=SPI; return(BUS);}
 usb			{yylval.number=USB; return(BUS);}
+gpio			{yylval.number=GPIO; return(BUS);}
 irq			{yylval.number=IRQ; return(RESOURCE);}
 drq			{yylval.number=DRQ; return(RESOURCE);}
 io			{yylval.number=IO; return(RESOURCE);}
@@ -50,7 +47,9 @@ inherit			{return(INHERIT);}
 subsystemid		{return(SUBSYSTEMID);}
 end			{return(END);}
 smbios_slot_desc	{return(SLOT_DESC);}
+smbios_dev_info		{return(SMBIOS_DEV_INFO);}
 =			{return(EQUALS);}
+\|			{return(PIPE);}
 0x[0-9a-fA-F.]+		{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(NUMBER);}
 [0-9.]+			{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(NUMBER);}
 [0-9a-fA-F.]+		{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(NUMBER);}

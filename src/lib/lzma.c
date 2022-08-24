@@ -1,8 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
 /*
  * coreboot interface to memory-saving variant of LZMA decoder
  *
  * Copyright (C) 2006 Carl-Daniel Hailfinger
- * Released under the GNU GPL v2 or later
  *
  * Parts of this file are based on C/7zip/Compress/LZMA_C/LzmaTest.c from the
  * LZMA SDK 4.42, which is written and distributed to public domain by Igor
@@ -26,8 +27,13 @@ size_t ulzman(const void *src, size_t srcn, void *dst, size_t dstn)
 	int res;
 	CLzmaDecoderState state;
 	SizeT mallocneeds;
-	MAYBE_STATIC unsigned char scratchpad[15980];
+	static unsigned char scratchpad[15980];
 	const unsigned char *cp;
+
+	if (srcn < data_offset) {
+		printk(BIOS_WARNING, "lzma: Input too small.\n");
+		return 0;
+	}
 
 	memcpy(properties, src, LZMA_PROPERTIES_SIZE);
 	/* The outSize in LZMA stream is a 64bit integer stored in little-endian

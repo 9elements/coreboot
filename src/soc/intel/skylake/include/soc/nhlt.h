@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_NHLT_H_
 #define _SOC_NHLT_H_
@@ -43,7 +30,7 @@ enum {
 int nhlt_soc_add_dmic_array(struct nhlt *nhlt, int num_channels);
 
 /*
- * Add nau88l25 headset codec on provided SSP link. Return 0 on succes, < 0
+ * Add nau88l25 headset codec on provided SSP link. Return 0 on success, < 0
  * on error.
  */
 int nhlt_soc_add_nau88l25(struct nhlt *nhlt, int hwlink);

@@ -1,5 +1,4 @@
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (C) 2008 Advanced Micro Devices, Inc.
 ## Copyright (C) 2008 coresystems GmbH
@@ -57,10 +56,10 @@ config DEVELOPER
 	  libpayload developers.
 
 config CHROMEOS
-	bool "Chrome OS Options"
+	bool "ChromeOS Options"
 	default n
 	help
-	  Select configuration defaults appropriate for Chrome OS boards.
+	  Select configuration defaults appropriate for ChromeOS boards.
 
 choice
 	prompt "Compiler to use"
@@ -79,6 +78,14 @@ config COMPILER_LLVM_CLANG
 	  Use LLVM/clang.
 
 endchoice
+
+config LTO
+	bool "Use link time optimization (LTO)"
+	default n
+	depends on COMPILER_GCC
+	help
+	  Compile with link time optimization. This can often decrease the
+	  final binary size, but may increase compilation time.
 
 config REMOTEGDB
 	bool "Remote GDB stub"
@@ -114,10 +121,13 @@ config ARCH_ARM64
         help
           Support the ARM64 architecture
 
-config ARCH_MIPS
-	bool "MIPS"
-	help
-	  Support the MIPS architecture
+config ARCH_MOCK
+        bool "Mock architecture (for unit tests)"
+        help
+          This enables the mock architecture (for unit tests) that is intended
+          to be used for testing purposes, to either test payloads or libpayload itself.
+          It provides necessary headers, but requires mocking (providing implementation
+          for) arch-specific functions.
 
 endchoice
 
@@ -147,12 +157,12 @@ config BASE_ADDRESS
 	hex "Base address"
 	default 0x04000000 if ARCH_ARM
 	default 0x80100000 if ARCH_ARM64
-	default 0x00000000 if ARCH_MIPS
 	default 0x00100000 if ARCH_X86
+	default 0x00000000 if ARCH_MOCK
 	help
 	  This is the base address for the payload.
 
-	  If unsure, set to 0x00100000 on x86, 0x00000000 on MIPS,
+	  If unsure, set to 0x00100000 on x86,
 	  0x04000000 on ARM or 0x80100000 on ARM64.
 
 endmenu
@@ -198,11 +208,7 @@ config PDCURSES
 
 endchoice
 
-config CBFS
-	bool "CBFS support"
-	default y
-	help
-	  CBFS is the archive format of coreboot
+source "libcbfs/Kconfig"
 
 config LZMA
 	bool "LZMA decoder"
@@ -217,6 +223,9 @@ config LZ4
 	help
 	  Decoder implementation for the LZ4 compression algorithm.
 	  Adds standalone functions (CBFS support coming soon).
+
+source "vboot/Kconfig"
+
 endmenu
 
 menu "Console Options"
@@ -260,6 +269,11 @@ config IPQ40XX_SERIAL_CONSOLE
 
 config QCS405_SERIAL_CONSOLE
 	bool "QCS405 SOC compatible serial port driver"
+	depends on SERIAL_CONSOLE
+	default n
+
+config QUALCOMM_QUPV3_SERIAL_CONSOLE
+	bool "Qualcomm QUPV3 serial port driver"
 	depends on SERIAL_CONSOLE
 	default n
 
@@ -321,6 +335,13 @@ config COREBOOT_VIDEO_CONSOLE
 	  Say Y here if coreboot switched to a graphics mode and
 	  your payload wants to use it.
 
+config COREBOOT_VIDEO_CENTERED
+	bool "Center a classic 80x25 console on bigger screens"
+	depends on COREBOOT_VIDEO_CONSOLE
+	help
+	  Say 'y' here if your payload is hardcoded to a 80x25 console. Otherwise
+	  its output would look squeezed into the upper-left corner of the screen.
+
 config FONT_SCALE_FACTOR
 	int "Scale factor for the included font"
 	depends on GEODELX_VIDEO_CONSOLE || COREBOOT_VIDEO_CONSOLE
@@ -328,6 +349,19 @@ config FONT_SCALE_FACTOR
 	help
 	  By default (value of 0), the scale factor is automatically
 	  calculated to ensure at least 130 columns (when possible).
+
+config CBGFX_FAST_RESAMPLE
+	bool "CBGFX: use faster (less pretty) image scaling"
+	default n
+	help
+	  When payloads use the CBGFX library to draw .BMPs on the screen,
+	  they will be resampled with an anti-aliasing filter to scale to the
+	  requested output size. The default implementation should normally be
+	  fast enough, but if desired this option can make it about 50-100%
+	  faster at the cost of quality. (It changes the 'a' parameter in the
+	  Lanczos resampling algorithm from 3 to 2.)
+
+	  Only affects .BMPs that aren't already provided at the right size.
 
 config PC_I8042
 	bool "A common PC i8042 driver"
@@ -349,10 +383,6 @@ config PC_KEYBOARD
 	default y if ARCH_X86 # uses IO
 	default n
 
-config PC_KEYBOARD_IGNORE_INIT_FAILURE
-	bool "Ignore keyboard failures during init and always add input device"
-	default n
-
 config PC_KEYBOARD_LAYOUT_US
 	bool "English (US) keyboard layout"
 	depends on PC_KEYBOARD
@@ -363,14 +393,35 @@ config PC_KEYBOARD_LAYOUT_DE
 	depends on PC_KEYBOARD
 	default n
 
+config PC_KEYBOARD_TRANSLATION
+	bool "Enable or Disable translation in PC keyboard set 2 on exit"
+	depends on PC_KEYBOARD
+	default y
+
 endmenu
 
 menu "Drivers"
 
 config PCI
 	bool "Support for PCI devices"
-	depends on ARCH_X86 # for now
-	default y
+	default y if ARCH_X86
+	default n
+
+config PCI_IO_OPS
+	bool "Support for PCI devices with port IO"
+	depends on PCI && IO_ADDRESS_SPACE
+	default y if ARCH_X86
+	default n
+
+config PCIE_MEDIATEK
+	bool "Support for PCIe devices on MediaTek platforms"
+	depends on PCI && !PCI_IO_OPS
+	default n
+
+config PCIE_QCOM
+	bool "Support for PCIe devices on Qualcomm platforms"
+	depends on PCI && !PCI_IO_OPS
+	default n
 
 config NVRAM
 	bool "Support for reading/writing NVRAM bytes"
@@ -452,5 +503,5 @@ config IO_ADDRESS_SPACE
 
 source "arch/arm/Kconfig"
 source "arch/arm64/Kconfig"
-source "arch/mips/Kconfig"
 source "arch/x86/Kconfig"
+source "arch/mock/Kconfig"

@@ -1,19 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
+#include <commonlib/helpers.h>
 #include <console/console.h>
 #include <fast_spi_def.h>
 #include <intelblocks/fast_spi.h>
@@ -122,7 +110,7 @@ static int wait_for_hwseq_xfer(struct fast_spi_flash_ctx *ctx,
 	struct stopwatch sw;
 	uint32_t hsfsts;
 
-	stopwatch_init_msecs_expire(&sw, SPIBAR_HWSEQ_XFER_TIMEOUT);
+	stopwatch_init_msecs_expire(&sw, SPIBAR_HWSEQ_XFER_TIMEOUT_MS);
 	do {
 		hsfsts = fast_spi_flash_ctrlr_reg_read(ctx, SPIBAR_HSFSTS_CTL);
 
@@ -137,7 +125,23 @@ static int wait_for_hwseq_xfer(struct fast_spi_flash_ctx *ctx,
 	} while (!(stopwatch_expired(&sw)));
 
 	printk(BIOS_ERR, "SPI Transaction Timeout (Exceeded %d ms) at Flash Offset %x HSFSTS = 0x%08x\n",
-		SPIBAR_HWSEQ_XFER_TIMEOUT, flash_addr, hsfsts);
+		SPIBAR_HWSEQ_XFER_TIMEOUT_MS, flash_addr, hsfsts);
+	return E_TIMEOUT;
+}
+
+static int wait_for_hwseq_spi_cycle_complete(struct fast_spi_flash_ctx *ctx)
+{
+	struct stopwatch sw;
+	uint32_t hsfsts;
+
+	stopwatch_init_msecs_expire(&sw, SPIBAR_HWSEQ_XFER_TIMEOUT_MS);
+	do {
+		hsfsts = fast_spi_flash_ctrlr_reg_read(ctx, SPIBAR_HSFSTS_CTL);
+
+		if (!(hsfsts & SPIBAR_HSFSTS_SCIP))
+			return SUCCESS;
+	} while (!(stopwatch_expired(&sw)));
+
 	return E_TIMEOUT;
 }
 
@@ -146,8 +150,27 @@ static int exec_sync_hwseq_xfer(struct fast_spi_flash_ctx *ctx,
 				uint32_t hsfsts_cycle, uint32_t flash_addr,
 				size_t len)
 {
+	if (wait_for_hwseq_spi_cycle_complete(ctx) != SUCCESS) {
+		printk(BIOS_ERR, "SPI Transaction Timeout (Exceeded %d ms) due to prior"
+				" operation at Flash Offset %x\n",
+				SPIBAR_HWSEQ_XFER_TIMEOUT_MS, flash_addr);
+		return E_TIMEOUT;
+	}
+
 	start_hwseq_xfer(ctx, hsfsts_cycle, flash_addr, len);
 	return wait_for_hwseq_xfer(ctx, flash_addr);
+}
+
+int fast_spi_cycle_in_progress(void)
+{
+	BOILERPLATE_CREATE_CTX(ctx);
+
+	int ret = wait_for_hwseq_spi_cycle_complete(ctx);
+	if (ret != SUCCESS)
+		printk(BIOS_ERR, "SPI Transaction Timeout (Exceeded %d ms) due to prior"
+				" operation is pending\n", SPIBAR_HWSEQ_XFER_TIMEOUT_MS);
+
+	return ret;
 }
 
 /*
@@ -157,15 +180,14 @@ static int exec_sync_hwseq_xfer(struct fast_spi_flash_ctx *ctx,
 static size_t get_xfer_len(const struct spi_flash *flash, uint32_t addr,
 			   size_t len)
 {
-	size_t xfer_len = min(len, SPIBAR_FDATA_FIFO_SIZE);
+	size_t xfer_len = MIN(len, SPIBAR_FDATA_FIFO_SIZE);
 	size_t bytes_left = ALIGN_UP(addr, flash->page_size) - addr;
 
 	if (bytes_left)
-		xfer_len = min(xfer_len, bytes_left);
+		xfer_len = MIN(xfer_len, bytes_left);
 
 	return xfer_len;
 }
-
 
 static int fast_spi_flash_erase(const struct spi_flash *flash,
 				uint32_t offset, size_t len)
@@ -300,7 +322,6 @@ static int fast_spi_flash_probe(const struct spi_slave *dev,
 	flash->size = (flash_bits >> 3) + 1;
 
 	memcpy(&flash->spi, dev, sizeof(*dev));
-	flash->name = "FAST_SPI Hardware Sequencer";
 
 	/* Can erase both 4 KiB and 64 KiB chunks. Declare the smaller size. */
 	flash->sector_size = 4 * KiB;
@@ -313,30 +334,6 @@ static int fast_spi_flash_probe(const struct spi_slave *dev,
 	 */
 
 	flash->ops = &fast_spi_flash_ops;
-	return 0;
-}
-
-/*
- * Minimal set of commands to read WPSR from FAST_SPI.
- * Returns 0 on success, < 0 on failure.
- */
-int fast_spi_flash_read_wpsr(u8 *sr)
-{
-	uint8_t rdsr;
-	int ret = 0;
-
-	fast_spi_init();
-
-	/* sending NULL for spiflash struct parameter since we are not
-	 * calling HWSEQ read_status() call via Probe.
-	 */
-	ret = fast_spi_flash_status(NULL, &rdsr);
-	if (ret) {
-		printk(BIOS_ERR, "SPI rdsr failed\n");
-		return ret;
-	}
-	*sr = rdsr & WPSR_MASK_SRP0_BIT;
-
 	return 0;
 }
 
@@ -388,7 +385,7 @@ static int fast_spi_flash_protect(const struct spi_flash *flash,
 	}
 
 	if (fpr >= SPIBAR_FPR_MAX) {
-		printk(BIOS_ERR, "ERROR: No SPI FPR free!\n");
+		printk(BIOS_ERR, "No SPI FPR free!\n");
 		return -1;
 	}
 
@@ -403,7 +400,7 @@ static int fast_spi_flash_protect(const struct spi_flash *flash,
 		protect_mask |= (SPI_FPR_RPE | SPI_FPR_WPE);
 		break;
 	default:
-		printk(BIOS_ERR, "ERROR: Seeking invalid protection!\n");
+		printk(BIOS_ERR, "Seeking invalid protection!\n");
 		return -1;
 	}
 
@@ -414,7 +411,7 @@ static int fast_spi_flash_protect(const struct spi_flash *flash,
 	write32((void *)fpr_base, reg);
 	reg = read32((void *)fpr_base);
 	if (!(reg & protect_mask)) {
-		printk(BIOS_ERR, "ERROR: Unable to set SPI FPR %d\n", fpr);
+		printk(BIOS_ERR, "Unable to set SPI FPR %d\n", fpr);
 		return -1;
 	}
 

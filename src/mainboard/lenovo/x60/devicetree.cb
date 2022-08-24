@@ -1,24 +1,8 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2007-2009 coresystems GmbH
-## Copyright (C) 2011 Sven Schnelle <svens@stackframe.org>
-##
-## This program is free software; you can redistribute it and/or
-## modify it under the terms of the GNU General Public License as
-## published by the Free Software Foundation; version 2 of
-## the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 chip northbridge/intel/i945
 	# IGD Displays
-	register "gfx.ndid" = "3"
-	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
+	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 
 	register "gpu_hotplug" = "0x00000220"
 	register "gpu_lvds_use_spread_spectrum_clock" = "1"
@@ -76,6 +60,10 @@ chip northbridge/intel/i945
 			register "docking_supported" = "1"
 			register "p_cnt_throttling_supported" = "1"
 
+			register "gen1_dec" = "0x007c1601"
+			register "gen2_dec" = "0x000c15e1"
+			register "gen3_dec" = "0x001c1681"
+
 			device pci 1b.0 on # Audio Controller
 				subsystemid 0x17aa 0x2010
 			end
@@ -101,14 +89,17 @@ chip northbridge/intel/i945
 			device pci 1d.7 on # USB2 EHCI
 				subsystemid 0x17aa 0x200b
 			end
-			device pci 1e.0 on end # PCI Bridge
+			device pci 1e.0 on # PCI Bridge
+				chip southbridge/ricoh/rl5c476
+					device pci 0.0 on end
+				end
+			end
 			device pci 1e.2 off end # AC'97 Audio
 			device pci 1e.3 off end # AC'97 Modem
 			device pci 1f.0 on # PCI-LPC bridge
 				subsystemid 0x17aa 0x2009
 				chip ec/lenovo/pmh7
-					device pnp ff.1 on # dummy
-					end
+					device pnp ff.1 on end # dummy
 					register "backlight_enable" = "0x01"
 					register "dock_event_enable" = "0x01"
 				end
@@ -168,8 +159,7 @@ chip northbridge/intel/i945
 				end
 
 				chip superio/nsc/pc87392
-					device pnp 2e.0 off #FDC
-					end
+					device pnp 2e.0 off end #FDC
 
 					device pnp 2e.1 on # Parallel Port
 						io 0x60 = 0x3bc
@@ -190,8 +180,7 @@ chip northbridge/intel/i945
 						io 0x60 = 0x1620
 					end
 
-					device pnp 2e.a off # WDT
-					end
+					device pnp 2e.a off end # WDT
 				end
 			end
 			device pci 1f.1 on # IDE
@@ -223,8 +212,6 @@ chip northbridge/intel/i945
 					device i2c 5f on end
 				end
 			end
-		end
-		chip southbridge/ricoh/rl5c476
 		end
 	end
 end

@@ -1,26 +1,10 @@
-/*
- * Copyright 2013 Google Inc.
- * Copyright 2018 Facebook, Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <commonlib/bsd/compression.h>
 #include <console/console.h>
 #include <bootmem.h>
-#include <stdlib.h>
 #include <program_loading.h>
 #include <string.h>
-#include <commonlib/compression.h>
-#include <commonlib/cbfs_serialized.h>
-#include <commonlib/helpers.h>
 #include <lib.h>
 #include <fit.h>
 #include <endian.h>
@@ -68,7 +52,7 @@ static bool decompress_kernel_header(const struct fit_image_node *node)
 		       scratch.raw, sizeof(scratch.raw));
 		break;
 	default:
-		printk(BIOS_ERR, "ERROR: Unsupported compression algorithm!\n");
+		printk(BIOS_ERR, "Unsupported compression algorithm!\n");
 		return false;
 	}
 
@@ -77,8 +61,7 @@ static bool decompress_kernel_header(const struct fit_image_node *node)
 		die("ERROR: Partial decompression ran over scratchbuf!\n");
 
 	if (scratch.header.magic != KERNEL_HEADER_MAGIC) {
-		printk(BIOS_ERR,
-		       "ERROR: Invalid kernel magic: %#.8x\n != %#.8x\n",
+		printk(BIOS_ERR, "Invalid kernel magic: %#.8x\n != %#.8x\n",
 		       scratch.header.magic, KERNEL_HEADER_MAGIC);
 		return false;
 	}

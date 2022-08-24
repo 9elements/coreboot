@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <Proc/Fch/FchPlatform.h>
 #include <Proc/Fch/Fch.h>
@@ -111,7 +98,7 @@ static void s3_resume_init_data(FCH_DATA_BLOCK *FchParams)
 	int i;
 
 	for (i = 0; i < sizeof(FchParams); i++) {
-		printk(BIOS_DEBUG, " %02x", ((u8 *) FchParams)[i]);
+		printk(BIOS_DEBUG, " %02x", ((u8 *)FchParams)[i]);
 		if ((i % 16) == 15)
 			printk(BIOS_DEBUG, "\n");
 	}

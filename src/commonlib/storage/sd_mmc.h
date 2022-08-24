@@ -1,16 +1,4 @@
-/*
- * Copyright 2017 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef __COMMONLIB_STORAGE_SD_MMC_H__
 #define __COMMONLIB_STORAGE_SD_MMC_H__
@@ -83,7 +71,7 @@ int sd_set_partition(struct storage_media *media,
 		if (CONFIG(SDHC_TRACE))	\
 			printk(BIOS_DEBUG, format);	\
 	} while (0)
-#define sdhc_error(format...) printk(BIOS_ERR, "ERROR: " format)
+#define sdhc_error(format...) printk(BIOS_ERR, format)
 
 /* Card/device debug functions */
 #define sd_mmc_debug(format...) \
@@ -96,6 +84,6 @@ int sd_set_partition(struct storage_media *media,
 		if (CONFIG(SD_MMC_TRACE))	\
 			printk(BIOS_DEBUG, format);	\
 	} while (0)
-#define sd_mmc_error(format...) printk(BIOS_ERR, "ERROR: " format)
+#define sd_mmc_error(format...) printk(BIOS_ERR, format)
 
 #endif /* __COMMONLIB_STORAGE_SD_MMC_H__ */

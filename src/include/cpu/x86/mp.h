@@ -1,23 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _X86_MP_H_
 #define _X86_MP_H_
 
-#include <arch/smp/atomic.h>
 #include <cpu/x86/smm.h>
+#include <types.h>
 
 #define CACHELINE_SIZE 64
 
@@ -26,7 +13,11 @@ struct bus;
 
 static inline void mfence(void)
 {
-	__asm__ __volatile__("mfence\t\n": : :"memory");
+	/* mfence came with the introduction of SSE2. */
+	if (CONFIG(SSE2))
+		__asm__ __volatile__("mfence\t\n": : :"memory");
+	else
+		__asm__ __volatile__("lock; addl $0,0(%%esp)": : : "memory");
 }
 
 /* The sequence of the callbacks are in calling order. */
@@ -58,17 +49,6 @@ struct mp_ops {
 	 */
 	void (*get_microcode_info)(const void **microcode, int *parallel);
 	/*
-	 * Optionally adjust SMM handler parameters to override the default
-	 * values.  The is_perm variable indicates if the parameters to adjust
-	 * are for the relocation handler or the permanent handler. This
-	 * function is therefore called twice -- once for each handler.
-	 * By default the parameters for each SMM handler are:
-	 *       stack_size     num_concurrent_stacks num_concurrent_save_states
-	 * relo: save_state_size    get_cpu_count()          1
-	 * perm: save_state_size    get_cpu_count()          get_cpu_count()
-	 */
-	void (*adjust_smm_params)(struct smm_loader_params *slp, int is_perm);
-	/*
 	 * Optionally provide a callback prior to the APs starting SMM
 	 * relocation or CPU driver initialization. However, note that
 	 * this callback is called after SMM handlers have been loaded.
@@ -97,24 +77,21 @@ struct mp_ops {
 };
 
 /*
- * mp_init_with_smm() returns < 0 on failure and 0 on success. The mp_ops
- * argument is used to drive the multiprocess initialization. Unless otherwise
- * stated each callback is called on the BSP only. The sequence of operations
- * is the following:
+ * The mp_ops argument is used to drive the multiprocess initialization. Unless
+ * otherwise stated each callback is called on the BSP only. The sequence of
+ * operations is the following:
  * 1. pre_mp_init()
  * 2. get_cpu_count()
  * 3. get_smm_info()
  * 4. get_microcode_info()
  * 5. adjust_cpu_apic_entry() for each number of get_cpu_count()
- * 6. adjust_smm_params(is_perm = 0)
- * 7. adjust_smm_params(is_perm = 1)
- * 8. pre_mp_smm_init()
- * 9. per_cpu_smm_trigger() in parallel for all cpus which calls
+ * 6. pre_mp_smm_init()
+ * 7. per_cpu_smm_trigger() in parallel for all cpus which calls
  *    relocation_handler() in SMM.
- * 10. mp_initialize_cpu() for each cpu
- * 11. post_mp_init()
+ * 8. mp_initialize_cpu() for each cpu
+ * 9. post_mp_init()
  */
-int mp_init_with_smm(struct bus *cpu_bus, const struct mp_ops *mp_ops);
+enum cb_err mp_init_with_smm(struct bus *cpu_bus, const struct mp_ops *mp_ops);
 
 enum {
 	/* Function runs on all cores (both BSP and APs) */
@@ -130,20 +107,29 @@ enum {
  * Input parameter expire_us <= 0 to specify an infinite timeout.
  * logical_cpu_num = MP_RUN_ON_ALL_CPUS to execute function over all cores (BSP
  * + APs) else specified AP number using logical_cpu_num.
- *
- * All functions return < 0 on error, 0 on success.
  */
-int mp_run_on_aps(void (*func)(void *), void *arg, int logical_cpu_num,
+enum cb_err mp_run_on_aps(void (*func)(void *), void *arg, int logical_cpu_num,
 		long expire_us);
 
+/*
+ * Runs func on all APs excluding BSP, with a provision to run calls in parallel
+ * or serially per AP.
+ */
+enum cb_err mp_run_on_all_aps(void (*func)(void *), void *arg, long expire_us,
+			      bool run_parallel);
+
 /* Like mp_run_on_aps() but also runs func on BSP. */
-int mp_run_on_all_cpus(void (*func)(void *), void *arg, long expire_us);
+enum cb_err mp_run_on_all_cpus(void (*func)(void *), void *arg);
+
+/* Like mp_run_on_all_cpus but make sure all APs finish executing the
+   function call. The time limit on a function call is 1 second per AP. */
+enum cb_err mp_run_on_all_cpus_synchronously(void (*func)(void *), void *arg);
 
 /*
  * Park all APs to prepare for OS boot. This is handled automatically
  * by the coreboot infrastructure.
  */
-int mp_park_aps(void);
+enum cb_err mp_park_aps(void);
 
 /*
  * SMM helpers to use with initializing CPUs.

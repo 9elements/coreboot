@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2010 coresystems GmbH
  *
@@ -39,6 +38,8 @@
 #  define PATH_MAX 255	/* the Posix minimum path-size */
 # endif
 #endif
+
+#define CHAR_BIT	8
 
 #define USHRT_MAX	((unsigned short int)~0U)
 #define SHRT_MIN	((short int)(USHRT_MAX & ~(USHRT_MAX >> 1)))

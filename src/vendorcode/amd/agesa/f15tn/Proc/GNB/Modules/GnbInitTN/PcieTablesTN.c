@@ -75,7 +75,7 @@
  *----------------------------------------------------------------------------------------
  */
 
-STATIC PCIE_HOST_REGISTER_ENTRY PcieInitEarlyTable ROMDATA[] = {
+STATIC CONST PCIE_HOST_REGISTER_ENTRY PcieInitEarlyTable ROMDATA[] = {
   {
     WRAP_SPACE (GPP_WRAP_ID, D0F0xE4_WRAP_8016_ADDRESS),
     D0F0xE4_WRAP_8016_CalibAckLatency_MASK,
@@ -110,10 +110,10 @@ STATIC PCIE_HOST_REGISTER_ENTRY PcieInitEarlyTable ROMDATA[] = {
 
 CONST PCIE_HOST_REGISTER_TABLE_HEADER ROMDATA PcieInitEarlyTableTN  = {
   &PcieInitEarlyTable[0],
-  sizeof (PcieInitEarlyTable) / sizeof (PCIE_HOST_REGISTER_ENTRY)
-};
+  ARRAY_SIZE(PcieInitEarlyTable)
+  };
 
-STATIC PCIE_HOST_REGISTER_ENTRY ROMDATA CoreInitTable [] = {
+STATIC CONST PCIE_HOST_REGISTER_ENTRY ROMDATA CoreInitTable [] = {
   {
     D0F0xE4_CORE_0020_ADDRESS,
     D0F0xE4_CORE_0020_CiRcOrderingDis_MASK |
@@ -160,11 +160,11 @@ STATIC PCIE_HOST_REGISTER_ENTRY ROMDATA CoreInitTable [] = {
 
 CONST PCIE_HOST_REGISTER_TABLE_HEADER ROMDATA CoreInitTableTN  = {
   &CoreInitTable[0],
-  sizeof (CoreInitTable) / sizeof (PCIE_HOST_REGISTER_ENTRY)
-};
+  ARRAY_SIZE(CoreInitTable)
+  };
 
 
-STATIC PCIE_PORT_REGISTER_ENTRY ROMDATA PortInitEarlyTable [] = {
+STATIC CONST PCIE_PORT_REGISTER_ENTRY ROMDATA PortInitEarlyTable [] = {
   {
     DxF0xE4_x02_ADDRESS,
     DxF0xE4_x02_RegsLcAllowTxL1Control_MASK,
@@ -208,8 +208,8 @@ STATIC PCIE_PORT_REGISTER_ENTRY ROMDATA PortInitEarlyTable [] = {
 
 CONST PCIE_PORT_REGISTER_TABLE_HEADER ROMDATA PortInitEarlyTableTN  = {
   &PortInitEarlyTable[0],
-  sizeof (PortInitEarlyTable) / sizeof (PCIE_PORT_REGISTER_ENTRY)
-};
+  ARRAY_SIZE(PortInitEarlyTable)
+  };
 
 
 STATIC PCIE_PORT_REGISTER_ENTRY ROMDATA PortInitMidTable [] = {
@@ -227,5 +227,5 @@ STATIC PCIE_PORT_REGISTER_ENTRY ROMDATA PortInitMidTable [] = {
 
 CONST PCIE_PORT_REGISTER_TABLE_HEADER ROMDATA PortInitMidTableTN  = {
   &PortInitMidTable[0],
-  sizeof (PortInitMidTable) / sizeof (PCIE_PORT_REGISTER_ENTRY)
-};
+  ARRAY_SIZE(PortInitMidTable)
+  };

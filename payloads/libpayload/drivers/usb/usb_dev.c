@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 coresystems GmbH
  *
@@ -30,22 +29,22 @@
 #include <usb/usb.h>
 
 static void
-usb_nop_destroy (usbdev_t *dev)
+usb_nop_destroy(usbdev_t *dev)
 {
-	usb_nop_init (dev);
+	usb_nop_init(dev);
 	dev->address = -1;
 	dev->hub = -1;
 	dev->port = -1;
 }
 
 static void
-usb_nop_poll (usbdev_t *dev)
+usb_nop_poll(usbdev_t *dev)
 {
 	return;
 }
 
 void
-usb_nop_init (usbdev_t *dev)
+usb_nop_init(usbdev_t *dev)
 {
 	dev->descriptor = NULL;
 	dev->configuration = NULL;

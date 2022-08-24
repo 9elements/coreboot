@@ -83,7 +83,7 @@ VOID
 GnbRegisterWriteTNDump (
   IN       UINT8               RegisterSpaceType,
   IN       UINT32              Address,
-  IN       VOID                *Value
+  CONST IN VOID                *Value
   );
 AGESA_STATUS
 GnbRegisterReadServiceTN (
@@ -242,7 +242,7 @@ GnbDctAdditionalDataWriteTN (
   IN       UINT8               DctCfgSel,
   IN       UINT8               MemPsSel,
   IN       UINT32              Flags,
-  IN       VOID                *Value,
+  CONST IN       VOID                *Value,
   IN       AMD_CONFIG_PARAMS   *StdHeader
   )
 {
@@ -816,7 +816,7 @@ AGESA_STATUS
 GnbRegisterWriteTN (
   IN       UINT8               RegisterSpaceType,
   IN       UINT32              Address,
-  IN       VOID                *Value,
+  CONST IN       VOID                *Value,
   IN       UINT32              Flags,
   IN       AMD_CONFIG_PARAMS   *StdHeader
   )
@@ -1265,7 +1265,7 @@ VOID
 GnbRegisterWriteTNDump (
   IN       UINT8               RegisterSpaceType,
   IN       UINT32              Address,
-  IN       VOID                *Value
+  CONST IN VOID                *Value
   )
 {
   IDS_HDT_CONSOLE (NB_MISC, "  R WRITE Space %s  Address 0x%04x, Value 0x%04x\n",

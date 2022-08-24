@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corp.
- * (Written by Lance Zhao <lijian.zhao@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <soc/gpio.h>
 #include <intelblocks/pcr.h>
 #include <soc/pcr_ids.h>
@@ -23,7 +8,6 @@ scope (\_SB) {
 
 	Device (GPO0)
 	{
-		Name (_ADR, 0)
 		Name (_HID, GPIO_COMM_NAME)
 		Name (_CID, GPIO_COMM_NAME)
 		Name (_DDN, GPIO_COMM_0_DESC)
@@ -41,8 +25,8 @@ scope (\_SB) {
 		Method (_CRS, 0x0, NotSerialized)
 		{
 			CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-			ShiftLeft (GPIO_COMM0_PID, PCR_PORTID_SHIFT, Local0)
-			Or (CONFIG_PCR_BASE_ADDRESS, Local0, RBAS)
+			Local0 = GPIO_COMM0_PID << PCR_PORTID_SHIFT
+			RBAS = CONFIG_PCR_BASE_ADDRESS | Local0
 			Return (^RBUF)
 		}
 
@@ -54,7 +38,6 @@ scope (\_SB) {
 
 	Device (GPO1)
 	{
-		Name (_ADR, 0)
 		Name (_HID, GPIO_COMM_NAME)
 		Name (_CID, GPIO_COMM_NAME)
 		Name (_DDN, GPIO_COMM_1_DESC)
@@ -72,8 +55,8 @@ scope (\_SB) {
 		Method (_CRS, 0x0, NotSerialized)
 		{
 			CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-			ShiftLeft (GPIO_COMM1_PID, PCR_PORTID_SHIFT, Local0)
-			Or (CONFIG_PCR_BASE_ADDRESS, Local0, RBAS)
+			Local0 = GPIO_COMM1_PID << PCR_PORTID_SHIFT
+			RBAS = CONFIG_PCR_BASE_ADDRESS | Local0
 			Return (^RBUF)
 		}
 
@@ -85,7 +68,6 @@ scope (\_SB) {
 
 	Device (GPO2)
 	{
-		Name (_ADR, 0)
 		Name (_HID, GPIO_COMM_NAME)
 		Name (_CID, GPIO_COMM_NAME)
 		Name (_DDN, GPIO_COMM_2_DESC)
@@ -103,8 +85,8 @@ scope (\_SB) {
 		Method (_CRS, 0x0, NotSerialized)
 		{
 			CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-			ShiftLeft (GPIO_COMM2_PID, PCR_PORTID_SHIFT, Local0)
-			Or (CONFIG_PCR_BASE_ADDRESS, Local0, RBAS)
+			Local0 = GPIO_COMM2_PID << PCR_PORTID_SHIFT
+			RBAS = CONFIG_PCR_BASE_ADDRESS | Local0
 			Return (^RBUF)
 		}
 
@@ -116,7 +98,6 @@ scope (\_SB) {
 
 	Device (GPO3)
 	{
-		Name (_ADR, 0)
 		Name (_HID, GPIO_COMM_NAME)
 		Name (_CID, GPIO_COMM_NAME)
 		Name (_DDN, GPIO_COMM_3_DESC)
@@ -134,8 +115,8 @@ scope (\_SB) {
 		Method (_CRS, 0x0, NotSerialized)
 		{
 			CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-			ShiftLeft (GPIO_COMM3_PID, PCR_PORTID_SHIFT, Local0)
-			Or (CONFIG_PCR_BASE_ADDRESS, Local0, RBAS)
+			Local0 = GPIO_COMM3_PID << PCR_PORTID_SHIFT
+			RBAS = CONFIG_PCR_BASE_ADDRESS | Local0
 			Return (^RBUF)
 		}
 
@@ -156,9 +137,9 @@ scope (\_SB) {
 			 * local1 - to toggle Tx pin of Dw0
 			 * local2 - Address of PERST
 			 */
-			Store (Arg0, Local2)
-			Store (\_SB.GPC0 (Local2), Local1)
-			Or (Local1, PAD_CFG0_TX_STATE, Local1)
+			Local2 = Arg0
+			Local1 = \_SB.GPC0 (Local2)
+			Local1 |= PAD_CFG0_TX_STATE
 			\_SB.SPC0 (Local2, Local1)
 		}
 
@@ -170,9 +151,9 @@ scope (\_SB) {
 			 * local1 - to toggle Tx pin of Dw0
 			 * local2 - Address of PERST
 			 */
-			Store (Arg0, Local2)
-			Store (\_SB.GPC0 (Local2), Local1)
-			And (Local1, Not (PAD_CFG0_TX_STATE), Local1)
+			Local2 = Arg0
+			Local1 = \_SB.GPC0 (Local2)
+			Local1 &= ~PAD_CFG0_TX_STATE
 			\_SB.SPC0 (Local2, Local1)
 		}
 	}

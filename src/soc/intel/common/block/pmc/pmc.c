@@ -1,43 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017-2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
-#include <arch/io.h>
 #include <device/pci_ops.h>
 #include <console/console.h>
-#include <cpu/x86/smm.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
+#include <intelblocks/acpi.h>
 #include <intelblocks/pmc.h>
+#include <intelblocks/pmclib.h>
 #include <soc/pci_devs.h>
-
-/* SoC overrides */
-
-/* Fill up PMC resource structure inside SoC directory */
-__weak int pmc_soc_get_resources(
-		struct pmc_resource_config *cfg)
-{
-	/* no-op */
-	return -1;
-}
-
-/* SoC override PMC initialization */
-__weak void pmc_soc_init(struct device *dev)
-{
-	/* no-op */
-}
+#include <soc/pm.h>
 
 static void pch_pmc_add_new_resource(struct device *dev,
 		uint8_t offset, uintptr_t base, size_t size,
@@ -104,13 +75,26 @@ static void pch_pmc_read_resources(struct device *dev)
 	pch_pmc_add_io_resources(dev, config);
 }
 
-void pmc_set_acpi_mode(void)
+static void pmc_fill_ssdt(const struct device *dev)
 {
-	if (CONFIG(HAVE_SMI_HANDLER) && !acpi_is_wakeup_s3()) {
-		printk(BIOS_DEBUG, "Disabling ACPI via APMC:\n");
-		outb(APM_CNT_ACPI_DISABLE, APM_CNT);
-		printk(BIOS_DEBUG, "done.\n");
-	}
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_ACPI_PEP))
+		generate_acpi_power_engine();
+}
+
+/*
+ * `pmc_final` function is native implementation of equivalent events performed by
+ * each FSP NotifyPhase() API invocations.
+ *
+ *
+ * Clear PMCON status bits (Global Reset/Power Failure/Host Reset Status bits)
+ *
+ * Perform the PMCON status bit clear operation from `.final`
+ * to cover any such chances where later boot stage requested a global
+ * reset and PMCON status bit remains set.
+ */
+static void pmc_final(struct device *dev)
+{
+	pmc_clear_pmcon_sts();
 }
 
 static struct device_operations device_ops = {
@@ -119,23 +103,42 @@ static struct device_operations device_ops = {
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= pmc_soc_init,
 	.ops_pci		= &pci_dev_ops_pci,
-	.scan_bus		= scan_lpc_bus,
+	.scan_bus		= scan_static_bus,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_fill_ssdt		= pmc_fill_ssdt,
+#endif
+	.final			= pmc_final,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_INTEL_SPT_LP_PMC,
-	PCI_DEVICE_ID_INTEL_SPT_H_PMC,
-	PCI_DEVICE_ID_INTEL_KBP_H_PMC,
-	PCI_DEVICE_ID_INTEL_APL_PMC,
-	PCI_DEVICE_ID_INTEL_GLK_PMC,
-	PCI_DEVICE_ID_INTEL_CNP_H_PMC,
-	PCI_DEVICE_ID_INTEL_ICP_PMC,
-	PCI_DEVICE_ID_INTEL_CMP_PMC,
+	PCI_DID_INTEL_MTL_SOC_PMC,
+	PCI_DID_INTEL_MTL_IOE_M_PMC,
+	PCI_DID_INTEL_MTL_IOE_P_PMC,
+	PCI_DID_INTEL_RPP_P_PMC,
+	PCI_DID_INTEL_DNV_PMC,
+	PCI_DID_INTEL_SPT_LP_PMC,
+	PCI_DID_INTEL_SPT_H_PMC,
+	PCI_DID_INTEL_LWB_PMC,
+	PCI_DID_INTEL_LWB_PMC_SUPER,
+	PCI_DID_INTEL_UPT_H_PMC,
+	PCI_DID_INTEL_APL_PMC,
+	PCI_DID_INTEL_GLK_PMC,
+	PCI_DID_INTEL_CNP_H_PMC,
+	PCI_DID_INTEL_ICP_PMC,
+	PCI_DID_INTEL_CMP_PMC,
+	PCI_DID_INTEL_CMP_H_PMC,
+	PCI_DID_INTEL_TGP_PMC,
+	PCI_DID_INTEL_TGP_H_PMC,
+	PCI_DID_INTEL_MCC_PMC,
+	PCI_DID_INTEL_JSP_PMC,
+	PCI_DID_INTEL_ADP_P_PMC,
+	PCI_DID_INTEL_ADP_S_PMC,
+	PCI_DID_INTEL_ADP_M_N_PMC,
 	0
 };
 
 static const struct pci_driver pch_pmc __pci_driver = {
 	.ops	 = &device_ops,
-	.vendor	 = PCI_VENDOR_ID_INTEL,
+	.vendor	 = PCI_VID_INTEL,
 	.devices = pci_device_ids,
 };

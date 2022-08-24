@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include <assert.h>
 #include <console/console.h>
 #include <fsp/util.h>
@@ -81,6 +68,7 @@ static void meminit_spd_data(FSP_M_CONFIG *mem_cfg, uint8_t mem_slot,
 	default:
 		die("nonexistent memory slot");
 	}
+	printk(BIOS_INFO, "memory slot: %d configuration done.\n", mem_slot);
 }
 
 /*
@@ -98,20 +86,19 @@ static void meminit_cbfs_spd_index(FSP_M_CONFIG *mem_cfg,
 	assert(mem_slot < NUM_DIMM_SLOT);
 
 	if ((spd_data_ptr == 0) || (last_spd_index != spd_index)) {
-		struct region_device spd_rdev;
-
 		printk(BIOS_DEBUG, "SPD INDEX = %d\n", spd_index);
 
-		if (get_spd_cbfs_rdev(&spd_rdev, spd_index) < 0)
+		spd_data_ptr = spd_cbfs_map(spd_index);
+		if (!spd_data_ptr)
 			die("spd.bin not found or incorrect index\n");
 
-		spd_data_len = region_device_sz(&spd_rdev);
+		spd_data_len = CONFIG_DIMM_SPD_SIZE;
 
 		/* Memory leak is ok since we have memory mapped boot media */
 		assert(CONFIG(BOOT_DEVICE_MEMORY_MAPPED));
 
-		spd_data_ptr = (uintptr_t)rdev_mmap_full(&spd_rdev);
 		last_spd_index = spd_index;
+		print_spd_info((unsigned char *)spd_data_ptr);
 	}
 
 	meminit_spd_data(mem_cfg, mem_slot, spd_data_len, spd_data_ptr);
@@ -149,7 +136,7 @@ void cannonlake_memcfg_init(FSP_M_CONFIG *mem_cfg,
 		default:
 			die("no valid way to read mem info");
 		}
-
-		meminit_memcfg(mem_cfg, cnl_cfg);
 	}
+
+	meminit_memcfg(mem_cfg, cnl_cfg);
 }

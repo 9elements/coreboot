@@ -1,32 +1,18 @@
-/*
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <console/console.h>
 #include <ctype.h>
 #include <lib.h>
-#include <string.h>
 
 void hexdump(const void *memory, size_t length)
 {
-	int i;
+	size_t i, j;
 	uint8_t *line;
 	int all_zero = 0;
 	int all_one = 0;
 	size_t num_bytes;
 
 	for (i = 0; i < length; i += 16) {
-		int j;
 		num_bytes = MIN(length - i, 16);
 		line = ((uint8_t *)memory) + i;
 
@@ -61,22 +47,4 @@ void hexdump(const void *memory, size_t length)
 			printk(BIOS_DEBUG, "...\n");
 		}
 	}
-}
-
-void hexdump32(char LEVEL, const void *d, size_t len)
-{
-	int count = 0;
-
-	while (len > 0) {
-		if (count % 8 == 0) {
-			printk(LEVEL, "\n");
-			printk(LEVEL, "%p:", d);
-		}
-		printk(LEVEL, " 0x%08lx", *(unsigned long *)d);
-		count++;
-		len--;
-		d += 4;
-	}
-
-	printk(LEVEL, "\n\n");
 }

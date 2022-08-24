@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/gpio.h>
 #include <baseboard/variants.h>
@@ -38,7 +25,7 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPO(GPIO_164, 0, DEEP), /* WLAN_PE_RST */
 
 	/*
-	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requies a weak
+	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requires a weak
 	 * pull-up for proper operation. Since there is no external pull present
 	 * on this platform, configure an internal weak pull-up.
 	 */

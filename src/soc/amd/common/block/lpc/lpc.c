@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010-2017 Advanced Micro Devices, Inc.
- * Copyright (C) 2014 Sage Electronic Engineering, LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <cbmem.h>
+#include <arch/ioapic.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -24,24 +10,40 @@
 #include <device/pci_def.h>
 #include <pc80/mc146818rtc.h>
 #include <pc80/isa-dma.h>
-#include <arch/ioapic.h>
 #include <pc80/i8254.h>
 #include <pc80/i8259.h>
+#include <amdblocks/acpi.h>
 #include <amdblocks/acpimmio.h>
+#include <amdblocks/espi.h>
+#include <amdblocks/ioapic.h>
 #include <amdblocks/lpc.h>
-#include <soc/acpi.h>
-#include <soc/southbridge.h>
-#include <soc/nvs.h>
 #include <soc/iomap.h>
+#include <soc/lpc.h>
+#include <soc/southbridge.h>
 
-/* Most systems should have already enabled the bridge */
-void __weak soc_late_lpc_bridge_enable(void) { }
+static void setup_serirq(void)
+{
+	u8 byte;
+
+	/* Set up SERIRQ, enable continuous mode */
+	byte = PM_SERIRQ_NUM_BITS_21;
+	if (!CONFIG(SOC_AMD_COMMON_BLOCK_USE_ESPI))
+		byte |= PM_SERIRQ_ENABLE;
+	if (!CONFIG(SERIRQ_CONTINUOUS_MODE))
+		byte |= PM_SERIRQ_MODE;
+
+	pm_write8(PM_SERIRQ_CONF, byte);
+}
+
+static void fch_ioapic_init(void)
+{
+	fch_enable_ioapic_decode();
+	setup_ioapic(VIO_APIC_VADDR, FCH_IOAPIC_ID);
+}
 
 static void lpc_init(struct device *dev)
 {
 	u8 byte;
-
-	soc_late_lpc_bridge_enable();
 
 	/* Initialize isa dma */
 	isa_dma_init();
@@ -61,12 +63,6 @@ static void lpc_init(struct device *dev)
 	/* BIT 1 is not defined in public datasheet. */
 	byte &= ~(1 << 1);
 
-	/*
-	 * Keep the old way. i.e., when bus master/DMA cycle is going
-	 * on on LPC, it holds PCI grant, so no LPC slave cycle can
-	 * interrupt and visit LPC.
-	 */
-	byte &= ~LPC_NOHOG;
 	pci_write_config8(dev, LPC_MISC_CONTROL_BITS, byte);
 
 	/*
@@ -93,18 +89,15 @@ static void lpc_init(struct device *dev)
 	/* Initialize i8254 timers */
 	setup_i8254();
 
-	/* Set up SERIRQ, enable continuous mode */
-	byte = (PM_SERIRQ_NUM_BITS_21 | PM_SERIRQ_ENABLE);
-	if (!CONFIG(SERIRQ_CONTINUOUS_MODE))
-		byte |= PM_SERIRQ_MODE;
+	setup_serirq();
 
-	pm_write8(PM_SERIRQ_CONF, byte);
+	fch_ioapic_init();
+	fch_configure_hpet();
 }
 
 static void lpc_read_resources(struct device *dev)
 {
 	struct resource *res;
-	global_nvs_t *gnvs;
 
 	/* Get the normal pci resources of this device */
 	pci_dev_read_resources(dev);
@@ -123,25 +116,14 @@ static void lpc_read_resources(struct device *dev)
 		     IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
 	/* Add a memory resource for the SPI BAR. */
-	fixed_mem_resource(dev, 2, SPI_BASE_ADDRESS / 1024, 1,
-			IORESOURCE_SUBTRACTIVE);
+	mmio_range(dev, 2, SPI_BASE_ADDRESS, 1 * KiB);
 
 	res = new_resource(dev, 3); /* IOAPIC */
 	res->base = IO_APIC_ADDR;
 	res->size = 0x00001000;
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
-	/* I2C devices (all 4 devices) */
-	res = new_resource(dev, 4);
-	res->base = I2C_BASE_ADDRESS;
-	res->size = I2C_DEVICE_SIZE * I2C_DEVICE_COUNT;
-	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
-
 	compact_resources(dev);
-
-	/* Allocate ACPI NVS in CBMEM */
-	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(global_nvs_t));
-	printk(BIOS_DEBUG, "ACPI GNVS at %p\n", gnvs);
 }
 
 static void lpc_set_resources(struct device *dev)
@@ -151,21 +133,24 @@ static void lpc_set_resources(struct device *dev)
 
 	/* Special case. The SpiRomEnable and other enables should STAY set. */
 	res = find_resource(dev, 2);
-	spi_enable_bits = pci_read_config32(dev, SPIROM_BASE_ADDRESS_REGISTER);
+	spi_enable_bits = pci_read_config32(dev, SPI_BASE_ADDRESS_REGISTER);
 	spi_enable_bits &= SPI_BASE_ALIGNMENT - 1;
-	pci_write_config32(dev, SPIROM_BASE_ADDRESS_REGISTER,
+	pci_write_config32(dev, SPI_BASE_ADDRESS_REGISTER,
 			res->base | spi_enable_bits);
 
 	pci_dev_set_resources(dev);
 }
 
-static void set_child_resource(struct device *dev, struct device *child,
-				u32 *reg, u32 *reg_x)
+static void configure_child_lpc_windows(struct device *dev, struct device *child)
 {
 	struct resource *res;
 	u32 base, end;
 	u32 rsize = 0, set = 0, set_x = 0;
 	int wideio_index;
+	u32 reg, reg_x;
+
+	reg = pci_read_config32(dev, LPC_IO_PORT_DECODE_ENABLE);
+	reg_x = pci_read_config32(dev, LPC_IO_OR_MEM_DECODE_ENABLE);
 
 	/*
 	 * Be a bit relaxed, tolerate that LPC region might be bigger than
@@ -262,16 +247,15 @@ static void set_child_resource(struct device *dev, struct device *child,
 		}
 		/* check if region found and matches the enable */
 		if (res->size <= rsize) {
-			*reg |= set;
-			*reg_x |= set_x;
+			reg |= set;
+			reg_x |= set_x;
 		/* check if we can fit resource in variable range */
 		} else {
 			wideio_index = lpc_set_wideio_range(base, res->size);
 			if (wideio_index != WIDEIO_RANGE_ERROR) {
 				/* preserve wide IO related bits. */
-				*reg_x = pci_read_config32(dev,
+				reg_x = pci_read_config32(dev,
 					LPC_IO_OR_MEM_DECODE_ENABLE);
-
 				printk(BIOS_DEBUG,
 					"Range assigned to wide IO %d\n",
 					wideio_index);
@@ -284,63 +268,77 @@ static void set_child_resource(struct device *dev, struct device *child,
 			}
 		}
 	}
-}
 
-/**
- * @brief Enable resources for children devices
- *
- * @param dev the device whose children's resources are to be enabled
- *
- */
-static void lpc_enable_childrens_resources(struct device *dev)
-{
-	struct bus *link;
-	u32 reg, reg_x;
-
-	reg = pci_read_config32(dev, LPC_IO_PORT_DECODE_ENABLE);
-	reg_x = pci_read_config32(dev, LPC_IO_OR_MEM_DECODE_ENABLE);
-
-	for (link = dev->link_list; link; link = link->next) {
-		struct device *child;
-		for (child = link->children; child;
-		     child = child->sibling) {
-			if (child->enabled
-			    && (child->path.type == DEVICE_PATH_PNP))
-				set_child_resource(dev, child, &reg, &reg_x);
-		}
-	}
 	pci_write_config32(dev, LPC_IO_PORT_DECODE_ENABLE, reg);
 	pci_write_config32(dev, LPC_IO_OR_MEM_DECODE_ENABLE, reg_x);
+}
+
+static void configure_child_espi_windows(struct device *child)
+{
+	struct resource *res;
+
+	for (res = child->resource_list; res; res = res->next) {
+		if (res->flags & IORESOURCE_IO)
+			espi_open_io_window(res->base, res->size);
+		else if (res->flags & IORESOURCE_MEM)
+			espi_open_mmio_window(res->base, res->size);
+	}
+}
+
+static void lpc_enable_children_resources(struct device *dev)
+{
+	struct bus *link;
+	struct device *child;
+
+	for (link = dev->link_list; link; link = link->next) {
+		for (child = link->children; child; child = child->sibling) {
+			if (!child->enabled)
+				continue;
+			if (child->path.type != DEVICE_PATH_PNP)
+				continue;
+			if (CONFIG(SOC_AMD_COMMON_BLOCK_USE_ESPI))
+				configure_child_espi_windows(child);
+			else
+				configure_child_lpc_windows(dev, child);
+		}
+	}
 }
 
 static void lpc_enable_resources(struct device *dev)
 {
 	pci_dev_enable_resources(dev);
-	lpc_enable_childrens_resources(dev);
+	lpc_enable_children_resources(dev);
 }
 
-static struct pci_operations lops_pci = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
+#if CONFIG(HAVE_ACPI_TABLES)
+static const char *lpc_acpi_name(const struct device *dev)
+{
+	return "LPCB";
+}
+#endif
 
 static struct device_operations lpc_ops = {
 	.read_resources = lpc_read_resources,
 	.set_resources = lpc_set_resources,
 	.enable_resources = lpc_enable_resources,
-	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_name = lpc_acpi_name,
 	.write_acpi_tables = southbridge_write_acpi_tables,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_lpc_bus,
-	.ops_pci = &lops_pci,
+	.scan_bus = scan_static_bus,
+	.ops_pci = &pci_dev_ops_pci,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_AMD_SB900_LPC,
-	PCI_DEVICE_ID_AMD_CZ_LPC,
+	/* PCI device ID is used on all discrete FCHs and Family 16h Models 00h-3Fh */
+	PCI_DID_AMD_SB900_LPC,
+	/* PCI device ID is used on all integrated FCHs except Family 16h Models 00h-3Fh */
+	PCI_DID_AMD_CZ_LPC,
 	0
 };
 static const struct pci_driver lpc_driver __pci_driver = {
 	.ops = &lpc_ops,
-	.vendor = PCI_VENDOR_ID_AMD,
+	.vendor = PCI_VID_AMD,
 	.devices = pci_device_ids,
 };

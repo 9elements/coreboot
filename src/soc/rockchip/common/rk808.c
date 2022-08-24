@@ -1,27 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Rockchip Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <assert.h>
-#include <bcd.h>
+#include <commonlib/bsd/bcd.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/i2c_simple.h>
 #include <rtc.h>
 #include <soc/rk808.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 #if CONFIG_PMIC_BUS < 0
 #error "PMIC_BUS must be set in mainboard's Kconfig."
@@ -68,7 +54,7 @@ static void rk808_clrsetbits(uint8_t reg, uint8_t clr, uint8_t set)
 	uint8_t value;
 
 	if (rk808_read(reg, &value) || rk808_write(reg, (value & ~clr) | set))
-		printk(BIOS_ERR, "ERROR: Cannot set Rk808[%#x]!\n", reg);
+		printk(BIOS_ERR, "Cannot set Rk808[%#x]!\n", reg);
 }
 
 void rk808_configure_switch(int sw, int enabled)

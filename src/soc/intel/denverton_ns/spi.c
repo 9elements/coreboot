@@ -1,24 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <intelblocks/fast_spi.h>
-#include <spi-generic.h>
+#include <intelblocks/spi.h>
+#include <soc/pci_devs.h>
 
-const struct spi_ctrlr_buses spi_ctrlr_bus_map[] = {
-	{ .ctrlr = &fast_spi_flash_ctrlr, .bus_start = 0, .bus_end = 0 },
-};
+int spi_soc_devfn_to_bus(unsigned int devfn)
+{
+	/* Denverton doesn't have GSPI controllers, only Fast SPI */
 
-const size_t spi_ctrlr_bus_map_count = ARRAY_SIZE(spi_ctrlr_bus_map);
+	if (devfn == PCH_DEVFN_SPI)
+		return 0;
+	else
+		return -1;
+}

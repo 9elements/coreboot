@@ -1,18 +1,4 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2013 Google Inc.
-## Copyright (C) 2015 Intel Corporation.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 subdirs-y += spd
 
@@ -27,9 +13,3 @@ ramstage-$(CONFIG_EC_GOOGLE_CHROMEEC) += ec.c
 
 ramstage-y += mainboard.c
 ramstage-y += ramstage.c
-
-smm-$(CONFIG_HAVE_SMI_HANDLER) += smihandler.c
-
-ifeq ($(CONFIG_PLATFORM_USES_FSP2_0),y)
-romstage-srcs := $(subst $(MAINBOARDDIR)/romstage.c,$(MAINBOARDDIR)/romstage_fsp20.c,$(romstage-srcs))
-endif

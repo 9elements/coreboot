@@ -289,7 +289,7 @@ PciePayloadBlackListFeature (
   UINT32  VendorId;
 
   GnbLibPciRead (Device.AddressValue, AccessWidth32, &TargetDeviceId, StdHeader);
-  for (i = 0; i < (sizeof (PayloadBlacklistDeviceTable) / sizeof (UINT16)); i = i + 3) {
+  for (i = 0; i < ARRAY_SIZE(PayloadBlacklistDeviceTable); i = i + 3) {
     VendorId = PayloadBlacklistDeviceTable[i];
     DeviceId = PayloadBlacklistDeviceTable[i + 1];
     if (VendorId == (UINT16)TargetDeviceId) {
@@ -334,7 +334,7 @@ PcieMaxPayloadInitCallback (
       (PcieConfigCheckPortStatus (Engine, INIT_STATUS_PCIE_TRAINING_SUCCESS))) {
     EngineMaxPayload =  MAX_PAYLOAD;
     Complex = (PCIe_COMPLEX_CONFIG *) PcieConfigGetParent (DESCRIPTOR_COMPLEX, &Engine->Header);
-    Status = GnbLibLocateService (GnbPcieMaxPayloadService, Complex->SocketId, (VOID **)&PcieMaxPayloadProtocol, GnbLibGetHeader (Pcie));
+    Status = GnbLibLocateService (GnbPcieMaxPayloadService, Complex->SocketId, (CONST VOID **)&PcieMaxPayloadProtocol, GnbLibGetHeader (Pcie));
     if (Status ==  AGESA_SUCCESS) {
       EngineMaxPayload = PcieMaxPayloadProtocol->SetMaxPayload (Engine);
     }
@@ -373,4 +373,3 @@ PcieMaxPayloadInterface (
   IDS_HDT_CONSOLE (GNB_TRACE, "PcieMaxPayloadInterface Exit [0x%x]\n", AgesaStatus);
   return  AgesaStatus;
 }
-

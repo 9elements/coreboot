@@ -1,32 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef MTK_COMMON_SPI_H
 #define MTK_COMMON_SPI_H
 
+#include <device/mmio.h>
+#include <soc/gpio_base.h>
 #include <spi-generic.h>
-
-enum {
-	SPI_CFG1_CS_IDLE_SHIFT = 0,
-	SPI_CFG1_PACKET_LOOP_SHIFT = 8,
-	SPI_CFG1_PACKET_LENGTH_SHIFT = 16,
-
-	SPI_CFG1_CS_IDLE_MASK = 0xff << SPI_CFG1_CS_IDLE_SHIFT,
-	SPI_CFG1_PACKET_LOOP_MASK = 0xff << SPI_CFG1_PACKET_LOOP_SHIFT,
-	SPI_CFG1_PACKET_LENGTH_MASK = 0x3ff << SPI_CFG1_PACKET_LENGTH_SHIFT,
-};
+#include <types.h>
 
 enum {
 	SPI_CMD_ACT_SHIFT = 0,
@@ -70,13 +50,31 @@ enum spi_pad_mask {
 	SPI_PAD_SEL_MASK = 0x3
 };
 
-struct mtk_spi_regs;
+/* SPI peripheral register map. */
+typedef struct mtk_spi_regs {
+	uint32_t spi_cfg0_reg;
+	uint32_t spi_cfg1_reg;
+	uint32_t spi_tx_src_reg;
+	uint32_t spi_rx_dst_reg;
+	uint32_t spi_tx_data_reg;
+	uint32_t spi_rx_data_reg;
+	uint32_t spi_cmd_reg;
+	uint32_t spi_status0_reg;
+	uint32_t spi_status1_reg;
+	uint32_t spi_pad_macro_sel_reg;
+	uint32_t spi_cfg2_reg;
+	uint32_t spi_tx_src_64_reg;
+	uint32_t spi_rx_dst_64_reg;
+} mtk_spi_regs;
+
+check_member(mtk_spi_regs, spi_pad_macro_sel_reg, 0x24);
 
 struct mtk_spi_bus {
 	struct spi_slave slave;
 	struct mtk_spi_regs *regs;
 	int initialized;
 	int state;
+	gpio_t cs_gpio;
 };
 
 extern const struct spi_ctrlr spi_ctrlr;

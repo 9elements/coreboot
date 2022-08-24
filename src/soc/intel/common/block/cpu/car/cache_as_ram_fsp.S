@@ -1,22 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/pci_def.h>
-#include <cpu/x86/mtrr.h>
-#include <cpu/x86/cache.h>
 #include <cpu/x86/cr.h>
 #include <cpu/x86/post_code.h>
 
@@ -25,6 +9,8 @@
 #define CBFS_FILE_TYPE (CBFS_FILE_LEN + 4)
 #define CBFS_FILE_CHECKSUM (CBFS_FILE_TYPE + 4)
 #define CBFS_FILE_OFFSET (CBFS_FILE_CHECKSUM + 4)
+
+.section .init, "ax", @progbits
 
 .extern	temp_ram_init_params
 
@@ -35,16 +21,7 @@ bootblock_pre_c_entry:
 cache_as_ram:
 	post_code(0x21)
 
-	/* find fsp in cbfs */
-	lea	fsp_name, %esi
-	mov	$1f, %esp
-	jmp	walkcbfs_asm
-1:
-	cmp	$0, %eax
-	jz	.halt_forever
-	mov	CBFS_FILE_OFFSET(%eax), %ebx
-	bswap	%ebx
-	add	%eax, %ebx
+	movl	$(CONFIG_FSP_T_LOCATION), %ebx
 	add	$0x94, %ebx
 
 	/*
@@ -87,16 +64,28 @@ CAR_init_done:
 	jnz	.halt_forever
 
 	/* Setup bootblock stack */
-	mov	%edx, %esp
+	movl	$_ecar_stack, %esp
+	/*
+	 * temp_memory_start/end reside in the .bss section, which gets cleared
+	 * below. Save the FSP return value to the stack before writing those
+	 * variables.
+	 */
+	push	%ecx
+	push	%edx
 
-	/* clear CAR_GLOBAL area as it is not shared */
+	/* clear .bss section as it is not shared */
 	cld
 	xor	%eax, %eax
-	movl	$(_car_global_end), %ecx
-	movl	$(_car_global_start), %edi
+	movl	$(_ebss), %ecx
+	movl	$(_bss), %edi
 	sub	%edi, %ecx
 	shrl	$2, %ecx
 	rep	stosl
+
+	pop	%edx
+	movl	%edx, temp_memory_end
+	pop	%ecx
+	movl	%ecx, temp_memory_start
 
 	/* Restore the timestamp from bootblock_crt0.S (ebp:mm1) */
 	push	%ebp

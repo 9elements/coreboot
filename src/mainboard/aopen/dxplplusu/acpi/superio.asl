@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 
 /* SuperIO GPIO configuration via logical device 0x0A */
@@ -92,7 +79,7 @@ Method (_CRS, 0, NotSerialized)
 	ShiftLeft (IOM1, 0x08, IOM1)
 	Or (\_SB.PCI0.ICH0.SMSC.IOAL, IOM1, IOM1)
 	Store (IOM1, IOM2)
-	If (LNotEqual (IOM1, 0x00))
+	If (IOM1 != 0)
 	{
 		Store (0x80, IOML)
 	}
@@ -117,11 +104,7 @@ Method (_INI, 0, NotSerialized)
 	Store (0x01, GC33)
 	Store (0x01, GC34) /* GPI password jumper */
 	Store (0x01, GC35) /* GPI scsi enable jumper */
-#if 1
 	Store (0x01, GC42)  /* GPI */
-#else
-	Store (0x84, GC42)  /* nIO_PME */
-#endif
 	Store (0x86, GC60) /* led 1 */
 	Store (0x81, GC61) /* led 2 ?? */
 
@@ -161,7 +144,7 @@ Method (MLED, 1, NotSerialized)
 		Store (0x00, LED1)
 	}
 
-	If (LOr (LEqual (Arg0, 0x01), LEqual (Arg0, 0x02)))
+	If (LEqual (Arg0, 0x01) || LEqual (Arg0, 0x02))
 	{
 		Store (0x01, LED1)
 	}
@@ -171,7 +154,7 @@ Method (MLED, 1, NotSerialized)
 		Store (0x02, LED1)
 	}
 
-	If (LOr (LEqual (Arg0, 0x04), LEqual (Arg0, 0x05)))
+	If (LEqual (Arg0, 0x04) || LEqual (Arg0, 0x05))
 	{
 		Store (0x03, LED1)
 	}

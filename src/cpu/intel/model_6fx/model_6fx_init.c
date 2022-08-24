@@ -1,28 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/msr.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/name.h>
-#include <cpu/intel/common/common.h>
 
 #define HIGHEST_CLEVEL		3
 static void configure_c_states(void)
@@ -105,7 +89,6 @@ static void configure_misc(void)
 	msr = rdmsr(IA32_PECI_CTL);
 	msr.lo |= 1;
 	wrmsr(IA32_PECI_CTL, msr);
-
 }
 
 #define PIC_SENS_CFG	0x1aa
@@ -126,7 +109,7 @@ static void model_6fx_init(struct device *cpu)
 	char processor_name[49];
 
 	/* Turn on caching if we haven't already */
-	x86_enable_cache();
+	enable_cache();
 
 	/* Print processor name */
 	fill_processor_name(processor_name);
@@ -134,9 +117,6 @@ static void model_6fx_init(struct device *cpu)
 
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
-
-	/* Enable the local CPU APICs */
-	setup_lapic();
 
 	/* Configure C States */
 	configure_c_states();
@@ -161,7 +141,6 @@ static const struct cpu_device_id cpu_table[] = {
 	{ X86_VENDOR_INTEL, 0x06fb }, /* Intel Core 2 Solo/Core Duo */
 	{ X86_VENDOR_INTEL, 0x06fd }, /* Intel Core 2 Solo/Core Duo */
 	{ X86_VENDOR_INTEL, 0x10661 }, /* Intel Core 2 Celeron Conroe-L */
-	{ X86_VENDOR_INTEL, 0x10676 }, /* Core2 Duo E8200 */
 	{ 0, 0 },
 };
 

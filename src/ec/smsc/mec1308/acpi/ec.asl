@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -82,13 +69,13 @@ Device (EC0)
 		// Force a read of CPU temperature
 		Store (CPUT, Local0)
 		/* So that we don't get a warning that Local0 is unused.  */
-		Increment (Local0)
+		Local0++
 	}
 
 	PowerResource (FNP0, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 0)) {
+			If (\FLVL <= 0) {
 				Return (One)
 			} Else {
 				Return (Zero)
@@ -113,7 +100,7 @@ Device (EC0)
 	PowerResource (FNP1, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 1)) {
+			If (\FLVL <= 1) {
 				Return (One)
 			} Else {
 				Return (Zero)
@@ -138,7 +125,7 @@ Device (EC0)
 	PowerResource (FNP2, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 2)) {
+			If (\FLVL <= 2) {
 				Return (One)
 			} Else {
 				Return (Zero)
@@ -163,7 +150,7 @@ Device (EC0)
 	PowerResource (FNP3, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 3)) {
+			If (\FLVL <= 3) {
 				Return (One)
 			} Else {
 				Return (Zero)
@@ -188,7 +175,7 @@ Device (EC0)
 	PowerResource (FNP4, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 4)) {
+			If (\FLVL <= 4) {
 				Return (One)
 			} Else {
 				Return (Zero)

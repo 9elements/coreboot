@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef DEVICE_RESOURCE_H
 #define DEVICE_RESOURCE_H
 
@@ -24,6 +26,8 @@
 #define IORESOURCE_SUBTRACTIVE  0x00040000
 /* The IO resource has a bus below it. */
 #define IORESOURCE_BRIDGE	0x00080000
+/* This is a request to allocate resource about 4G boundary. */
+#define IORESOURCE_ABOVE_4G	0x00100000
 /* The resource needs to be reserved in the coreboot table */
 #define IORESOURCE_RESERVE	0x10000000
 /* The IO resource assignment has been stored in the device */
@@ -34,8 +38,9 @@
 #define IORESOURCE_FIXED	0x80000000
 
 /* PCI specific resource bits (IORESOURCE_BITS) */
-#define IORESOURCE_PCI64	(1<<0)	/* 64bit long pci resource */
-#define IORESOURCE_PCI_BRIDGE	(1<<1)  /* A bridge pci resource */
+#define IORESOURCE_PCI64		(1<<0)	/* 64bit long pci resource */
+#define IORESOURCE_PCI_BRIDGE		(1<<1)  /* A bridge pci resource */
+#define IORESOURCE_PCIE_RESIZABLE_BAR	(1<<2)  /* A Resizable BAR */
 
 typedef u64 resource_t;
 struct resource {
@@ -61,32 +66,58 @@ struct resource {
 /* Generic resource helper functions */
 struct device;
 struct bus;
-extern void compact_resources(struct device *dev);
-extern struct resource *probe_resource(struct device *dev, unsigned int index);
-extern struct resource *new_resource(struct device *dev, unsigned int index);
-extern struct resource *find_resource(struct device *dev, unsigned int index);
-extern resource_t resource_end(struct resource *resource);
-extern resource_t resource_max(struct resource *resource);
-extern void report_resource_stored(struct device *dev,
-	struct resource *resource, const char *comment);
+void compact_resources(struct device *dev);
+struct resource *probe_resource(const struct device *dev, unsigned int index);
+struct resource *new_resource(struct device *dev, unsigned int index);
+struct resource *find_resource(const struct device *dev, unsigned int index);
+resource_t resource_end(const struct resource *resource);
+resource_t resource_max(const struct resource *resource);
+void report_resource_stored(struct device *dev, const struct resource *resource,
+			    const char *comment);
 
-typedef void (*resource_search_t)(void *gp, struct device *dev,
-	struct resource *res);
-extern void search_bus_resources(struct bus *bus,
-	unsigned long type_mask, unsigned long type,
-	resource_search_t search, void *gp);
+typedef void (*resource_search_t)(void *gp, struct device *dev, struct resource *res);
 
-extern void search_global_resources(
-	unsigned long type_mask, unsigned long type,
-	resource_search_t search, void *gp);
+void search_bus_resources(struct bus *bus, unsigned long type_mask, unsigned long type,
+			  resource_search_t search, void *gp);
+
+void search_global_resources(unsigned long type_mask, unsigned long type,
+			     resource_search_t search, void *gp);
 
 #define RESOURCE_TYPE_MAX 20
-extern const char *resource_type(struct resource *resource);
+const char *resource_type(const struct resource *resource);
 
-static inline void *res2mmio(struct resource *res, unsigned long offset,
+static inline void *res2mmio(const struct resource *res, unsigned long offset,
 			     unsigned long mask)
 {
 	return (void *)(uintptr_t)((res->base + offset) & ~mask);
 }
+
+void log_resource(const char *type, const struct device *dev, const struct resource *res,
+		  const char *srcfile, const int line);
+
+#define LOG_RESOURCE(type, dev, res)						\
+	do {									\
+		if (CONFIG(DEBUG_RESOURCES) && (dev) && (res))			\
+			log_resource(type, (dev), (res), __func__, __LINE__);	\
+	} while (0)
+
+/*
+ * Pick largest resource on the bus using the given mask and type.
+ * Params:
+ * bus = Bus from which the resource needs to picked from.
+ * result_res = If NULL, there was no previous resource picked on this bus, else it points to
+ *              the last picked resource.
+ * type_mask = Mask to be applied when searching for resource
+ * type = Expected type for the resource
+ *
+ * Returns:
+ * If resource is found, returns the device and sets result_rest to point to the resource. Else
+ * returns NULL.
+ */
+const struct device *largest_resource(struct bus *bus, struct resource **result_res,
+				      unsigned long type_mask, unsigned long type);
+
+/* Compute and allocate resources. This is the main resource allocator entry point. */
+void allocate_resources(const struct device *root);
 
 #endif /* DEVICE_RESOURCE_H */

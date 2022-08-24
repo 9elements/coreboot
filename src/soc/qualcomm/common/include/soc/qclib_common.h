@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018, The Linux Foundation.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_QUALCOMM_QCLIB_COMMON_H__
 #define _SOC_QUALCOMM_QCLIB_COMMON_H__
@@ -24,7 +11,6 @@
 #define QCLIB_TE_NAME_LENGTH 24
 
 /* FMAP_REGION names */
-#define QCLIB_FR_DDR_TRAINING_DATA "RO_DDR_TRAINING"
 #define QCLIB_FR_LIMITS_CFG_DATA   "RO_LIMITS_CFG"
 
 /* TE_NAME (table entry name) */
@@ -36,9 +22,18 @@
 #define QCLIB_TE_DDR_TRAINING_DATA "ddr_training_data"
 #define QCLIB_TE_LIMITS_CFG_DATA   "limits_cfg_data"
 #define QCLIB_TE_QCSDI             "qcsdi"
+#define QCLIB_TE_MEM_CHIP_INFO     "mem_chip_info"
 
 /* BA_BMASK_VALUES (blob_attributes bit mask values) */
 #define QCLIB_BA_SAVE_TO_STORAGE 0x00000001
+
+enum qclib_cbfs_file {
+	QCLIB_CBFS_PMICCFG,
+	QCLIB_CBFS_QCSDI,
+	QCLIB_CBFS_QCLIB,
+	QCLIB_CBFS_DCB,
+	QCLIB_CBFS_MAX
+};
 
 struct qclib_cb_if_table_entry {
 	char       name[QCLIB_TE_NAME_LENGTH];  /* 0x00 TE_NAME */
@@ -72,5 +67,8 @@ void qclib_add_if_table_entry(const char *name, void *base,
 			      uint32_t size, uint32_t attrs);
 void qclib_load_and_run(void);
 int  qclib_soc_blob_load(void);
+
+const char *qclib_file_default(enum qclib_cbfs_file file);
+const char *qclib_file(enum qclib_cbfs_file file);
 
 #endif  // _SOC_QUALCOMM_QCLIB_COMMON_H_

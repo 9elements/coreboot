@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2009 coresystems GmbH
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _CBMEM_H_
 #define _CBMEM_H_
 
-#include <commonlib/cbmem_id.h>
+#include <commonlib/bsd/cbmem_id.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <boot/coreboot_tables.h>
@@ -63,18 +49,23 @@ int cbmem_initialize_id_size(u32 id, u64 size);
 void cbmem_initialize_empty(void);
 void cbmem_initialize_empty_id_size(u32 id, u64 size);
 
-/* Optional hook for platforms to initialize cbmem_top() value. When employed
- * it's called a single time during boot at cbmem initialization/recovery
- * time. */
-void cbmem_top_init(void);
-
 /* Return the top address for dynamic cbmem. The address returned needs to
  * be consistent across romstage and ramstage, and it is required to be
  * below 4GiB for 32bit coreboot builds. On 64bit coreboot builds there's no
- * upper limit.
- * x86 boards or chipsets must return NULL before the cbmem backing store has
- * been initialized. */
+ * upper limit. This should not be called before memory is initialized.
+ */
+/* The assumption is made that the result of cbmem_top_romstage fits in the size
+   of uintptr_t in the ramstage. */
+extern uintptr_t _cbmem_top_ptr;
 void *cbmem_top(void);
+/* With CONFIG_RAMSTAGE_CBMEM_TOP_ARG set, the result of cbmem_top is passed via
+ * calling arguments to the next stage and saved in the global _cbmem_top_ptr
+ * global variable. Only a romstage callback needs to be implemented by the
+ * platform. It is up to the stages after romstage to save the calling argument
+ * in the _cbmem_top_ptr symbol. Without CONFIG_RAMSTAGE_CBMEM_TOP_ARG the same
+ * implementation as used in romstage will be used.
+ */
+void *cbmem_top_chipset(void);
 
 /* Add a cbmem entry of a given size and id. These return NULL on failure. The
  * add function performs a find first and do not check against the original
@@ -106,7 +97,6 @@ void *cbmem_find(u32 id);
 /* Indicate to each hook if cbmem is being recovered or not. */
 typedef void (* const cbmem_init_hook_t)(int is_recovery);
 void cbmem_run_init_hooks(int is_recovery);
-void cbmem_fail_resume(void);
 
 /* Ramstage only functions. */
 /* Add the cbmem memory used to the memory map at boot. */
@@ -116,48 +106,34 @@ void cbmem_get_region(void **baseptr, size_t *size);
 void cbmem_list(void);
 void cbmem_add_records_to_cbtable(struct lb_header *header);
 
-#if ENV_RAMSTAGE
-#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused_ = init_fn_;
-#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) \
+#define _CBMEM_INIT_HOOK_UNUSED(init_fn_) __attribute__((unused)) \
+	static cbmem_init_hook_t init_fn_ ## _unused_ = init_fn_
+
+#define _CBMEM_INIT_HOOK(init_fn_) \
 	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
-	section(".rodata.cbmem_init_hooks"))) = init_fn_;
-#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused2_ = init_fn_;
-#elif ENV_ROMSTAGE
-#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) \
+	section(".rodata.cbmem_init_hooks"))) = init_fn_
+
+/* Early hooks get executed before other hooks. Use sparingly for hooks that create
+   CBMEM regions which need to remain in a constant location across boot modes. */
+#define _CBMEM_INIT_HOOK_EARLY(init_fn_) \
 	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
-	section(".rodata.cbmem_init_hooks"))) = init_fn_;
-#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused_ = init_fn_;
-#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused2_ = init_fn_;
-#elif ENV_POSTCAR
-#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused2_ = init_fn_;
-#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused_ = init_fn_;
-#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) \
-	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
-	section(".rodata.cbmem_init_hooks"))) = init_fn_;
+	section(".rodata.cbmem_init_hooks_early"))) = init_fn_
+
+/* Use CBMEM_CREATION_HOOK for code that needs to be run when cbmem is initialized
+   for the first time. */
+#if ENV_CREATES_CBMEM
+#define CBMEM_CREATION_HOOK(x)		_CBMEM_INIT_HOOK(x)
 #else
-#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused_ = init_fn_;
-#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused2_ = init_fn_;
-#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) __attribute__((unused)) \
-	static cbmem_init_hook_t init_fn_ ## _unused3_ = init_fn_;
-#endif /* ENV_RAMSTAGE */
+#define CBMEM_CREATION_HOOK(x)		_CBMEM_INIT_HOOK_UNUSED(x)
+#endif
 
-
-/* Any new chipset and board must implement cbmem_top() for both
- * romstage and ramstage to support early features like COLLECT_TIMESTAMPS
- * and CBMEM_CONSOLE. Sometimes it is necessary to have cbmem_top()
- * value stored in nvram to enable early recovery on S3 path.
- */
-#if CONFIG(ARCH_X86)
-void backup_top_of_low_cacheable(uintptr_t ramtop);
-uintptr_t restore_top_of_low_cacheable(void);
+/* Use CBMEM_READY_HOOK for code that needs to run in all stages that have cbmem. */
+#if ENV_HAS_CBMEM
+#define CBMEM_READY_HOOK(x)		_CBMEM_INIT_HOOK(x)
+#define CBMEM_READY_HOOK_EARLY(x)	_CBMEM_INIT_HOOK_EARLY(x)
+#else
+#define CBMEM_READY_HOOK(x)		_CBMEM_INIT_HOOK_UNUSED(x)
+#define CBMEM_READY_HOOK_EARLY(x)	_CBMEM_INIT_HOOK_UNUSED(x)
 #endif
 
 /*
@@ -170,10 +146,21 @@ static inline int cbmem_possibly_online(void)
 	if (ENV_BOOTBLOCK)
 		return 0;
 
-	if (ENV_VERSTAGE && CONFIG(VBOOT_STARTS_IN_BOOTBLOCK))
+	if (ENV_SEPARATE_VERSTAGE && !CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
 		return 0;
 
 	return 1;
+}
+
+/* Returns 1 after running cbmem init hooks, 0 otherwise. */
+static inline int cbmem_online(void)
+{
+	extern int cbmem_initialized;
+
+	if (!cbmem_possibly_online())
+		return 0;
+
+	return cbmem_initialized;
 }
 
 #endif /* _CBMEM_H_ */

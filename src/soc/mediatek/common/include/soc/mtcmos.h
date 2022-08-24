@@ -1,24 +1,22 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __SOC_MEDIATEK_COMMON_MTCMOS_H__
 #define __SOC_MEDIATEK_COMMON_MTCMOS_H__
 
+struct power_domain_data {
+	void *pwr_con;
+	u32 pwr_sta_mask;
+	u32 sram_pdn_mask;
+	u32 sram_ack_mask;
+	u32 caps;
+};
+
+#define SCPD_SRAM_ISO	(1U << 0)
+
 void mtcmos_audio_power_on(void);
 void mtcmos_display_power_on(void);
 
+void mtcmos_protect_audio_bus(void);
 void mtcmos_protect_display_bus(void);
 
 #endif /* __SOC_MEDIATEK_COMMON_MTCMOS_H__ */

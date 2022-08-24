@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 - 2017 Intel Corporation
- * Copyright (C) 2017 - 2018 Online SAS.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <string.h>
 #include <fsp/api.h>
@@ -87,11 +72,16 @@ smbios_board_type smbios_mainboard_board_type(void)
 	return SMBIOS_BOARD_TYPE_SERVER_BLADE;
 }
 
+smbios_enclosure_type smbios_mainboard_enclosure_type(void)
+{
+	return SMBIOS_ENCLOSURE_MULTI_SYSTEM_CHASSIS;
+}
+
 /* Add any mainboard specific information for dimm */
 void mainboard_add_dimm_info(
 	struct memory_info *mem_info,
 	int channel, int dimm, int index)
 {
 	/* Mainboard only has DDR4 DIMM slots */
-	mem_info->dimm[index].mod_type = SPD_UDIMM;
+	mem_info->dimm[index].mod_type = DDR4_SPD_UDIMM;
 }

@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Scope (EC0)
 
@@ -25,25 +11,25 @@ Mutex (BATM, 0)
 Method (BTSW, 1)
 {
 #ifdef EC_ENABLE_SECOND_BATTERY_DEVICE
-	If (LEqual (BTIX, Arg0)) {
+	If (BTIX == Arg0) {
 		Return (Zero)
 	}
-	If (LGreaterEqual (Arg0, BTCN)) {
+	If (Arg0 >= BTCN) {
 		Return (One)
 	}
 	Store (Arg0, \_SB.PCI0.LPCB.EC0.BTID)
 	Store (5, Local0)      // Timeout 5 msec
-	While (LNotEqual (BTIX, Arg0))
+	While (BTIX != Arg0)
 	{
 		Sleep (1)
-		Decrement (Local0)
-		If (LEqual (Local0, Zero))
+		Local0--
+		If (Local0 == 0)
 		{
 			Return (One)
 		}
 	}
 #else
-	If (LNotEqual (0, Arg0)) {
+	If (Arg0 != 0) {
 		Return (One)
 	}
 #endif
@@ -82,27 +68,27 @@ Method (BBIF, 2, Serialized)
 		Return (Arg1)
 	}
 	// Last Full Charge Capacity
-	Store (BTDF, Index (Arg1, 2))
+	Store (BTDF, Arg1[2])
 
 	// Design Voltage
-	Store (BTDV, Index (Arg1, 4))
+	Store (BTDV, Arg1[4])
 
 	// Design Capacity
 	Store (BTDA, Local0)
-	Store (Local0, Index (Arg1, 1))
+	Store (Local0, Arg1[1])
 
 	// Design Capacity of Warning
-	Divide (Multiply (Local0, DWRN), 100, , Local2)
-	Store (Local2, Index (Arg1, 5))
+	Local2 = Local0 * DWRN / 100
+	Store (Local2, Arg1[5])
 
 	// Design Capacity of Low
-	Divide (Multiply (Local0, DLOW), 100, , Local2)
-	Store (Local2, Index (Arg1, 6))
+	Local2 = Local0 * DLOW / 100
+	Store (Local2, Arg1[6])
 
 	// Get battery info from mainboard
-	Store (ToString(Concatenate(BMOD, 0x00)), Index (Arg1, 9))
-	Store (ToString(Concatenate(BSER, 0x00)), Index (Arg1, 10))
-	Store (ToString(Concatenate(BMFG, 0x00)), Index (Arg1, 12))
+	Store (ToString(Concatenate(BMOD, 0x00)), Arg1[9])
+	Store (ToString(Concatenate(BSER, 0x00)), Arg1[10])
+	Store (ToString(Concatenate(BMFG, 0x00)), Arg1[12])
 
 	Release (^BATM)
 	Return (Arg1)
@@ -122,30 +108,30 @@ Method (BBIX, 2, Serialized)
 		Return (Arg1)
 	}
 	// Last Full Charge Capacity
-	Store (BTDF, Index (Arg1, 3))
+	Store (BTDF, Arg1[3])
 
 	// Design Voltage
-	Store (BTDV, Index (Arg1, 5))
+	Store (BTDV, Arg1[5])
 
 	// Design Capacity
 	Store (BTDA, Local0)
-	Store (Local0, Index (Arg1, 2))
+	Store (Local0, Arg1[2])
 
 	// Design Capacity of Warning
-	Divide (Multiply (Local0, DWRN), 100, , Local2)
-	Store (Local2, Index (Arg1, 6))
+	Local2 = Local0 * DWRN / 100
+	Store (Local2, Arg1[6])
 
 	// Design Capacity of Low
-	Divide (Multiply (Local0, DLOW), 100, , Local2)
-	Store (Local2, Index (Arg1, 7))
+	Local2 = Local0 * DLOW / 100
+	Store (Local2, Arg1[7])
 
 	// Cycle Count
-	Store (BTCC, Index (Arg1, 8))
+	Store (BTCC, Arg1[8])
 
 	// Get battery info from mainboard
-	Store (ToString(Concatenate(BMOD, 0x00)), Index (Arg1, 16))
-	Store (ToString(Concatenate(BSER, 0x00)), Index (Arg1, 17))
-	Store (ToString(Concatenate(BMFG, 0x00)), Index (Arg1, 19))
+	Store (ToString(Concatenate(BMOD, 0x00)), Arg1[16])
+	Store (ToString(Concatenate(BSER, 0x00)), Arg1[17])
+	Store (ToString(Concatenate(BMFG, 0x00)), Arg1[19])
 
 	Release (^BATM)
 	Return (Arg1)
@@ -191,12 +177,12 @@ Method (BBST, 4, Serialized)
 	If (BFCR) {
 		Or (Local1, 0x04, Local1)
 	}
-	Store (Local1, Index (Arg1, 0))
+	Store (Local1, Arg1[0])
 
 	// Notify if battery state has changed since last time
-	If (LNotEqual (Local1, Arg2)) {
+	If (Local1 != DeRefOf (Arg2)) {
 		Store (Local1, Arg2)
-		If (LEqual(Arg0, 0)) {
+		If (Arg0 == 0) {
 			Notify (BAT0, 0x80)
 		}
 #ifdef EC_ENABLE_SECOND_BATTERY_DEVICE
@@ -209,13 +195,13 @@ Method (BBST, 4, Serialized)
 	//
 	// 1: BATTERY PRESENT RATE
 	//
-	Store (BTPR, Index (Arg1, 1))
+	Store (BTPR, Arg1[1])
 
 	//
 	// 2: BATTERY REMAINING CAPACITY
 	//
 	Store (BTRA, Local1)
-	If (LAnd (Arg3, LAnd (ACEX, LNot (LAnd (BFDC, BFCG))))) {
+	If (Arg3 && ACEX && !(BFDC && BFCG)) {
 		// On AC power and battery is neither charging
 		// nor discharging.  Linux expects a full battery
 		// to report same capacity as last full charge.
@@ -224,18 +210,17 @@ Method (BBST, 4, Serialized)
 
 		// See if within ~6% of full
 		ShiftRight (Local2, 4, Local3)
-		If (LAnd (LGreater (Local1, Subtract (Local2, Local3)),
-		          LLess (Local1, Add (Local2, Local3))))
+		If (Local1 > Local2 - Local3 && Local1 < Local2 + Local3)
 		{
 			Store (Local2, Local1)
 		}
 	}
-	Store (Local1, Index (Arg1, 2))
+	Store (Local1, Arg1[2])
 
 	//
 	// 3: BATTERY PRESENT VOLTAGE
 	//
-	Store (BTVO, Index (Arg1, 3))
+	Store (BTVO, Arg1[3])
 
 	Release (^BATM)
 	Return (Arg1)
@@ -326,7 +311,7 @@ Device (BAT0)
 
 	Method (_BST, 0, Serialized)
 	{
-		Return (BBST (0, PBST, BSTP, BFWK))
+		Return (BBST (0, PBST, RefOf (BSTP), BFWK))
 	}
 }
 
@@ -416,7 +401,7 @@ Device (BAT1)
 
 	Method (_BST, 0, Serialized)
 	{
-		Return (BBST (1, PBST, BSTP, BFWK))
+		Return (BBST (1, PBST, RefOf (BSTP), BFWK))
 	}
 }
 #endif

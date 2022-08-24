@@ -1,35 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/ec.h>
 #include <variant/gpio.h>
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 DefinitionBlock(
 	"dsdt.aml",
 	"DSDT",
-	0x02,		// DSDT revision: ACPI v2.0 and up
+	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20110725	// OEM revision
+	0x20110725
 )
 {
-	/* global NVS and variables */
+	#include <acpi/dsdt_top.asl>
 	#include <soc/intel/apollolake/acpi/globalnvs.asl>
-
-	/* CPU */
 	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Scope (\_SB) {
@@ -38,16 +23,13 @@ DefinitionBlock(
 			#include <soc/intel/apollolake/acpi/northbridge.asl>
 			#include <soc/intel/apollolake/acpi/southbridge.asl>
 			#include <soc/intel/apollolake/acpi/pch_hda.asl>
+                        #include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
 
-	/* Chrome OS specific */
-	#include <vendorcode/google/chromeos/acpi/chromeos.asl>
+	#include <southbridge/intel/common/acpi/sleepstates.asl>
 
-	/* Chipset specific sleep states */
-	#include <soc/intel/apollolake/acpi/sleepstates.asl>
-
-	/* Chrome OS Embedded Controller */
+	/* ChromeOS Embedded Controller */
 	Scope (\_SB.PCI0.LPCB)
 	{
 		/* ACPI code for EC SuperIO functions */

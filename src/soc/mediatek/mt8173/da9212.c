@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/i2c_simple.h>
@@ -59,7 +46,7 @@ static void da9212_hw_init(uint8_t i2c_num, unsigned char variant_id)
 			       DA9212_BUCK_MODE_MASK, DA9212_BUCK_MODE_SHIFT);
 
 	if (ret)
-		printk(BIOS_ERR, "ERROR: %s failed\n", __func__);
+		printk(BIOS_ERR, "%s failed\n", __func__);
 
 }
 
@@ -68,7 +55,6 @@ void da9212_probe(uint8_t i2c_num)
 	int ret = 0;
 	unsigned char device_id = 0;
 	unsigned char variant_id = 0;
-
 
 	/* select to page 4, clear REVERT at first time */
 	ret |= i2c_write_field(i2c_num, DA9212_SLAVE_ADDR,
@@ -88,7 +74,7 @@ void da9212_probe(uint8_t i2c_num)
 
 	/* Check device ID is DA9212 */
 	if (device_id != DA9212_ID || ret) {
-		printk(BIOS_ERR, "ERROR: unknown DA9212 device_id\n");
+		printk(BIOS_ERR, "unknown DA9212 device_id\n");
 		return;
 	}
 

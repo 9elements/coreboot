@@ -1,17 +1,7 @@
-#!/bin/sh
-# This file is part of the coreboot project.
+#!/usr/bin/env sh
 #
-# Copyright 2015 Google Inc.
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0-only
+
 # DESCR: Checkpatch on .c, .h, & Kconfig files in the tree
 
 LC_ALL=C export LC_ALL
@@ -21,18 +11,18 @@ INCLUDED_FILES='.*\.[ch]\|Kconfig.*$'
 
 EXCLUDED_DIRS="^payloads/libpayload/util/kconfig\|\
 ^payloads/libpayload/curses/PDCurses\|\
+^util/coreboot-configurator\|\
 ^util/crossgcc/patches\|\
 ^util/inteltool\|\
 ^util/kconfig\|\
 ^util/superiotool\|\
-^src/vendorcode\|\
 ^Documentation"
 
 opts="--max-line-length 96"
 
 # default: test src and util
 if [ "$1" = "" ]; then
-	INCLUDED_DIRS="src util"
+	INCLUDED_DIRS="src util tests"
 # special mode: take diff from stdin, but exclude the dirs
 elif [ "$1" = "diff" ]; then
 	args=$( echo $EXCLUDED_DIRS | \

@@ -1,19 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <stdint.h>
-#include <stdlib.h>
 #include <device/mmio.h>
 #include <console/console.h>
 #include <spi_flash.h>
@@ -21,6 +8,7 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
+#include <stddef.h>
 
 #include <Proc/Fch/FchPlatform.h>
 
@@ -109,15 +97,15 @@ static int spi_ctrlr_xfer(const struct spi_slave *slave, const void *dout,
 
 	readoffby1 = bytesout ? 0 : 1;
 
-#if CONFIG(SOUTHBRIDGE_AMD_AGESA_YANGTZE)
-	spi_write(0x1E, 5);
-	spi_write(0x1F, bytesout); /* SpiExtRegIndx [5] - TxByteCount */
-	spi_write(0x1E, 6);
-	spi_write(0x1F, bytesin);  /* SpiExtRegIndx [6] - RxByteCount */
-#else
-	u8 readwrite = (bytesin + readoffby1) << 4 | bytesout;
-	spi_write(SPI_REG_CNTRL01, readwrite);
-#endif
+	if (CONFIG(SOUTHBRIDGE_AMD_AGESA_YANGTZE)) {
+		spi_write(0x1E, 5);
+		spi_write(0x1F, bytesout); /* SpiExtRegIndx [5] - TxByteCount */
+		spi_write(0x1E, 6);
+		spi_write(0x1F, bytesin);  /* SpiExtRegIndx [6] - RxByteCount */
+	} else {
+		u8 readwrite = (bytesin + readoffby1) << 4 | bytesout;
+		spi_write(SPI_REG_CNTRL01, readwrite);
+	}
 	spi_write(SPI_REG_OPCODE, cmd);
 
 	reset_internal_fifo_pointer();

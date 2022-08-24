@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2010 Patrick Georgi
  * Copyright (C) 2013 secunet Security Networks AG
@@ -35,17 +34,17 @@
 #include "xhci_private.h"
 #include "xhci.h"
 
-static void xhci_start (hci_t *controller);
-static void xhci_stop (hci_t *controller);
-static void xhci_reset (hci_t *controller);
-static void xhci_reinit (hci_t *controller);
-static void xhci_shutdown (hci_t *controller);
-static int xhci_bulk (endpoint_t *ep, int size, u8 *data, int finalize);
-static int xhci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq,
+static void xhci_start(hci_t *controller);
+static void xhci_stop(hci_t *controller);
+static void xhci_reset(hci_t *controller);
+static void xhci_reinit(hci_t *controller);
+static void xhci_shutdown(hci_t *controller);
+static int xhci_bulk(endpoint_t *ep, int size, u8 *data, int finalize);
+static int xhci_control(usbdev_t *dev, direction_t dir, int drlen, void *devreq,
 			 int dalen, u8 *data);
-static void* xhci_create_intr_queue (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
-static void xhci_destroy_intr_queue (endpoint_t *ep, void *queue);
-static u8* xhci_poll_intr_queue (void *queue);
+static void* xhci_create_intr_queue(endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
+static void xhci_destroy_intr_queue(endpoint_t *ep, void *queue);
+static u8* xhci_poll_intr_queue(void *queue);
 
 /*
  * Some structures must not cross page boundaries. To get this,
@@ -130,7 +129,12 @@ xhci_switchback_ppt_ports(pcidev_t addr)
 static long
 xhci_handshake(volatile u32 *const reg, u32 mask, u32 wait_for, long timeout_us)
 {
-	while ((*reg & mask) != wait_for && timeout_us--) udelay(1);
+	if (timeout_us <= 0)
+		return 0;
+	while ((*reg & mask) != wait_for && timeout_us != 0) {
+		--timeout_us;
+		udelay(1);
+	}
 	return timeout_us;
 }
 
@@ -147,7 +151,7 @@ xhci_wait_ready(xhci_t *const xhci)
 }
 
 hci_t *
-xhci_init (unsigned long physical_bar)
+xhci_init(unsigned long physical_bar)
 {
 	int i;
 
@@ -163,7 +167,7 @@ xhci_init (unsigned long physical_bar)
 	controller->bulk		= xhci_bulk;
 	controller->control		= xhci_control;
 	controller->set_address		= xhci_set_address;
-	controller->finish_device_config= xhci_finish_device_config;
+	controller->finish_device_config = xhci_finish_device_config;
 	controller->destroy_device	= xhci_destroy_dev;
 	controller->create_intr_queue	= xhci_create_intr_queue;
 	controller->destroy_intr_queue	= xhci_destroy_intr_queue;
@@ -185,26 +189,27 @@ xhci_init (unsigned long physical_bar)
 		goto _free_xhci;
 	}
 
-	xhci->capreg	= phys_to_virt(physical_bar);
-	xhci->opreg	= ((void *)xhci->capreg) + xhci->capreg->caplength;
-	xhci->hcrreg	= ((void *)xhci->capreg) + xhci->capreg->rtsoff;
-	xhci->dbreg	= ((void *)xhci->capreg) + xhci->capreg->dboff;
-	xhci_debug("regbase: 0x%"PRIx32"\n", physical_bar);
-	xhci_debug("caplen:  0x%"PRIx32"\n", xhci->capreg->caplength);
+	xhci->capreg = phys_to_virt(physical_bar);
+	xhci->opreg = phys_to_virt(physical_bar) + CAP_GET(CAPLEN, xhci->capreg);
+	xhci->hcrreg = phys_to_virt(physical_bar) + xhci->capreg->rtsoff;
+	xhci->dbreg = phys_to_virt(physical_bar) + xhci->capreg->dboff;
+
+	xhci_debug("regbase: 0x%"PRIxPTR"\n", physical_bar);
+	xhci_debug("caplen:  0x%"PRIx32"\n", CAP_GET(CAPLEN, xhci->capreg));
 	xhci_debug("rtsoff:  0x%"PRIx32"\n", xhci->capreg->rtsoff);
 	xhci_debug("dboff:   0x%"PRIx32"\n", xhci->capreg->dboff);
 
 	xhci_debug("hciversion: %"PRIx8".%"PRIx8"\n",
-		   xhci->capreg->hciver_hi, xhci->capreg->hciver_lo);
-	if ((xhci->capreg->hciversion < 0x96) ||
-			(xhci->capreg->hciversion > 0x110)) {
+		   CAP_GET(CAPVER_HI, xhci->capreg), CAP_GET(CAPVER_LO, xhci->capreg));
+	if ((CAP_GET(CAPVER, xhci->capreg) < 0x96) ||
+	    (CAP_GET(CAPVER, xhci->capreg) > 0x120)) {
 		xhci_debug("Unsupported xHCI version\n");
 		goto _free_xhci;
 	}
 
 	xhci_debug("context size: %dB\n", CTXSIZE(xhci));
-	xhci_debug("maxslots: 0x%02lx\n", xhci->capreg->MaxSlots);
-	xhci_debug("maxports: 0x%02lx\n", xhci->capreg->MaxPorts);
+	xhci_debug("maxslots: 0x%02"PRIx32"\n", CAP_GET(MAXSLOTS, xhci->capreg));
+	xhci_debug("maxports: 0x%02"PRIx32"\n", CAP_GET(MAXPORTS, xhci->capreg));
 	const unsigned pagesize = xhci->opreg->pagesize << 12;
 	xhci_debug("pagesize: 0x%04x\n", pagesize);
 
@@ -213,7 +218,8 @@ xhci_init (unsigned long physical_bar)
 	 * structures at first and can still chicken out easily if we run out
 	 * of memory.
 	 */
-	xhci->max_slots_en = xhci->capreg->MaxSlots & CONFIG_LP_MASK_MaxSlotsEn;
+	xhci->max_slots_en = CAP_GET(MAXSLOTS, xhci->capreg) &
+		CONFIG_LP_MASK_MaxSlotsEn;
 	xhci->dcbaa = xhci_align(64, (xhci->max_slots_en + 1) * sizeof(u64));
 	xhci->dev = malloc((xhci->max_slots_en + 1) * sizeof(*xhci->dev));
 	if (!xhci->dcbaa || !xhci->dev) {
@@ -227,8 +233,9 @@ xhci_init (unsigned long physical_bar)
 	 * Let dcbaa[0] point to another array of pointers, sp_ptrs.
 	 * The pointers therein point to scratchpad buffers (pages).
 	 */
-	const size_t max_sp_bufs = xhci->capreg->Max_Scratchpad_Bufs_Hi << 5 |
-				   xhci->capreg->Max_Scratchpad_Bufs_Lo;
+	const size_t max_sp_bufs =
+		CAP_GET(MAX_SCRATCH_BUFS_HI, xhci->capreg) << 5 |
+		CAP_GET(MAX_SCRATCH_BUFS_LO, xhci->capreg);
 	xhci_debug("max scratchpad bufs: 0x%zx\n", max_sp_bufs);
 	if (max_sp_bufs) {
 		const size_t sp_ptrs_size = max_sp_bufs * sizeof(u64);
@@ -299,7 +306,7 @@ _free_xhci:
 
 #if CONFIG(LP_USB_PCI)
 hci_t *
-xhci_pci_init (pcidev_t addr)
+xhci_pci_init(pcidev_t addr)
 {
 	u32 reg_addr;
 	hci_t *controller;
@@ -311,9 +318,13 @@ xhci_pci_init (pcidev_t addr)
 
 	controller = xhci_init((unsigned long)reg_addr);
 	if (controller) {
+		xhci_t *xhci = controller->instance;
 		controller->pcidev = addr;
 
 		xhci_switch_ppt_ports(addr);
+
+		/* Set up any quirks for controller root hub */
+		xhci->roothub->quirks = pci_quirk_check(addr);
 	}
 
 	return controller;
@@ -347,7 +358,7 @@ xhci_reset(hci_t *const controller)
 }
 
 static void
-xhci_reinit (hci_t *controller)
+xhci_reinit(hci_t *controller)
 {
 	xhci_t *const xhci = XHCI_INST(controller);
 
@@ -363,7 +374,7 @@ xhci_reinit (hci_t *controller)
 
 	/* Initialize command ring */
 	xhci_init_cycle_ring(&xhci->cr, COMMAND_RING_SIZE);
-	xhci_debug("command ring @%p (0x%08x)\n",
+	xhci_debug("command ring @%p (0x%08"PRIxPTR")\n",
 		   xhci->cr.ring, virt_to_phys(xhci->cr.ring));
 	xhci->opreg->crcr_lo = virt_to_phys(xhci->cr.ring) | CRCR_RCS;
 	xhci->opreg->crcr_hi = 0;
@@ -373,10 +384,11 @@ xhci_reinit (hci_t *controller)
 
 	/* Initialize event ring */
 	xhci_reset_event_ring(&xhci->er);
-	xhci_debug("event ring @%p (0x%08x)\n",
+	xhci_debug("event ring @%p (0x%08"PRIxPTR")\n",
 		   xhci->er.ring, virt_to_phys(xhci->er.ring));
-	xhci_debug("ERST Max: 0x%lx ->  0x%lx entries\n",
-		   xhci->capreg->ERST_Max, 1 << xhci->capreg->ERST_Max);
+	xhci_debug("ERST Max: 0x%"PRIx32" ->  0x%x entries\n",
+		   CAP_GET(ERST_MAX, xhci->capreg),
+		   1 << CAP_GET(ERST_MAX, xhci->capreg));
 	memset((void*)xhci->ev_ring_table, 0x00, sizeof(erst_entry_t));
 	xhci->ev_ring_table[0].seg_base_lo = virt_to_phys(xhci->er.ring);
 	xhci->ev_ring_table[0].seg_base_hi = 0;
@@ -432,8 +444,9 @@ xhci_shutdown(hci_t *const controller)
 #endif
 
 	if (xhci->sp_ptrs) {
-		size_t max_sp_bufs = xhci->capreg->Max_Scratchpad_Bufs_Hi << 5 |
-				     xhci->capreg->Max_Scratchpad_Bufs_Lo;
+		const size_t max_sp_bufs =
+			CAP_GET(MAX_SCRATCH_BUFS_HI, xhci->capreg) << 5 |
+			CAP_GET(MAX_SCRATCH_BUFS_LO, xhci->capreg);
 		for (i = 0; i < max_sp_bufs; ++i) {
 			if (xhci->sp_ptrs[i])
 				free(phys_to_virt(xhci->sp_ptrs[i]));
@@ -451,7 +464,7 @@ xhci_shutdown(hci_t *const controller)
 }
 
 static void
-xhci_start (hci_t *controller)
+xhci_start(hci_t *controller)
 {
 	xhci_t *const xhci = XHCI_INST(controller);
 
@@ -461,7 +474,7 @@ xhci_start (hci_t *controller)
 }
 
 static void
-xhci_stop (hci_t *controller)
+xhci_stop(hci_t *controller)
 {
 	xhci_t *const xhci = XHCI_INST(controller);
 

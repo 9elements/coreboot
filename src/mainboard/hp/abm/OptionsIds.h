@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- * Copyright (C) 2014 Sage Electronic Engineering, LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /**
  * @file
@@ -42,7 +28,6 @@
  *    IDSOPT_TRACING_ENABLED
  *    IDSOPT_PERF_ANALYSIS
  *    IDSOPT_ASSERT_ENABLED
- *    IDS_DEBUG_PORT
  *    IDSOPT_CAR_CORRUPTION_CHECK_ENABLED
  *
  **/
@@ -53,12 +38,5 @@
 #define IDSOPT_TRACING_CONSOLE_SERIALPORT TRUE
 //#define IDSOPT_PERF_ANALYSIS   TRUE
 #define IDSOPT_ASSERT_ENABLED  TRUE
-//#undef IDSOPT_DEBUG_ENABLED
-//#define IDSOPT_DEBUG_ENABLED  FALSE
-//#undef IDSOPT_HOST_SIMNOW
-//#define IDSOPT_HOST_SIMNOW    FALSE
-//#undef IDSOPT_HOST_HDT
-//#define IDSOPT_HOST_HDT       FALSE
-//#define IDS_DEBUG_PORT    0x80
 
 #endif /* _OPTION_IDS_H_ */

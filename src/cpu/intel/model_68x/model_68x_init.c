@@ -1,25 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2010 Joseph Smith <joe@settoplinux.org>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/mtrr.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/intel/microcode.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/name.h>
@@ -29,7 +13,7 @@ static void model_68x_init(struct device *cpu)
 	char processor_name[49];
 
 	/* Turn on caching if we haven't already */
-	x86_enable_cache();
+	enable_cache();
 
 	/* Update the microcode */
 	intel_update_microcode_from_cbfs();
@@ -41,9 +25,6 @@ static void model_68x_init(struct device *cpu)
 	/* Setup MTRRs */
 	x86_setup_mtrrs();
 	x86_mtrr_check();
-
-	/* Enable the local CPU APICs */
-	setup_lapic();
 }
 
 static struct device_operations cpu_dev_ops = {

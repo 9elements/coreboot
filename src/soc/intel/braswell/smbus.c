@@ -1,46 +1,19 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- * Copyright (C) 2019 3mdeb
- * Copyright (C) 2019 Eltan B.V.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <device/early_smbus.h>
+#define __SIMPLE_DEVICE__
+
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 #include <device/pci_def.h>
 #include <device/pci_type.h>
 #include <device/pci_ops.h>
+#include <device/smbus_host.h>
 #include <soc/smbus.h>
-#include <southbridge/intel/common/smbus.h>
-
-u8 smbus_read_byte(u32 smbus_dev, u8 addr, u8 offset)
-{
-	return do_smbus_read_byte(SMBUS_BASE_ADDRESS, addr, offset);
-}
-
-u8 smbus_write_byte(u32 smbus_dev, u8 addr, u8 offset, u8 value)
-{
-	return do_smbus_write_byte(SMBUS_BASE_ADDRESS, addr, offset, value);
-}
 
 int smbus_i2c_block_write(u8 addr, u8 bytes, u8 *buf)
 {
-#ifdef __SIMPLE_DEVICE__
-	pci_devfn_t dev = PCI_DEV(0, SMBUS_DEV, SMBUS_FUNC);
-#else
-	struct device *dev = pcidev_on_root(SMBUS_DEV, SMBUS_FUNC);
-#endif
+	const pci_devfn_t dev = PCI_DEV(0, SMBUS_DEV, SMBUS_FUNC);
+
 	u32 smbase;
 	u32 smb_ctrl_reg;
 	int status;

@@ -1,23 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
-#include <northbridge/intel/sandybridge/sandybridge.h>
 #include <southbridge/intel/common/rcba.h>
 #include <southbridge/intel/common/pmbase.h>
 
@@ -39,7 +24,7 @@ void early_usb_init(const struct southbridge_usb_port *portmap)
 	write_pmbase16(UPRWC, read_pmbase16(UPRWC) | UPRWC_WR_EN);
 
 	for (i = 0; i < 14; i++)
-		RCBA32(0x3500 + 4 * i) = currents[portmap[i].current];
+		RCBA32(USBIR0 + 4 * i) = currents[portmap[i].current];
 	for (i = 0; i < 10; i++)
 		RCBA32(0x3538 + 4 * i) = 0;
 

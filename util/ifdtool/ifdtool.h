@@ -1,17 +1,5 @@
-/*
- * ifdtool - dump Intel Firmware Descriptor information
- *
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* ifdtool - dump Intel Firmware Descriptor information */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -35,6 +23,7 @@ enum ich_chipset {
 	CHIPSET_ICH8,
 	CHIPSET_ICH9,
 	CHIPSET_ICH10,
+	CHIPSET_PCH_UNKNOWN,
 	CHIPSET_5_SERIES_IBEX_PEAK,
 	CHIPSET_6_SERIES_COUGAR_POINT,
 	CHIPSET_7_SERIES_PANTHER_POINT,
@@ -46,18 +35,33 @@ enum ich_chipset {
 	CHIPSET_8_SERIES_WELLSBURG,
 	CHIPSET_9_SERIES_WILDCAT_POINT,
 	CHIPSET_9_SERIES_WILDCAT_POINT_LP,
-	CHIPSET_100_SERIES_SUNRISE_POINT, /* also 6th/7th gen Core i/o (LP)
-					   * variants
-					   */
+	CHIPSET_N_J_SERIES_APOLLO_LAKE, /* Apollo Lake: N3xxx, J3xxx */
+	CHIPSET_N_J_SERIES_GEMINI_LAKE, /* Gemini Lake: N5xxx, J5xxx, N4xxx, J4xxx */
+	CHIPSET_N_SERIES_JASPER_LAKE, /* Jasper Lake: N6xxx, N51xx, N45xx */
+	CHIPSET_x6000_SERIES_ELKHART_LAKE, /* Elkhart Lake: x6000 */
+	CHIPSET_100_200_SERIES_SUNRISE_POINT, /* 6th-7th gen Core i/o (LP) variants */
+	CHIPSET_300_SERIES_CANNON_POINT, /* 8th-9th gen Core i/o (LP) variants */
+	CHIPSET_400_SERIES_ICE_POINT, /* 10th gen Core i/o (LP) variants */
+	CHIPSET_500_600_SERIES_TIGER_ALDER_POINT, /* 11th-12th gen Core i/o (LP)
+						   * variants onwards */
 	CHIPSET_C620_SERIES_LEWISBURG,
+	CHIPSET_DENVERTON,
 };
 
 enum platform {
 	PLATFORM_APL,
 	PLATFORM_CNL,
+	PLATFORM_LBG,
+	PLATFORM_EHL,
 	PLATFORM_GLK,
 	PLATFORM_ICL,
+	PLATFORM_JSL,
 	PLATFORM_SKLKBL,
+	PLATFORM_TGL,
+	PLATFORM_ADL,
+	PLATFORM_IFD2,
+	PLATFORM_DNV,
+	PLATFORM_MTL,
 };
 
 #define LAYOUT_LINELEN 80
@@ -68,6 +72,31 @@ enum spi_frequency {
 	SPI_FREQUENCY_48MHZ = 2,
 	SPI_FREQUENCY_50MHZ_30MHZ = 4,
 	SPI_FREQUENCY_17MHZ = 6,
+};
+
+enum spi_frequency_500_series {
+	SPI_FREQUENCY_100MHZ = 0,
+	SPI_FREQUENCY_50MHZ = 1,
+	SPI_FREQUENCY_500SERIES_33MHZ = 3,
+	SPI_FREQUENCY_25MHZ = 4,
+	SPI_FREQUENCY_14MHZ = 6,
+};
+
+enum espi_frequency {
+	ESPI_FREQUENCY_20MHZ = 0,
+	ESPI_FREQUENCY_24MHZ = 1,
+	ESPI_FREQUENCY_30MHZ = 2,
+	ESPI_FREQUENCY_48MHZ = 3,
+	ESPI_FREQUENCY_60MHZ = 4,
+	ESPI_FREQUENCY_17MHZ = 6,
+};
+
+enum espi_frequency_500_series {
+	ESPI_FREQUENCY_500SERIES_20MHZ = 0,
+	ESPI_FREQUENCY_500SERIES_24MHZ = 1,
+	ESPI_FREQUENCY_500SERIES_25MHZ = 2,
+	ESPI_FREQUENCY_500SERIES_48MHZ = 3,
+	ESPI_FREQUENCY_500SERIES_60MHZ = 4,
 };
 
 enum component_density {
@@ -88,10 +117,11 @@ typedef struct {
 	uint32_t flmap0;
 	uint32_t flmap1;
 	uint32_t flmap2;
+	uint32_t flmap3; // Exist for 500 series onwards
 } __attribute__((packed)) fdbar_t;
 
 // regions
-#define MAX_REGIONS 9
+#define MAX_REGIONS 16
 #define MAX_REGIONS_OLD 5
 
 enum flash_regions {
@@ -100,7 +130,14 @@ enum flash_regions {
 	REGION_ME,
 	REGION_GBE,
 	REGION_PDR,
+	REGION_DEV_EXP1,
+	REGION_BIOS2,
 	REGION_EC = 8,
+	REGION_DEV_EXP2,
+	REGION_IE,
+	REGION_10GB_0,
+	REGION_10GB_1,
+	REGION_PTT = 15,
 };
 
 typedef struct {
@@ -115,7 +152,7 @@ typedef struct {
 } __attribute__((packed)) fcba_t;
 
 // pch strap
-#define MAX_PCHSTRP 18
+#define MAX_PCHSTRP 1024
 
 typedef struct {
 	uint32_t pchstrp[MAX_PCHSTRP];
@@ -137,6 +174,7 @@ typedef struct {
 	uint32_t flmstr3;
 	uint32_t flmstr4;
 	uint32_t flmstr5;
+	uint32_t flmstr6;
 } __attribute__((packed)) fmba_t;
 
 // processor strap
@@ -165,4 +203,5 @@ struct region_name {
 	const char *pretty;
 	const char *terse;
 	const char *filename;
+	const char *fmapname;
 };

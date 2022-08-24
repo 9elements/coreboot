@@ -1,5 +1,4 @@
 /*
- * This file is part of the coreboot project.
  *
  * Copyright 2014 Google Inc.
  * Copyright (C) 2003-2004 Olivier Houchard
@@ -34,7 +33,7 @@
  *
  */
 
-#ifndef __ARCH_BARRIER_H_
+#ifndef __ARCH_BARRIER_H__
 #define __ARCH_BARRIER_H__
 
 #include <arch/cache.h>

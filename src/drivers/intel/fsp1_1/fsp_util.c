@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013-2014 Sage Electronic Engineering, LLC.
- * Copyright (C) 2015 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
 #include <cbmem.h>
@@ -103,26 +89,26 @@ void print_fsp_info(FSP_INFO_HEADER *fsp_header)
 			(u8)((fsp_header->ImageRevision >> 16) & 0xff),
 			(u8)((fsp_header->ImageRevision >> 8) & 0xff),
 			(u8)(fsp_header->ImageRevision  & 0xff));
-#if CONFIG(DISPLAY_FSP_ENTRY_POINTS)
-	printk(BIOS_SPEW, "FSP Entry Points:\n");
-	printk(BIOS_SPEW, "    0x%p: Image Base\n", fsp_base);
-	printk(BIOS_SPEW, "    0x%p: TempRamInit\n",
-		&fsp_base[fsp_header->TempRamInitEntryOffset]);
-	printk(BIOS_SPEW, "    0x%p: FspInit\n",
-		&fsp_base[fsp_header->FspInitEntryOffset]);
-	if (fsp_header->HeaderRevision >= FSP_HEADER_REVISION_2) {
-		printk(BIOS_SPEW, "    0x%p: MemoryInit\n",
-			&fsp_base[fsp_header->FspMemoryInitEntryOffset]);
-		printk(BIOS_SPEW, "    0x%p: TempRamExit\n",
-			&fsp_base[fsp_header->TempRamExitEntryOffset]);
-		printk(BIOS_SPEW, "    0x%p: SiliconInit\n",
-			&fsp_base[fsp_header->FspSiliconInitEntryOffset]);
+	if (CONFIG(DISPLAY_FSP_ENTRY_POINTS)) {
+		printk(BIOS_SPEW, "FSP Entry Points:\n");
+		printk(BIOS_SPEW, "    %p: Image Base\n", fsp_base);
+		printk(BIOS_SPEW, "    %p: TempRamInit\n",
+		       &fsp_base[fsp_header->TempRamInitEntryOffset]);
+		printk(BIOS_SPEW, "    %p: FspInit\n",
+		       &fsp_base[fsp_header->FspInitEntryOffset]);
+		if (fsp_header->HeaderRevision >= FSP_HEADER_REVISION_2) {
+			printk(BIOS_SPEW, "    %p: MemoryInit\n",
+			       &fsp_base[fsp_header->FspMemoryInitEntryOffset]);
+			printk(BIOS_SPEW, "    %p: TempRamExit\n",
+			       &fsp_base[fsp_header->TempRamExitEntryOffset]);
+			printk(BIOS_SPEW, "    %p: SiliconInit\n",
+			       &fsp_base[fsp_header->FspSiliconInitEntryOffset]);
+		}
+		printk(BIOS_SPEW, "    %p: NotifyPhase\n",
+		       &fsp_base[fsp_header->NotifyPhaseEntryOffset]);
+		printk(BIOS_SPEW, "    %p: Image End\n",
+		       &fsp_base[fsp_header->ImageSize]);
 	}
-	printk(BIOS_SPEW, "    0x%p: NotifyPhase\n",
-		&fsp_base[fsp_header->NotifyPhaseEntryOffset]);
-	printk(BIOS_SPEW, "    0x%p: Image End\n",
-			&fsp_base[fsp_header->ImageSize]);
-#endif
 }
 
 void fsp_notify(u32 phase)
@@ -148,17 +134,17 @@ void fsp_notify(u32 phase)
 	notify_phase_params.Phase = phase;
 
 	if (phase == EnumInitPhaseReadyToBoot) {
-		timestamp_add_now(TS_FSP_BEFORE_FINALIZE);
+		timestamp_add_now(TS_FSP_FINALIZE_START);
 		post_code(POST_FSP_NOTIFY_BEFORE_FINALIZE);
 	} else {
-		timestamp_add_now(TS_FSP_BEFORE_ENUMERATE);
+		timestamp_add_now(TS_FSP_ENUMERATE_START);
 		post_code(POST_FSP_NOTIFY_BEFORE_ENUMERATE);
 	}
 
 	status = notify_phase_proc(&notify_phase_params);
 
 	timestamp_add_now(phase == EnumInitPhaseReadyToBoot ?
-		TS_FSP_AFTER_FINALIZE : TS_FSP_AFTER_ENUMERATE);
+		TS_FSP_FINALIZE_END : TS_FSP_ENUMERATE_END);
 
 	if (status != 0)
 		printk(BIOS_ERR, "FSP API NotifyPhase failed for phase 0x%x with status: 0x%x\n",
@@ -187,7 +173,6 @@ struct fsp_runtime {
 	uint32_t fih;
 	uint32_t hob_list;
 } __packed;
-
 
 void fsp_set_runtime(FSP_INFO_HEADER *fih, void *hob_list)
 {
@@ -282,11 +267,4 @@ void fsp_display_upd_value(const char *name, uint32_t size, uint64_t old,
 			break;
 		}
 	}
-}
-
-__attribute__((cdecl)) size_t fsp_write_line(uint8_t *buffer,
-	size_t number_of_bytes)
-{
-	console_write_line(buffer, number_of_bytes);
-	return number_of_bytes;
 }

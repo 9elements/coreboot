@@ -51,7 +51,7 @@
  *
  *
  */
-REG8_MASK FchInitResetPcibPciTable[] =
+CONST REG8_MASK FchInitResetPcibPciTable[] =
 {
   //
   // P2P Bridge (Bus 0, Dev 20, Func 4)
@@ -82,7 +82,7 @@ FchInitResetPcib (
 
   ProgramPciByteTable (
     (REG8_MASK*) (&FchInitResetPcibPciTable[0]),
-    sizeof (FchInitResetPcibPciTable) / sizeof (REG8_MASK),
+    ARRAY_SIZE(FchInitResetPcibPciTable),
     StdHeader
     );
   if ( UserOptions.FchBldCfg->CfgFchPort80BehindPcib ) {
@@ -98,7 +98,7 @@ FchInitResetPcib (
  *
  *
  */
-REG8_MASK FchInitResetPcibPort80EnableTable[] =
+CONST REG8_MASK FchInitResetPcibPort80EnableTable[] =
 {
   //
   // P2P Bridge (Bus 0, Dev 20, Func 4)
@@ -129,8 +129,7 @@ FchInitResetPcibPort80Enable (
 
   ProgramPciByteTable (
     (REG8_MASK*) (&FchInitResetPcibPort80EnableTable[0]),
-    sizeof (FchInitResetPcibPort80EnableTable) / sizeof (REG8_MASK),
+    ARRAY_SIZE(FchInitResetPcibPort80EnableTable),
     StdHeader
     );
 }
-

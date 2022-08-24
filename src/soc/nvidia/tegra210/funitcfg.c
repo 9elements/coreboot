@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <soc/addressmap.h>
@@ -153,7 +140,7 @@ void soc_configure_funits(const struct funit_cfg * const entries, size_t num)
 		int funit_usb = is_usb(entry->funit_index);
 
 		if (entry->funit_index >= FUNIT_INDEX_MAX) {
-			printk(BIOS_ERR, "Error: Index out of bounds\n");
+			printk(BIOS_ERR, "Index out of bounds\n");
 			continue;
 		}
 

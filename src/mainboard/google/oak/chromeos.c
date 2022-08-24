@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <boardid.h>
 #include <bootmode.h>
@@ -34,8 +21,6 @@ void setup_chromeos_gpios(void)
 void fill_lb_gpios(struct lb_gpios *gpios)
 {
 	struct lb_gpio chromeos_gpios[] = {
-		{WRITE_PROTECT.id, ACTIVE_LOW,
-			!get_write_protect_state(), "write protect"},
 		{LID.id, ACTIVE_HIGH, -1, "lid"},
 		{POWER_BUTTON.id, ACTIVE_HIGH, -1, "power"},
 		{EC_IN_RW.id, ACTIVE_HIGH, -1, "EC in RW"},
@@ -48,4 +33,10 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 int get_write_protect_state(void)
 {
 	return !gpio_get(WRITE_PROTECT);
+}
+
+int get_ec_is_trusted(void)
+{
+	/* EC is trusted if not in RW. */
+	return !gpio_get(EC_IN_RW);
 }

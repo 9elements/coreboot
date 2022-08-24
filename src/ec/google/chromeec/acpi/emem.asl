@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * EMEM data may be accessed through port 62/66 or through LPC at 900h.
  */
 
-Offset (0x00),
 TIN0, 8,	// Temperature 0
 TIN1, 8,	// Temperature 1
 TIN2, 8,	// Temperature 2
@@ -47,6 +33,8 @@ BTEX, 1,	// Battery Present
 BFDC, 1,	// Battery Discharging
 BFCG, 1,	// Battery Charging
 BFCR, 1,	// Battery Level Critical
+BFIV, 1,	// Invalid Battery Data
+BFCT, 1,	// Battery cutoff
 Offset (0x4d),
 BTCN, 8,	// Battery Count
 BTIX, 8,	// Battery index
@@ -61,3 +49,7 @@ BSER, 64,	// Battery Serial String
 BTYP, 64,	// Battery Type String
 Offset (0x80),
 ALS0, 16,	// ALS reading 0 in lux
+Offset (0xa6),
+GPUD, 8,	// GPU Data
+Offset (0xa7),
+PWRT, 8,	// Power source and change count

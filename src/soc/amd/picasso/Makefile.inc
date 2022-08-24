@@ -1,298 +1,297 @@
-#*****************************************************************************
-#
-# Copyright (c) 2012, 2016-2017 Advanced Micro Devices, Inc.
-#               2013 - 2014 Sage Electronic Engineering, LLC
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
-#     * Neither the name of Advanced Micro Devices, Inc. nor the names of
-#       its contributors may be used to endorse or promote products derived
-#       from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL ADVANCED MICRO DEVICES, INC. BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-#*****************************************************************************
+# SPDX-License-Identifier: BSD-3-Clause
+
 ifeq ($(CONFIG_SOC_AMD_PICASSO),y)
 
-subdirs-y += ../../../cpu/amd/mtrr/
-subdirs-y += ../../../cpu/x86/tsc
-subdirs-y += ../../../cpu/x86/lapic
-subdirs-y += ../../../cpu/x86/cache
-subdirs-y += ../../../cpu/x86/mtrr
-subdirs-y += ../../../cpu/x86/pae
-subdirs-y += ../../../cpu/x86/smm
+subdirs-$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK) += psp_verstage
+subdirs-$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK) += ../common/psp_verstage
 
-# TODO: Make coreboot modifications so bootblock can be removed.  This soc
-#       also selects C_ENVIRONMENT_BOOTBLOCK to enforce certain codepaths
-#       in romstage.  As a result, the bootblock build also needs a
-#       dummy cache_as_ram.S
-bootblock-y += cache_as_ram.S
-bootblock-y += bootblock/bootblock.c
+# Beware that all-y also adds the compilation unit to verstage on PSP
+all-y += config.c
+all-y += aoac.c
 
-romstage-y += i2c.c
-romstage-y += romstage.c
+bootblock-y += bootblock.c
+bootblock-y += early_fch.c
+bootblock-y += gpio.c
+bootblock-y += i2c.c
+bootblock-y += reset.c
+bootblock-y += uart.c
+
+romstage-y += fsp_m_params.c
 romstage-y += gpio.c
-romstage-y += monotonic_timer.c
-romstage-y += pmutil.c
+romstage-y += i2c.c
 romstage-y += reset.c
-romstage-y += smbus.c
-romstage-y += ramtop.c
-romstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
-romstage-y += tsc_freq.c
-romstage-y += southbridge.c
-romstage-$(CONFIG_SPI_FLASH) += spi.c
-romstage-$(CONFIG_HAVE_SMI_HANDLER) += smi_util.c
+romstage-y += romstage.c
+romstage-y += uart.c
 
-verstage-y += gpio.c
 verstage-y += i2c.c
-verstage-y += monotonic_timer.c
-verstage-y += pmutil.c
-verstage-y += reset.c
-verstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
-verstage-y += tsc_freq.c
-verstage-$(CONFIG_SPI_FLASH) += spi.c
+verstage_x86-y += gpio.c
+verstage_x86-y += reset.c
+verstage_x86-y += uart.c
 
-postcar-y += monotonic_timer.c
-postcar-$(CONFIG_STONEYRIDGE_UART) += uart.c
-postcar-y += ramtop.c
-postcar-$(CONFIG_VBOOT_MEASURED_BOOT) += i2c.c
-postcar-y += tsc_freq.c
-
-ramstage-y += i2c.c
+ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
+ramstage-$(CONFIG_HAVE_ACPI_TABLES) += agesa_acpi.c
 ramstage-y += chip.c
 ramstage-y += cpu.c
-ramstage-y += mca.c
-ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
+ramstage-y += data_fabric.c
+ramstage-y += fch.c
+ramstage-y += fsp_s_params.c
 ramstage-y += gpio.c
-ramstage-y += monotonic_timer.c
-ramstage-y += southbridge.c
-ramstage-y += northbridge.c
-ramstage-y += pmutil.c
+ramstage-y += graphics.c
+ramstage-y += i2c.c
+ramstage-y += mca.c
+ramstage-y += pcie_gpp.c
 ramstage-y += reset.c
+ramstage-y += root_complex.c
 ramstage-y += sata.c
-ramstage-y += sm.c
-ramstage-y += smbus.c
-ramstage-y += ramtop.c
-ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi.c
-ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi_util.c
-ramstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
-ramstage-y += usb.c
-ramstage-y += tsc_freq.c
-ramstage-$(CONFIG_SPI_FLASH) += spi.c
-ramstage-y += finalize.c
+ramstage-y += soc_util.c
+ramstage-y += uart.c
+ramstage-y += xhci.c
 
-smm-y += monotonic_timer.c
 smm-y += smihandler.c
-smm-y += smi_util.c
-smm-y += tsc_freq.c
-smm-$(CONFIG_DEBUG_SMI) += uart.c
-smm-$(CONFIG_SPI_FLASH) += spi.c
+ifeq ($(CONFIG_DEBUG_SMI),y)
+smm-y += uart.c
+endif
 smm-y += gpio.c
+smm-y += smu.c
 
-CPPFLAGS_common += -I$(src)/soc/amd/picasso
 CPPFLAGS_common += -I$(src)/soc/amd/picasso/include
 CPPFLAGS_common += -I$(src)/soc/amd/picasso/acpi
+CPPFLAGS_common += -I$(src)/vendorcode/amd/fsp/picasso
+CPPFLAGS_common += -I$(src)/vendorcode/amd/fsp/picasso/include
+
+MAINBOARD_BLOBS_DIR:=$(top)/3rdparty/blobs/mainboard/$(MAINBOARDDIR)
 
 # ROMSIG Normally At ROMBASE + 0x20000
 # Overridden by CONFIG_AMD_FWM_POSITION_INDEX
 # +-----------+---------------+----------------+------------+
-# |0x55AA55AA |EC ROM Address |GEC ROM Address |USB3 ROM    |
+# |0x55AA55AA |               |                |            |
 # +-----------+---------------+----------------+------------+
-# |PSPDIR ADDR|
-# +-----------+
-#
-# EC ROM should be 64K aligned.
-STONEYRIDGE_FWM_POSITION=$(call int-add, \
+# |           |  PSPDIR ADDR  |  BIOSDIR ADDR  |
+# +-----------+---------------+----------------+
+
+$(if $(CONFIG_AMD_FWM_POSITION_INDEX), ,\
+     $(error Invalid AMD firmware position index. Check if the board sets a valid ROM size))
+
+PICASSO_FWM_POSITION=$(call int-add, \
 	$(call int-subtract, 0xffffffff \
 	$(call int-shift-left, \
 	0x80000 $(CONFIG_AMD_FWM_POSITION_INDEX))) 0x20000 1)
 
-### 0
-FIRMWARE_LOCATE=$(dir $(call strip_quotes, $(CONFIG_AMD_PUBKEY_FILE)))
-FIRMWARE_TYPE=ST
+# 0x40 accounts for the cbfs_file struct + filename + metadata structs, aligned to 64 bytes
+# Building the cbfs image will fail if the offset isn't large enough
+AMD_FW_AB_POSITION := 0x40
 
-###5
-PUBSIGNEDKEY_FILE=$(top)/$(FIRMWARE_LOCATE)/RtmPubSigned$(FIRMWARE_TYPE).key
+PICASSO_FW_A_POSITION=$(call int-add, \
+	$(shell awk '$$2 == "FMAP_SECTION_FW_MAIN_A_START" {print $$3}' $(obj)/fmap_config.h) \
+	$(AMD_FW_AB_POSITION))
 
-###1
-PSPBTLDR_FILE=$(top)/$(FIRMWARE_LOCATE)/PspBootLoader_prod_$(FIRMWARE_TYPE).sbin
+PICASSO_FW_B_POSITION=$(call int-add, \
+	$(shell awk '$$2 == "FMAP_SECTION_FW_MAIN_B_START" {print $$3}' $(obj)/fmap_config.h) \
+	$(AMD_FW_AB_POSITION))
 
-###3
-PSPRCVR_FILE=$(top)/$(FIRMWARE_LOCATE)/PspRecoveryBootLoader_prod_$(FIRMWARE_TYPE).sbin
+#
+# PSP Directory Table items
+#
+# Certain ordering requirements apply, however these are ensured by amdfwtool.
+# For more information see "AMD Platform Security Processor BIOS Architecture
+# Design Guide for AMD Family 17h Processors" (PID #55758, NDA only).
+#
 
-###4
-PSPNVRAM_FILE=$(top)/$(FIRMWARE_LOCATE)/PspNvram$(FIRMWARE_TYPE).bin
+FIRMWARE_LOCATION=$(shell grep -e FIRMWARE_LOCATION $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}')
 
-###8 - Check for SMU firmware named either *.sbin or *.csbin
-###    TODO: Remove *.sbin section after the blobs repo is updated.
-SMUFWM_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware_$(FIRMWARE_TYPE).csbin
-SMUFWM_FN_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware_$(FIRMWARE_TYPE)_FN.csbin
-ifeq ("$(wildcard $(SMUFWM_FILE))","")
-SMUFWM_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware$(FIRMWARE_TYPE).sbin
-SMUFWM_FN_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware$(FIRMWARE_TYPE)_FN.sbin
+ifeq ($(CONFIG_PSP_UNLOCK_SECURE_DEBUG),y)
+# Enable secure debug unlock
+PSP_SOFTFUSE_BITS += 0
+OPT_TOKEN_UNLOCK="--token-unlock"
 endif
 
-###95
-SMUSCS_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuScs$(FIRMWARE_TYPE).bin
-
-###9
-PSPSECUREDEBUG_FILE=$(top)/$(FIRMWARE_LOCATE)/PspSecureDebug$(FIRMWARE_TYPE).Key
-
-ifeq ($(CONFIG_USE_PSPSECUREOS),y)
-###2
-PSPSCUREOS_FILE=$(top)/$(FIRMWARE_LOCATE)/PspSecureOs_prod_$(FIRMWARE_TYPE).csbin
-
-###12
-PSPTRUSTLETS_FILE=$(wildcard $(top)/$(FIRMWARE_LOCATE)/PspTrustlets*_prod_$(FIRMWARE_TYPE).cbin)
-
-###13
-TRUSTLETKEY_FILE=$(top)/$(FIRMWARE_LOCATE)/TrustletKey_prod_$(FIRMWARE_TYPE).sbin
+ifeq ($(CONFIG_PSP_LOAD_MP2_FW),y)
+OPT_PSP_LOAD_MP2_FW="--load-mp2-fw"
+else
+# Disable MP2 firmware loading
+PSP_SOFTFUSE_BITS += 29
 endif
 
-###18- Check for SMU firmware2 named either *.sbin or *.csbin
-###    TODO: Remove *.sbin section after the blobs repo is updated.
-SMUFIRMWARE2_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware2_prod_$(FIRMWARE_TYPE).csbin
-SMUFIRMWARE2_FN_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware2_prod_$(FIRMWARE_TYPE)_FN.csbin
-ifeq ("$(wildcard $(SMUFIRMWARE2_FILE))","")
-SMUFIRMWARE2_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware2_prod_$(FIRMWARE_TYPE).sbin
-SMUFIRMWARE2_FN_FILE=$(top)/$(FIRMWARE_LOCATE)/SmuFirmware2_prod_$(FIRMWARE_TYPE)_FN.sbin
+# Use additional Soft Fuse bits specified in Kconfig
+PSP_SOFTFUSE_BITS += $(call strip_quotes, $(CONFIG_PSP_SOFTFUSE_BITS))
+
+ifeq ($(CONFIG_PSP_LOAD_S0I3_FW),y)
+OPT_PSP_LOAD_S0I3_FW="--load-s0i3"
 endif
+
+# type = 0x3a
+ifeq ($(CONFIG_HAVE_PSP_WHITELIST_FILE),y)
+PSP_WHITELIST_FILE=$(CONFIG_PSP_WHITELIST_FILE)
+endif
+#
+# BIOS Directory Table items - proper ordering is managed by amdfwtool
+#
+
+# type = 0x60
+PSP_APCB_FILES=$(APCB_SOURCES)
+
+# type = 0x61
+PSP_APOB_BASE=$(CONFIG_PSP_APOB_DRAM_ADDRESS)
+
+# type = 0x62
+PSP_BIOSBIN_FILE=$(obj)/amd_biospsp.img
+PSP_ELF_FILE=$(objcbfs)/bootblock.elf
+PSP_BIOSBIN_SIZE=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$5}')
+PSP_BIOSBIN_DEST=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$3}')
+# type = 0x63 - construct APOB NV base/size from flash map
+# The flashmap section used for this is expected to be named RW_MRC_CACHE
+APOB_NV_SIZE=$(shell awk '$$2 == "FMAP_SECTION_RW_MRC_CACHE_SIZE" {print $$3}' $(obj)/fmap_config.h)
+APOB_NV_BASE=$(shell awk '$$2 == "FMAP_SECTION_RW_MRC_CACHE_START" {print $$3}' $(obj)/fmap_config.h)
+
+ifeq ($(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),y)
+# type = 0x6B - PSP Shared memory location
+ifneq ($(CONFIG_PSP_SHAREDMEM_SIZE),0x0)
+PSP_SHAREDMEM_SIZE=$(CONFIG_PSP_SHAREDMEM_SIZE)
+PSP_SHAREDMEM_BASE=$(shell awk '$$3 == "_psp_sharedmem_dram" {printf "0x" $$1}' $(objcbfs)/bootblock.map)
+endif
+
+# type = 0x52 - PSP Bootloader Userspace Application (verstage)
+PSP_VERSTAGE_FILE=$(call strip_quotes,$(CONFIG_PSP_VERSTAGE_FILE))
+PSP_VERSTAGE_SIG_FILE=$(call strip_quotes,$(CONFIG_PSP_VERSTAGE_SIGNING_TOKEN))
+endif # CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK
+
+
+# Helper function to return a value with given bit set
+# Soft Fuse type = 0xb - See #55758 (NDA) for bit definitions.
+set-bit=$(call int-shift-left, 1 $(call _toint,$1))
+PSP_SOFTFUSE=$(shell A=$(call int-add, \
+		$(foreach bit,$(PSP_SOFTFUSE_BITS),$(call set-bit,$(bit)))); printf "0x%x" $$A)
+
+#
+# Build the arguments to amdfwtool (order is unimportant).  Missing file names
+# result in empty OPT_ variables, i.e. the argument is not passed to amdfwtool.
+#
 
 add_opt_prefix=$(if $(call strip_quotes, $(1)), $(2) $(call strip_quotes, $(1)), )
 
-OPT_STONEYRIDGE_XHCI_FWM_FILE=$(call add_opt_prefix, $(CONFIG_STONEYRIDGE_XHCI_FWM_FILE), --xhci)
-OPT_STONEYRIDGE_GEC_FWM_FILE=$(call add_opt_prefix, $(CONFIG_STONEYRIDGE_GEC_FWM_FILEddd), --gec)
+OPT_VERSTAGE_FILE=$(call add_opt_prefix, $(PSP_VERSTAGE_FILE), --verstage)
+OPT_VERSTAGE_SIG_FILE=$(call add_opt_prefix, $(PSP_VERSTAGE_SIG_FILE), --verstage_sig)
 
-OPT_AMD_PUBKEY_FILE=$(call add_opt_prefix, $(CONFIG_AMD_PUBKEY_FILE), --pubkey)
-OPT_PSPBTLDR_FILE=$(call add_opt_prefix, $(PSPBTLDR_FILE), --bootloader)
-OPT_SMUFWM_FILE=$(call add_opt_prefix, $(SMUFWM_FILE), --smufirmware)
-OPT_PSPRCVR_FILE=$(call add_opt_prefix, $(PSPRCVR_FILE), --recovery)
-OPT_PUBSIGNEDKEY_FILE=$(call add_opt_prefix, $(PUBSIGNEDKEY_FILE), --rtmpubkey)
-OPT_PSPNVRAM_FILE=$(call add_opt_prefix, $(PSPNVRAM_FILE), --nvram)
-OPT_PSPSECUREDEBUG_FILE=$(call add_opt_prefix, $(PSPSECUREDEBUG_FILE), --securedebug)
-ifeq ($(CONFIG_USE_PSPSECUREOS),y)
-OPT_PSPSCUREOS_FILE=$(call add_opt_prefix, $(PSPSCUREOS_FILE), --secureos)
-OPT_PSPTRUSTLETS_FILE=$(call add_opt_prefix, $(PSPTRUSTLETS_FILE), --trustlets)
-OPT_TRUSTLETKEY_FILE=$(call add_opt_prefix, $(TRUSTLETKEY_FILE), --trustletkey)
+OPT_PSP_APCB_FILES=$(foreach i, $(shell seq $(words $(PSP_APCB_FILES))), \
+	$(call add_opt_prefix, $(word $(i), $(PSP_APCB_FILES)), \
+	--instance $(shell printf "%x" $$(($(i)-1))) --apcb  )   )
+OPT_PSP_APCB_FILES_BK=$(foreach i, $(shell seq $(words $(PSP_APCB_FILES))), \
+	$(call add_opt_prefix, $(word $(i), $(PSP_APCB_FILES)), \
+	--instance $(shell printf "1%x" $$(($(i)-1))) --apcb  )   )
+
+OPT_APOB_ADDR=$(call add_opt_prefix, $(PSP_APOB_BASE), --apob-base)
+OPT_PSP_BIOSBIN_FILE=$(call add_opt_prefix, $(PSP_BIOSBIN_FILE), --bios-bin)
+OPT_PSP_BIOSBIN_DEST=$(call add_opt_prefix, $(PSP_BIOSBIN_DEST), --bios-bin-dest)
+OPT_PSP_BIOSBIN_SIZE=$(call add_opt_prefix, $(PSP_BIOSBIN_SIZE), --bios-uncomp-size)
+
+OPT_PSP_SHAREDMEM_BASE=$(call add_opt_prefix, $(PSP_SHAREDMEM_BASE), --sharedmem)
+OPT_PSP_SHAREDMEM_SIZE=$(call add_opt_prefix, $(PSP_SHAREDMEM_SIZE), --sharedmem-size)
+OPT_APOB_NV_SIZE=$(call add_opt_prefix, $(APOB_NV_SIZE), --apob-nv-size)
+OPT_APOB_NV_BASE=$(call add_opt_prefix, $(APOB_NV_BASE),--apob-nv-base)
+OPT_EFS_SPI_READ_MODE=$(call add_opt_prefix, $(CONFIG_EFS_SPI_READ_MODE), --spi-read-mode)
+OPT_EFS_SPI_SPEED=$(call add_opt_prefix, $(CONFIG_EFS_SPI_SPEED), --spi-speed)
+OPT_EFS_SPI_MICRON_FLAG=$(call add_opt_prefix, $(CONFIG_EFS_SPI_MICRON_FLAG), --spi-micron-flag)
+
+OPT_PSP_SOFTFUSE=$(call add_opt_prefix, $(PSP_SOFTFUSE), --soft-fuse)
+
+ifeq ($(CONFIG_VBOOT),)
+OPT_APOB0_NV_SIZE=$(OPT_APOB_NV_SIZE)
+OPT_APOB0_NV_BASE=$(OPT_APOB_NV_BASE)
 endif
-OPT_SMUFIRMWARE2_FILE=$(call add_opt_prefix, $(SMUFIRMWARE2_FILE), --smufirmware2)
-OPT_SMUSCS_FILE=$(call add_opt_prefix, $(SMUSCS_FILE), --smuscs)
-SUBPROG_FN_SMU_FW=1
-OPT_SMUFWM_FN_FILE=$(call add_opt_prefix, $(SMUFWM_FN_FILE), --subprogram $(SUBPROG_FN_SMU_FW) --smufirmware)
-OPT_SMUFIRMWARE2_FN_FILE=$(call add_opt_prefix, $(SMUFIRMWARE2_FN_FILE), --subprogram $(SUBPROG_FN_SMU_FW) --smufirmware2)
 
+OPT_WHITELIST_FILE=$(call add_opt_prefix, $(PSP_WHITELIST_FILE), --whitelist)
 
-$(obj)/amdfw.rom:	$(call strip_quotes, $(CONFIG_STONEYRIDGE_XHCI_FWM_FILE)) \
-			$(call strip_quotes, $(CONFIG_STONEYRIDGE_GEC_FWM_FILE)) \
-			$(call strip_quotes, $(CONFIG_AMD_PUBKEY_FILE)) \
-			$(call strip_quotes, $(PUBSIGNEDKEY_FILE)) \
-			$(call strip_quotes, $(PSPBTLDR_FILE)) \
-			$(call strip_quotes, $(PSPRCVR_FILE)) \
-			$(call strip_quotes, $(PSPSCUREOS_FILE)) \
-			$(call strip_quotes, $(PSPNVRAM_FILE)) \
-			$(call strip_quotes, $(SMUFWM_FILE)) \
-			$(call strip_quotes, $(SMUFWM_FN_FILE)) \
-			$(call strip_quotes, $(SMUSCS_FILE)) \
-			$(call strip_quotes, $(PSPSECUREDEBUG_FILE)) \
-			$(call strip_quotes, $(PSPTRUSTLETS_FILE)) \
-			$(call strip_quotes, $(TRUSTLETKEY_FILE)) \
-			$(call strip_quotes, $(SMUFIRMWARE2_FILE)) \
-			$(call strip_quotes, $(SMUFIRMWARE2_FN_FILE)) \
-			$(AMDFWTOOL)
+# Add all the files listed in the config file
+POUND_SIGN=$(call strip_quotes, "\#")
+DEP_FILES= $(patsubst %,$(FIRMWARE_LOCATION)/%, $(shell sed -e /^$(POUND_SIGN)/d -e /^FIRMWARE_LOCATION/d $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}' ))
+
+AMDFW_COMMON_ARGS=$(OPT_PSP_APCB_FILES) \
+		$(OPT_PSP_APCB_FILES_BK) \
+		$(OPT_APOB_ADDR) \
+		$(OPT_PSP_BIOSBIN_FILE) \
+		$(OPT_PSP_BIOSBIN_DEST) \
+		$(OPT_PSP_BIOSBIN_SIZE) \
+		$(OPT_PSP_SOFTFUSE) \
+		--use-pspsecureos \
+		$(OPT_PSP_LOAD_MP2_FW) \
+		$(OPT_PSP_LOAD_S0I3_FW) \
+		$(OPT_WHITELIST_FILE) \
+		$(OPT_PSP_SHAREDMEM_BASE) \
+		$(OPT_PSP_SHAREDMEM_SIZE) \
+		--combo-capable \
+		$(OPT_TOKEN_UNLOCK) \
+		$(OPT_EFS_SPI_READ_MODE) \
+		$(OPT_EFS_SPI_SPEED) \
+		$(OPT_EFS_SPI_MICRON_FLAG) \
+		--config $(CONFIG_AMDFW_CONFIG_FILE) \
+		--soc-name "Picasso" \
+		--flashsize $(CONFIG_ROM_SIZE)
+
+$(obj)/amdfw.rom:	$(call strip_quotes, $(PSP_BIOSBIN_FILE)) \
+			$(PSP_VERSTAGE_FILE) \
+			$(PSP_VERSTAGE_SIG_FILE) \
+			$$(PSP_APCB_FILES) \
+			$(DEP_FILES) \
+			$(AMDFWTOOL) \
+			$(obj)/fmap_config.h \
+			$(objcbfs)/bootblock.elf # this target also creates the .map file
+	$(if $(PSP_APCB_FILES), ,$(error APCB_SOURCES is not set))
 	rm -f $@
 	@printf "    AMDFWTOOL  $(subst $(obj)/,,$(@))\n"
 	$(AMDFWTOOL) \
-		$(OPT_STONEYRIDGE_XHCI_FWM_FILE) \
-		$(OPT_STONEYRIDGE_GEC_FWM_FILE) \
-		$(OPT_AMD_PUBKEY_FILE) \
-		$(OPT_PSPBTLDR_FILE) \
-		$(OPT_SMUFWM_FILE) \
-		$(OPT_PSPRCVR_FILE) \
-		$(OPT_PUBSIGNEDKEY_FILE) \
-		$(OPT_PSPSCUREOS_FILE) \
-		$(OPT_PSPNVRAM_FILE) \
-		$(OPT_PSPSECUREDEBUG_FILE) \
-		$(OPT_PSPTRUSTLETS_FILE) \
-		$(OPT_TRUSTLETKEY_FILE) \
-		$(OPT_SMUFIRMWARE2_FILE) \
-		$(OPT_SMUSCS_FILE) \
-		$(OPT_AMD_PUBKEY_FILE) \
-		$(OPT_PSPBTLDR_FILE) \
-		$(OPT_SMUFWM_FILE) \
-		$(OPT_SMUFWM_FN_FILE) \
-		$(OPT_PSPRCVR_FILE) \
-		$(OPT_PUBSIGNEDKEY_FILE) \
-		$(OPT_PSPSCUREOS_FILE) \
-		$(OPT_PSPNVRAM_FILE) \
-		$(OPT_PSPSECUREDEBUG_FILE) \
-		$(OPT_PSPTRUSTLETS_FILE) \
-		$(OPT_TRUSTLETKEY_FILE) \
-		$(OPT_SMUFIRMWARE2_FILE) \
-		$(OPT_SMUFIRMWARE2_FN_FILE) \
-		$(OPT_SMUSCS_FILE) \
-		--combo-capable \
-		--flashsize $(CONFIG_ROM_SIZE) \
-		--location $(shell printf "0x%x" $(STONEYRIDGE_FWM_POSITION)) \
-		--output	$@
+		$(AMDFW_COMMON_ARGS) \
+		$(OPT_APOB0_NV_SIZE) \
+		$(OPT_APOB0_NV_BASE) \
+		$(OPT_VERSTAGE_FILE) \
+		$(OPT_VERSTAGE_SIG_FILE) \
+		--location $(shell printf "%#x" $(PICASSO_FWM_POSITION)) \
+		--output $@
 
-ifeq ($(CONFIG_AMDFW_OUTSIDE_CBFS),y)
-PHONY+=add_amdfw
-INTERMEDIATE+=add_amdfw
+$(PSP_BIOSBIN_FILE): $(PSP_ELF_FILE) $(AMDCOMPRESS)
+	rm -f $@
+	@printf "    AMDCOMPRS  $(subst $(obj)/,,$(@))\n"
+	$(AMDCOMPRESS) --infile $(PSP_ELF_FILE) --outfile $@ --compress \
+		--maxsize $(PSP_BIOSBIN_SIZE)
 
-# Calculate firmware position inside the ROM
-STONEYRIDGE_FWM_ROM_POSITION=$(call int-add, \
-	$(call int-subtract, $(CONFIG_ROM_SIZE) \
-	$(call int-shift-left, \
-	0x80000 $(CONFIG_AMD_FWM_POSITION_INDEX))) 0x20000)
+$(obj)/amdfw_a.rom: $(obj)/amdfw.rom
+	rm -f $@
+	@printf "    AMDFWTOOL  $(subst $(obj)/,,$(@))\n"
+	$(AMDFWTOOL) \
+		$(AMDFW_COMMON_ARGS) \
+		$(OPT_APOB_NV_SIZE) \
+		$(OPT_APOB_NV_BASE) \
+		--location $(shell printf "%#x" $(PICASSO_FW_A_POSITION)) \
+		--anywhere \
+		--output $@
 
-add_amdfw: $(obj)/coreboot.pre $(obj)/amdfw.rom
-	printf "    DD         Adding AMD Firmware at ROM offset 0x%x\n" \
-		"$(STONEYRIDGE_FWM_ROM_POSITION)"
-	dd if=$(obj)/amdfw.rom \
-		of=$(obj)/coreboot.pre conv=notrunc bs=1 \
-		seek=$(STONEYRIDGE_FWM_ROM_POSITION) >/dev/null 2>&1
-
-else # ifeq ($(CONFIG_AMDFW_OUTSIDE_CBFS),y)
+$(obj)/amdfw_b.rom: $(obj)/amdfw.rom
+	rm -f $@
+	@printf "    AMDFWTOOL  $(subst $(obj)/,,$(@))\n"
+	$(AMDFWTOOL) \
+		$(AMDFW_COMMON_ARGS) \
+		$(OPT_APOB_NV_SIZE) \
+		$(OPT_APOB_NV_BASE) \
+		--location $(shell printf "%#x" $(PICASSO_FW_B_POSITION)) \
+		--anywhere \
+		--output $@
 
 cbfs-files-y += apu/amdfw
 apu/amdfw-file := $(obj)/amdfw.rom
-apu/amdfw-position := $(STONEYRIDGE_FWM_POSITION)
+apu/amdfw-position := $(PICASSO_FWM_POSITION)
 apu/amdfw-type := raw
 
-endif # ifeq ($(CONFIG_AMDFW_OUTSIDE_CBFS),y)
+ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
+cbfs-files-y += apu/amdfw_a
+apu/amdfw_a-file := $(obj)/amdfw_a.rom
+apu/amdfw_a-position := $(AMD_FW_AB_POSITION)
+apu/amdfw_a-type := raw
 
-ifeq ($(CONFIG_SOC_AMD_PSP_SELECTABLE_SMU_FW),y)
-
-cbfs-files-y += smu_fw
-cbfs-files-y += smu_fw2
-smu_fw-type := raw
-smu_fw2-type := raw
-
-ifeq ($(CONFIG_SOC_AMD_SMU_FANLESS),y)
-smu_fw-file := $(SMUFWM_FN_FILE)
-smu_fw2-file := $(SMUFIRMWARE2_FN_FILE)
-else ifeq ($(CONFIG_SOC_AMD_SMU_FANNED),y)
-smu_fw-file := $(SMUFWM_FILE)
-smu_fw2-file := $(SMUFIRMWARE2_FILE)
-else
-$(error "Proper SMU Firmware not selected")
+cbfs-files-y += apu/amdfw_b
+apu/amdfw_b-file := $(obj)/amdfw_b.rom
+apu/amdfw_b-position := $(AMD_FW_AB_POSITION)
+apu/amdfw_b-type := raw
 endif
 
-endif # ifeq ($(CONFIG_SOC_AMD_PSP_SELECTABLE_SMU_FW),y)
+amd_microcode_bins := $(wildcard ${FIRMWARE_LOCATION}/UcodePatch_*.bin)
 
 endif # ($(CONFIG_SOC_AMD_PICASSO),y)

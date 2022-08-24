@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016-2017 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #define __SIMPLE_DEVICE__
 
 #include <arch/io.h>
 #include <assert.h>
 #include <cpu/x86/mtrr.h>
+#include <cpu/x86/cr.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/pci_ops.h>
@@ -81,7 +69,7 @@ static uint32_t mtrr_index_to_host_bridge_register_offset(unsigned long index)
 {
 	uint32_t offset;
 
-	/* Convert from MTRR index to host brigde offset (Datasheet 12.7.2) */
+	/* Convert from MTRR index to host bridge offset (Datasheet 12.7.2) */
 	if (index == MTRR_CAP_MSR)
 		offset = QUARK_NC_HOST_BRIDGE_IA32_MTRR_CAP;
 	else if (index == MTRR_DEF_TYPE_MSR)

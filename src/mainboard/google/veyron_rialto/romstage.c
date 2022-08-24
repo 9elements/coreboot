@@ -1,37 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Rockchip Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/cache.h>
 #include <arch/exception.h>
-#include <device/mmio.h>
 #include <armv7.h>
 #include <assert.h>
 #include <cbmem.h>
 #include <console/console.h>
+#include <device/mmio.h>
 #include <program_loading.h>
-#include <soc/sdram.h>
+#include <romstage_common.h>
 #include <soc/clock.h>
-#include <soc/pwm.h>
 #include <soc/grf.h>
+#include <soc/pwm.h>
 #include <soc/rk808.h>
+#include <soc/sdram.h>
 #include <soc/tsadc.h>
-#include <stdlib.h>
 #include <symbols.h>
 #include <timestamp.h>
 #include <types.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 
 #include "board.h"
 
@@ -79,10 +65,16 @@ static void sdmmc_power_off(void)
 
 void main(void)
 {
-	timestamp_add_now(TS_START_ROMSTAGE);
+	timestamp_add_now(TS_ROMSTAGE_START);
 
 	console_init();
 	exception_init();
+
+	romstage_main();
+}
+
+void __noreturn romstage_main(void)
+{
 	configure_l2ctlr();
 	tsadc_init();
 
@@ -92,11 +84,11 @@ void main(void)
 	/* vdd_log 1200mv is enough for ddr run 666Mhz */
 	regulate_vdd_log(1200);
 
-	timestamp_add_now(TS_BEFORE_INITRAM);
+	timestamp_add_now(TS_INITRAM_START);
 
 	sdram_init(get_sdram_config());
 
-	timestamp_add_now(TS_AFTER_INITRAM);
+	timestamp_add_now(TS_INITRAM_END);
 
 	/* Now that DRAM is up, add mappings for it and DMA coherency buffer. */
 	mmu_config_range((uintptr_t)_dram/MiB,

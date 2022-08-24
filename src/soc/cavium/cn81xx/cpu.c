@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018-present  Facebook, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <types.h>
 #include <soc/addressmap.h>
@@ -110,7 +97,7 @@ size_t start_cpu(size_t cpu, void (*entry_64)(size_t core_id))
 	} while (!stopwatch_expired(&sw) && (pending & coremask));
 
 	if (stopwatch_expired(&sw)) {
-		printk(BIOS_ERR, "ERROR: Timeout waiting for reset "
+		printk(BIOS_ERR, "Timeout waiting for reset "
 		       "pending to clear.");
 		return 1;
 	}
@@ -126,7 +113,7 @@ size_t start_cpu(size_t cpu, void (*entry_64)(size_t core_id))
 	dmb();
 
 	if (!read64(&secondary_booted)) {
-		printk(BIOS_ERR, "ERROR: Core %zu failed to start.\n", cpu);
+		printk(BIOS_ERR, "Core %zu failed to start.\n", cpu);
 		return 1;
 	}
 

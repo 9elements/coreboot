@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_INTEL_COMMON_MSR_H
 #define SOC_INTEL_COMMON_MSR_H
@@ -30,16 +17,10 @@
 #define MSR_BIOS_UPGD_TRIG	0x7a
 #define  SGX_ACTIVATE_BIT	(1)
 #define MSR_PMG_IO_CAPTURE_BASE	0xe4
-#define MSR_POWER_MISC		0x120
-#define  ENABLE_IA_UNTRUSTED	(1 << 6)
-#define  FLUSH_DL1_L2		(1 << 8)
 #define MSR_EMULATE_PM_TIMER	0x121
 #define  EMULATE_DELAY_OFFSET_VALUE	20
 #define  EMULATE_PM_TMR_EN	(1 << 16)
 #define  EMULATE_DELAY_VALUE	0x13
-#define MSR_FEATURE_CONFIG	0x13c
-#define  FEATURE_CONFIG_RESERVED_MASK	0x3ULL
-#define  FEATURE_CONFIG_LOCK	(1 << 0)
 #define SMM_MCA_CAP_MSR		0x17d
 #define  SMM_CPU_SVRSTR_BIT	57
 #define  SMM_CPU_SVRSTR_MASK	(1 << (SMM_CPU_SVRSTR_BIT - 32))
@@ -64,9 +45,13 @@
 #define MSR_PRMRR_PHYS_MASK		0x1f5
 #define  PRMRR_PHYS_MASK_LOCK		(1 << 10)
 #define  PRMRR_PHYS_MASK_VALID		(1 << 11)
+#define MSR_PRMRR_VALID_CONFIG		0x1fb
 #define MSR_POWER_CTL			0x1fc
 #define  POWER_CTL_C1E_MASK		(1 << 1)
+#define MSR_PRMRR_BASE_0		0x2a0
 #define MSR_EVICT_CTL			0x2e0
+#define MSR_LT_CONTROL			0x2e7
+#define  LT_CONTROL_LOCK		(1 << 0)
 #define MSR_SGX_OWNEREPOCH0		0x300
 #define MSR_SGX_OWNEREPOCH1		0x301
 #define SMM_FEATURE_CONTROL_MSR		0x4e0
@@ -109,6 +94,8 @@
 #define PKG_POWER_LIMIT_TIME_MASK	(0x7f)
 #define PKG_POWER_LIMIT_DUTYCYCLE_SHIFT 24
 #define PKG_POWER_LIMIT_DUTYCYCLE_MASK  (0x7f)
+
+#define MSR_CORE_MKTME_ACTIVATION	0x9ff
 /* SMM save state MSRs */
 #define SMBASE_MSR			0xc20
 #define IEDBASE_MSR			0xc22
@@ -116,17 +103,11 @@
 #define MSR_L2_QOS_MASK(reg)		(0xd10 + reg)
 
 /* MTRR_CAP_MSR bits */
-#define SMRR_SUPPORTED	(1<<11)
-#define PRMRR_SUPPORTED	(1<<12)
+#define SMRR_SUPPORTED			(1<<11)
+#define PRMRR_SUPPORTED			(1<<12)
+#define SMRR_LOCK_SUPPORTED		(1<<14)
 
 #define SGX_SUPPORTED	(1<<2)
-/* Intel SDM: Table 36-6.
- * CPUID Leaf 12H, Sub-Leaf Index 2 or Higher for enumeration of
- * SGX Resources. Same Table  mentions about return values of the CPUID */
-#define SGX_RESOURCE_ENUM_CPUID_LEAF	(0x12)
-#define SGX_RESOURCE_ENUM_CPUID_SUBLEAF	(0x2)
-#define SGX_RESOURCE_ENUM_BIT	(0x1)
-#define SGX_RESOURCE_MASK_LO	(0xfffff000UL)
-#define SGX_RESOURCE_MASK_HI	(0xfffffUL)
+#define TME_SUPPORTED	(1<<13)
 
 #endif	/* SOC_INTEL_COMMON_MSR_H */

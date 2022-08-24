@@ -151,7 +151,7 @@ CR0_PG                  = 31          # Paging Enable
 
 CPUID_MODEL              =      1
 AMD_CPUID_FMF            =      0x80000001       /* Family Model Features information */
-AMD_CPUID_L2Cache        =      0X80000006       /* L2/L3 cache info */
+AMD_CPUID_L2Cache        =      0x80000006       /* L2/L3 cache info */
 AMD_CPUID_APIC           =      0x80000008       /* Long Mode and APIC info., core count */
     APIC_ID_CORE_ID_SIZE      = 12               /* ApicIdCoreIdSize bit position */
 
@@ -281,7 +281,6 @@ MSR_MASK    = ((1 << MTRR_DEF_TYPE_EN)+(1 << MTRR_DEF_TYPE_FIX_EN))
 *     SI[31:27]= reserved, =0
 ****************************************************************************/
 .macro  GET_NODE_ID_CORE_ID
-    LOCAL  node_core_exit
 
     mov     $-1, %si
     GET_NODE_ID_CORE_ID_F16
@@ -290,16 +289,16 @@ MSR_MASK    = ((1 << MTRR_DEF_TYPE_EN)+(1 << MTRR_DEF_TYPE_FIX_EN))
      * Check for unrecognized Family
      */
     cmp     $-1, %si                      # Has family (node/core) already been discovered?
-    jnz     node_core_exit              # Br if yes
+    jnz     node_core_exit\@              # Br if yes
 
    mov     $((1 << FLAG_UNKNOWN_FAMILY)+(1 << FLAG_IS_PRIMARY)), %esi # No, Set error code, Only let BSP continue
 
     mov     $APIC_BASE_ADDRESS, %ecx      # MSR:0000_001B
     _RDMSR
     bt      $APIC_BSC, %eax               # Is this the BSC?
-    jc      node_core_exit              # Br if yes
+    jc      node_core_exit\@              # Br if yes
     hlt                                 # Kill APs
-node_core_exit:
+node_core_exit\@:
 
 .endm
 
@@ -335,13 +334,12 @@ Family 16h requirements (BKDG #48751 section 2.3.3):
 	*/
 
 .macro  AMD_ENABLE_STACK_FAMILY_HOOK_F16
-    LOCAL   fam16_enable_stack_hook_exit
 
     AMD_CPUID   $CPUID_MODEL
     mov     %eax, %ebx                # Save revision info to EBX
     shr     $20, %eax                 # AL = cpu extended family
     cmp     $0x07, %al                     # Is this family 16h?
-    jnz     fam16_enable_stack_hook_exit # Br if no
+    jnz     fam16_enable_stack_hook_exit\@ # Br if no
 
     bt      $FLAG_STACK_REENTRY , %esi                 # Check if stack has already been set
     jc      fam16_skipClearingBit4
@@ -373,7 +371,7 @@ fam16_skipClearingBit4:
     bts     $CACHE_IC_ATTR_DIS, %eax
     _WRMSR
 
-fam16_enable_stack_hook_exit:
+fam16_enable_stack_hook_exit\@:
 .endm
 
 /*
@@ -382,13 +380,6 @@ fam16_enable_stack_hook_exit:
 ;
 ;   Return any family specific controls to their 'standard'
 ;   settings for using cache with main memory.
-;
-; Note: Customized for coreboot:
-;   A wbinvd is used to send cache to memory.  The existing stack is preserved
-;   at its original location and additional information is preserved (e.g.
-;   coreboot CAR globals, heap structures, etc.). This implementation should
-;   NOT be used with S3 resume IF the stack/cache area is not reserved and
-;   over system memory.
 ;
 ; Inputs:
 ;       ESI - [31:24] flags; [15:8]= Node#; [7:0]= core#
@@ -407,15 +398,12 @@ fam16_enable_stack_hook_exit:
 ;---------------------------------------------------
 */
 .macro  AMD_DISABLE_STACK_FAMILY_HOOK_F16
-    LOCAL   fam16_disable_stack_hook_exit
-    LOCAL   fam16_disable_stack_remote_read_exit
-#    LOCAL   fam16_invd_done_remote_read_exit
 
     AMD_CPUID   $CPUID_MODEL
     mov     %eax, %ebx                    # Save revision info to EBX
     shr     $20, %eax                     # AL = cpu extended family
     cmp     $0x07, %al                     # Is this family 16h?
-    jnz     fam16_disable_stack_hook_exit # Br if no
+    jnz     fam16_disable_stack_hook_exit\@ # Br if no
 
     mov     %ebx, %edi                    # Save revision info to EDI
     AMD_CPUID  $AMD_CPUID_APIC
@@ -517,7 +505,7 @@ fam16_enable_stack_hook_exit:
             #.while (carry?)
 7:          jnc     6f
                 dec     %ch                   #Check the timeout
-                jz      fam16_disable_stack_remote_read_exit
+                jz      fam16_disable_stack_remote_read_exit\@
                 mov     %es:(%ebx), %eax      # ax = 0000000000020338
                 bt      $DELIVERY_STS_BIT, %eax
             jmp     7b
@@ -531,7 +519,7 @@ fam16_enable_stack_hook_exit:
                     cmp     $REMOTE_DELIVERY_PEND, %eax
                     jnz      8f
                     dec     %ch               # Check the timeout
-                    jz      fam16_disable_stack_hook_exit # Branch if there is an unreponsive core
+                    jz      fam16_disable_stack_hook_exit\@ # Branch if there is an unreponsive core
                     stc
                 jmp     9f
 8:              #.else
@@ -556,13 +544,13 @@ fam16_enable_stack_hook_exit:
             jmp     7f
 6:          #.else
                 dec     %ch
-                jz      fam16_disable_stack_remote_read_exit
+                jz      fam16_disable_stack_remote_read_exit\@
                 stc
 7:          #.endif
         jmp     5b
 4:      #.endw
 
-fam16_disable_stack_remote_read_exit:
+fam16_disable_stack_remote_read_exit\@:
         rol   $8, %ecx                 # Restore ECX
 
 1:  #.endif
@@ -610,16 +598,8 @@ fam16_disable_stack_remote_read_exit:
     btr     $INVD_WBINVD, %eax            # Disable INVD -> WBINVD conversion
     _WRMSR
 
-    #--------------------------------------------------------------------------
-    # Send cache to memory. Preserve stack and coreboot CAR globals.
-    # This shouldn't be used with S3 resume IF the stack/cache area is
-    # not reserved and over system memory.
-    #--------------------------------------------------------------------------
-#if !CONFIG(POSTCAR_STAGE)
+    # An invd here sometimes breaks AP CPU startup
     wbinvd
-#else
-    invd
-#endif
 
     #Do Standard Family 16 work
     mov     $HWCR, %ecx                    # MSR:C001_0015h
@@ -675,7 +655,7 @@ fam16_disable_stack_remote_read_exit:
             #.while (carry?)
 7:          jnc     6f
                 dec     %ch                   #Check the timeout
-                jz      fam16_invd_done_remote_read_exit
+                jz      fam16_invd_done_remote_read_exit\@
                 mov     %es:(%ebx), %eax      # ax = 0000000000020338
                 bt      $DELIVERY_STS_BIT, %eax
             jmp     7b
@@ -689,7 +669,7 @@ fam16_disable_stack_remote_read_exit:
                     cmp     $REMOTE_DELIVERY_PEND, %eax
                     jnz      8f
                     dec     %ch               # Check the timeout
-                    jz      fam16_invd_done_remote_read_exit # Branch if there is an unreponsive core
+                    jz      fam16_invd_done_remote_read_exit\@ # Branch if there is an unreponsive core
                     stc
                 jmp     9f
 8:              #.else
@@ -714,14 +694,14 @@ fam16_disable_stack_remote_read_exit:
             jmp     7f
 6:          #.else
                 dec     %ch
-                jz      fam16_invd_done_remote_read_exit
+                jz      fam16_invd_done_remote_read_exit\@
                 stc
 7:          #.endif
         jmp     5b
 4:      #.endw
 
      jmp  2f
-fam16_invd_done_remote_read_exit:
+fam16_invd_done_remote_read_exit\@:
 1: #.else
      mov    $APIC_BASE_ADDRESS, %ecx
      _RDMSR
@@ -737,17 +717,13 @@ fam16_invd_done_remote_read_exit:
     btr     $30, %edx
     _WRMSR
 
-fam16_disable_stack_hook_exit:
+fam16_disable_stack_hook_exit\@:
 .endm
 
 /*
 */
 .macro  GET_NODE_ID_CORE_ID_F16
 
-    LOCAL   node_core_f16_exit
-    LOCAL   node_core_f16_AP
-    LOCAL   node_core_f16_shared
-    LOCAL node_core_f16_AP_not_TN
 
 #define F16_L2Size	1024
 #define F16_ShareCores  4
@@ -756,12 +732,12 @@ fam16_disable_stack_hook_exit:
 #define F16_SzAddrBus   40
 #define F16_pad         0
     cmp     $-1, %si                      # Has node/core already been discovered?
-    jnz     node_core_f16_exit          # Br if yes
+    jnz     node_core_f16_exit\@          # Br if yes
 
     AMD_CPUID   $CPUID_MODEL
     shr     $12, %eax                     # AL = cpu extended family
     cmp     $07, %ah                     # Is this family 16h?
-    jnz     node_core_f16_exit          # Br if no
+    jnz     node_core_f16_exit\@          # Br if no
     shr     $4,  %al                     # AL = cpu extended model
     shr     $16, %ebx                    # BH = LocalApicId
     mov     %al, %bl                     # BL = cpu extended model
@@ -773,7 +749,7 @@ fam16_disable_stack_hook_exit:
     mov     $APIC_BASE_ADDRESS, %ecx      # MSR:0000_001B
     _RDMSR
     bt      $APIC_BSC, %eax               # Is this the BSC?
-    jnc      node_core_f16_AP            # Br if no
+    jnc      node_core_f16_AP\@            # Br if no
 
     # This is the BSP.
     # Enable routing tables on BSP (just in case the HT init code has not yet enabled them)
@@ -784,9 +760,9 @@ fam16_disable_stack_hook_exit:
     in      %dx, %eax
     btr     $0, %eax                      # Set LinkInitializationControl[RouteTblDis] = 0
     out     %eax, %dx
-    jmp     6f         #node_core_f16_shared        #
+    jmp     6f         #node_core_f16_shared\@        #
 
-node_core_f16_AP:
+node_core_f16_AP\@:
     mov     %bl, %al                        # AL = cpu extended model
     shr     $8,  %bx                        # BL = CPUID Fn0000_0001_EBX[LocalApicId]
     #.if (al == 0)
@@ -795,14 +771,14 @@ node_core_f16_AP:
     #.else
 4:  mov     %bx, %si
     jmp     6f
-5:  #node_core_f16_AP_not_KB
+5:  #node_core_f16_AP_not_KB\@
          bts $FLAG_CORE_NOT_IDENTIFIED, %esi
     #.endif
     #.endif
       #
       #   determine if this core shares MTRRs
       #
-6:	#node_core_f16_shared
+6:	#node_core_f16_shared\@
     mov     $COMPUTE_UNIT_STATUS, %eax              # Compute Unit Status
     mov     %si, %bx
     shl     $3, %bh                       # Move node# to PCI Dev# field
@@ -875,7 +851,7 @@ node_core_f16_AP:
     #.endif
     2:
 
-node_core_f16_exit:
+node_core_f16_exit\@:
 
 .endm
 
@@ -947,10 +923,6 @@ node_core_f16_exit:
 .macro  AMD_ENABLE_STACK
 
 # These are local labels. Declared so linker doesn't cause 'redefined label' errors
-    LOCAL   SetupStack
-    LOCAL   Real16bMode
-    LOCAL   Protected32Mode
-    LOCAL   ClearTheStack
 
 #   Note that SS:ESP will be default stack.  Note that this stack
 #   routine will not be used after memory has been initialized.  Because
@@ -964,14 +936,14 @@ node_core_f16_exit:
     # It is =0 after reset; CAR setup sets it to enable the MTRRs
     mov     %cr0, %eax
     test    $CR0_MASK, %eax              # Is cache disabled? (CD & NW bits)
-    jnz     SetupStack                  # Jump if yes
+    jnz     SetupStack\@                  # Jump if yes
     mov     $AMD_MTRR_DEFTYPE, %ecx       # MSR:0000_02FF
     _RDMSR
     test    $MSR_MASK, %eax                     # Are the default types enabled? (MTRR_DEF_TYPE_EN + MTRR_DEF_TYPE_FIX_EN)
-    jz      SetupStack                  # Jump if no
+    jz      SetupStack\@                  # Jump if no
     or      $FLAG_STACK_REENTRY, %esi             # Bit25, indicate stack has already been initialized
 
-SetupStack:
+SetupStack\@:
     # Set node to map the first 16MB to node 0# 0000_0000 to 00FF_FFFF as DRAM
     mov     %esi, %ebx                    # Get my Node/Core info
     xor     %bl, %bl
@@ -1209,12 +1181,12 @@ SetupStack:
     mov     %cr0, %ecx                    # Check for 32-bit protect mode
     bt      $CR0_PE, %ecx                 #
     #.if (!carry?)                       # PE=0 means real mode
-    jc      Protected32Mode
+    jc      Protected32Mode\@
     mov     %cs, %cx                      # PE=1
     cmp     $0x0D000, %cx                  # Check for CS
-    jb      Protected32Mode             # If CS < D000, it is a selector instead of a segment
+    jb      Protected32Mode\@             # If CS < D000, it is a selector instead of a segment
             # alter SS:ESP for 16b Real Mode:
-Real16bMode:
+Real16bMode\@:
     mov     %edi, %eax
     shr     $4, %eax                      # Create a Real Mode segment for ss, ds, es
     mov     %ax, %ss
@@ -1229,7 +1201,7 @@ Real16bMode:
     #   Default is to use Protected 32b Mode
     #.endif
     ;
-Protected32Mode:
+Protected32Mode\@:
     #
     # Clear The Stack
     #   Now that we have set the location and the MTRRs, initialize the cache by
@@ -1242,7 +1214,7 @@ Protected32Mode:
     #       edi -  address of start of stack block
     #
 
-ClearTheStack:                          # Stack base is in SS, stack pointer is in ESP
+ClearTheStack\@:                          # Stack base is in SS, stack pointer is in ESP
     shr     $2, %ebx                      # ebx = stack block size in dwords
     mov     %bx, %cx                      #
     # Check our flags - Don't clear an existing stack
@@ -1276,17 +1248,8 @@ ClearTheStack:                          # Stack base is in SS, stack pointer is 
 .endm
 
 /*****************************************************************************
-* AMD_DISABLE_STACK:  Implementation is modified for coreboot from
-*                     the original AMD intent.  A WBINVD is used in the HOOK
-*                     to send dirty cache contents to DRAM backing before
-*                     disabling cache-as-ram.  This is not safe for S3 resume.
-*
-*                     todo:
-*                       * rework PI/AGESA source to set DRAM to UC to send
-*                         writes directly to memory
-*                       * move DCACHE_BASE or use postcar stage for teardown
-*                         to eliminate car_migrated problem that will occur
-*                         after wbinvd is changed back to invd
+* AMD_DISABLE_STACK:  Destroy the stack inside the cache. This routine
+*                     should only be executed on the BSP
 *
 *   In:
 *       none
@@ -1327,4 +1290,3 @@ ClearTheStack:                          # Stack base is in SS, stack pointer is 
     AMD_DISABLE_STACK_FAMILY_HOOK       # Re-Enable 'normal' cache operations
 
 .endm
-

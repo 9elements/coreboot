@@ -48,6 +48,47 @@
   #define  FCH_SUPPORT   FALSE
 #endif
 
+/* Define the default values for the FCH configuration settings */
+#define DFLT_SMBUS0_BASE_ADDRESS		0xB00
+#define DFLT_SMBUS1_BASE_ADDRESS		0xB20
+/* The AGESA likes to enable 512 bytes region on this base for LPC bus */
+#define DFLT_SIO_PME_BASE_ADDRESS		0xE00
+#define DFLT_ACPI_PM1_EVT_BLOCK_ADDRESS		0x800
+#define DFLT_ACPI_PM1_CNT_BLOCK_ADDRESS		0x804
+#define DFLT_ACPI_PM_TMR_BLOCK_ADDRESS		0x808
+#define DFLT_ACPI_CPU_CNT_BLOCK_ADDRESS		0x810
+#define DFLT_ACPI_GPE0_BLOCK_ADDRESS		0x820
+#define DFLT_SPI_BASE_ADDRESS			0xFEC10000
+#define DFLT_WATCHDOG_TIMER_BASE_ADDRESS	0xFEC000F0
+#define DFLT_HPET_BASE_ADDRESS			0xFED00000
+#define DFLT_SMI_CMD_PORT			0xB0
+#define DFLT_ACPI_PMA_CNT_BLK_ADDRESS		0xFE00
+#define DFLT_GEC_BASE_ADDRESS			0xFED61000
+#define DFLT_AZALIA_SSID			0x780D1022
+#define DFLT_SMBUS_SSID				0x780B1022
+#define DFLT_IDE_SSID				0x780C1022
+#define DFLT_SATA_AHCI_SSID			0x78011022
+#define DFLT_SATA_IDE_SSID			0x78001022
+#define DFLT_SATA_RAID5_SSID			0x78031022
+#define DFLT_SATA_RAID_SSID			0x78021022
+#define DFLT_EHCI_SSID				0x78081022
+#define DFLT_OHCI_SSID				0x78071022
+#define DFLT_LPC_SSID				0x780E1022
+#define DFLT_SD_SSID				0x78061022
+#define DFLT_XHCI_SSID				0x78121022
+#define DFLT_FCH_PORT80_BEHIND_PCIB		FALSE
+#define DFLT_FCH_ENABLE_ACPI_SLEEP_TRAP		TRUE
+
+#define DFLT_FCH_GPP_LINK_CONFIG		PortA4
+#define DFLT_FCH_GPP_PORT0_PRESENT		FALSE
+#define DFLT_FCH_GPP_PORT1_PRESENT		FALSE
+#define DFLT_FCH_GPP_PORT2_PRESENT		FALSE
+#define DFLT_FCH_GPP_PORT3_PRESENT		FALSE
+
+#define DFLT_FCH_GPP_PORT0_HOTPLUG		FALSE
+#define DFLT_FCH_GPP_PORT1_HOTPLUG		FALSE
+#define DFLT_FCH_GPP_PORT2_HOTPLUG		FALSE
+#define DFLT_FCH_GPP_PORT3_HOTPLUG		FALSE
 
 /* ACPI block register offset definitions */
 #define PM1_STATUS_OFFSET              0x00
@@ -791,7 +832,7 @@
       //
       // Define task list for InitReset phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitResetTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitResetTaskTable[] = {
         InstallFchInitResetHwAcpiP,
         InstallFchInitResetAb,
         InstallFchInitResetSpi,
@@ -818,7 +859,7 @@
       //
       // Define task list for InitEnv phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitEnvTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitEnvTaskTable[] = {
         InstallFchInitEnvHwAcpiP,
         InstallFchInitEnvPcib,
         InstallFchInitEnvPcie,
@@ -851,7 +892,7 @@
       //
       // Define task list for InitMid phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitMidTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitMidTaskTable[] = {
         InstallFchInitMidImc,
         InstallFchInitMidUsb,
         InstallFchInitMidUsbEhci,
@@ -872,7 +913,7 @@
       //
       // Define task list for InitLate phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitLateTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitLateTaskTable[] = {
         InstallFchInitLatePcie,
         InstallFchInitLatePcib,
         InstallFchInitLateSpi,
@@ -899,7 +940,7 @@
       //
       // Define task list for S3 resume before PCI phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitS3EarlyTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitS3EarlyTaskTable[] = {
         InstallFchInitEnvPcie,
         InstallFchInitEnvPcib,
         InstallFchInitEnvGpp,
@@ -926,7 +967,7 @@
       //
       // Define task list for S3 resume after PCI phase
       //
-      FCH_TASK_ENTRY ROMDATA  *FchInitS3LateTaskTable[] = {
+      FCH_TASK_ENTRY ROMDATA  * CONST FchInitS3LateTaskTable[] = {
         InstallFchInitLatePcie,
         InstallFchInitLatePcib,
         InstallFchInitLateSpi,
@@ -950,7 +991,7 @@
       };
     #endif
   #endif
-  FCH_TASK_ENTRY   *FchGppHotplugSmiCallbackPtr = InstallHpSmiCallback;
+  FCH_TASK_ENTRY   * CONST FchGppHotplugSmiCallbackPtr = InstallHpSmiCallback;
 
 
 #else   // FCH_SUPPORT == FALSE

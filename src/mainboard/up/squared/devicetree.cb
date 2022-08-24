@@ -1,9 +1,30 @@
 chip soc/intel/apollolake
 
+	# Override USB port configuration
+	register "usb_config_override" = "1"
+	# USB 2.0
+	register "usb2_port[0]" = "PORT_EN(OC0)"
+	register "usb2_port[1]" = "PORT_EN(OC1)"
+	register "usb2_port[2]" = "PORT_EN(OC1)"
+	register "usb2_port[3]" = "PORT_EN(OC1)"
+	register "usb2_port[4]" = "PORT_EN(OC1)"
+	register "usb2_port[5]" = "PORT_EN(OC1)"
+	register "usb2_port[6]" = "PORT_EN(OC_SKIP)"
+	register "usb2_port[7]" = "PORT_EN(OC_SKIP)"
+	# USB 3.0
+	register "usb3_port[0]" = "PORT_EN(OC0)"
+
+	register "enable_vtd" = "1"
+
+	# Override eMMC MaxHostSpeed
+	# 0:HS400 (Default) 1:HS200 2:DDR50
+	register "emmc_host_max_speed" = "1"
+
 	device cpu_cluster 0 on
 		device lapic 0 on end
 	end
 	device domain 0 on
+		subsystemid 0x8086 0x7270 inherit
 		device pci 00.0 on end	# - Host Bridge
 		device pci 00.1 off end	# - DPTF
 		device pci 00.2 off end	# - NPK
@@ -14,9 +35,12 @@ chip soc/intel/apollolake
 		device pci 0d.2 off end	# - SPI
 		device pci 0d.3 off end	# - Shared SRAM
 		device pci 0e.0 on end	# - Audio
-		device pci 0f.0 on end  # - TXE
+		device pci 0f.0 on end	# - TXE
 		device pci 11.0 off end	# - ISH
-		device pci 12.0 on end	# - SATA
+		device pci 12.0 on	# - SATA
+			register "SataPortsEnable[0]" = "1"
+			register "SataPortsEnable[1]" = "1"
+		end
 		device pci 13.0 on end	# - PCIe-A 1 - PcieRootPort[2]
 		device pci 13.1 on end  # - PCIe-A 2 - PcieRootPort[3]
 		device pci 13.2 on end	# - PCIe-A 3 - PcieRootPort[4]
@@ -46,5 +70,8 @@ chip soc/intel/apollolake
 		device pci 1e.0 on end	# - SDIO
 		device pci 1f.0 on end	# - LPC
 		device pci 1f.1 on end	# - SMBUS
+	end
+	chip drivers/crb
+		device mmio 0xfed40000 on end
 	end
 end

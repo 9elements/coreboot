@@ -1,24 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * This file is part of the coreboot project.
- *
  * drivers/video/tegra/dc/sor.c
- *
- * Copyright (c) 2011-2015, NVIDIA Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #include <console/console.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <delay.h>
 #include <soc/addressmap.h>
 #include <device/device.h>
@@ -235,9 +222,10 @@ static int tegra_dc_sor_power_dplanes(struct tegra_dc_sor_data *sor,
 		case 4:
 			reg_val |= (NV_SOR_DP_PADCTL_PD_TXD_3_NO |
 				NV_SOR_DP_PADCTL_PD_TXD_2_NO);
-			/* fall through */
+			fallthrough;
 		case 2:
 			reg_val |= NV_SOR_DP_PADCTL_PD_TXD_1_NO;
+			fallthrough;
 		case 1:
 			reg_val |= NV_SOR_DP_PADCTL_PD_TXD_0_NO;
 			break;
@@ -592,8 +580,6 @@ static void dump_sor_reg(struct tegra_dc_sor_data *sor)
 	DUMP_REG(NV_SOR_DP_SPARE(0));
 	DUMP_REG(NV_SOR_DP_SPARE(1));
 	DUMP_REG(NV_SOR_DP_TPG);
-
-	return;
 }
 #endif
 
@@ -904,10 +890,10 @@ void tegra_sor_precharge_lanes(struct tegra_dc_sor_data *sor)
 	case 4:
 		val |= (NV_SOR_DP_PADCTL_PD_TXD_3_NO |
 			NV_SOR_DP_PADCTL_PD_TXD_2_NO);
-		/* fall through */
+		fallthrough;
 	case 2:
 		val |= NV_SOR_DP_PADCTL_PD_TXD_1_NO;
-		/* fall through */
+		fallthrough;
 	case 1:
 		val |= NV_SOR_DP_PADCTL_PD_TXD_0_NO;
 		break;

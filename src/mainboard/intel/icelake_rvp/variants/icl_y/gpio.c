@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/gpio.h>
 #include <baseboard/variants.h>
-#include <commonlib/helpers.h>
+#include <types.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
-/* Pad configuration in ramstage*/
+/* Pad configuration in ramstage */
 static const struct pad_config gpio_table[] = {
 /* I2S2_SCLK */
 PAD_CFG_GPI(GPP_A7, NONE, PLTRST),
@@ -99,8 +87,10 @@ PAD_CFG_GPO(GPP_H0, 1, DEEP),
 
 /* Early pad configuration in bootblock */
 static const struct pad_config early_gpio_table[] = {
-
-
+	/* UART2 RX */
+	PAD_CFG_NF(GPP_C20, NONE, DEEP, NF1),
+	/* UART2 TX */
+	PAD_CFG_NF(GPP_C21, NONE, DEEP, NF1),
 };
 
 const struct pad_config *variant_gpio_table(size_t *num)
@@ -114,3 +104,9 @@ const struct pad_config *variant_early_gpio_table(size_t *num)
 	*num = ARRAY_SIZE(early_gpio_table);
 	return early_gpio_table;
 }
+
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AL(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+};
+
+DECLARE_CROS_GPIOS(cros_gpios);

@@ -87,7 +87,7 @@
  * User-definable tweak to disable the include of <stdbool.h>.
  */
 #ifndef NCURSES_ENABLE_STDBOOL_H
-#define NCURSES_ENABLE_STDBOOL_H 0	//// XXX
+#define NCURSES_ENABLE_STDBOOL_H 1
 #endif
 
 /*
@@ -154,9 +154,9 @@ typedef unsigned long mmask_t;
 //// #define va_list int	// FIXME
 
 #define _XOPEN_SOURCE_EXTENDED 1	// XXX
-//// #ifdef _XOPEN_SOURCE_EXTENDED
-//// #include <stddef.h>	/* we want wchar_t */
-//// #endif /* _XOPEN_SOURCE_EXTENDED */
+#ifdef _XOPEN_SOURCE_EXTENDED
+#include <stddef.h>	/* we want wchar_t */
+#endif /* _XOPEN_SOURCE_EXTENDED */
 
 /* XSI and SVr4 specify that curses implements 'bool'.  However, C++ may also
  * implement it.  If so, we must use the C++ compiler's type to avoid conflict
@@ -350,9 +350,7 @@ typedef	chtype	attr_t;		/* ...must be at least as wide as chtype */
 #endif
 
 #if 1
-//// #include <wchar.h>		/* ...to get mbstate_t, etc. */
-typedef unsigned long wchar_t;	// XXX
-typedef unsigned long wint_t;	// XXX
+#include <wchar.h>		/* ...to get mbstate_t, etc. */
 #endif
 
 #if 0
@@ -1239,7 +1237,6 @@ NCURSES_EXPORT(int) vsscanf(const char *, const char *, va_list);
 
 #define KEY_MAX		0777		/* Maximum key value is 0633 */
 /*
- * This file is part of ncurses, designed to be appended after curses.h.in
  * (see that file for the relevant copyright).
  */
 #ifdef _XOPEN_SOURCE_EXTENDED
@@ -1488,7 +1485,6 @@ extern NCURSES_EXPORT(const char *) _nc_viswibuf(const wint_t *);
 
 #endif /* _XOPEN_SOURCE_EXTENDED */
 /*
- * This file is part of ncurses, designed to be appended after curses.h.in
  * (see that file for the relevant copyright).
  */
 /* $Id: curses.tail,v 1.14 2006/05/27 16:28:29 tom Exp $ */

@@ -1,42 +1,29 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 
 /*
  * C Bootstrap code for the coreboot
  */
 
+#include <acpi/acpi.h>
+#include <acpi/acpi_gnvs.h>
 #include <adainit.h>
 #include <arch/exception.h>
+#include <boot/tables.h>
 #include <bootstate.h>
-#include <console/console.h>
-#include <console/post_codes.h>
 #include <cbmem.h>
-#include <version.h>
+#include <commonlib/console/post_codes.h>
+#include <commonlib/helpers.h>
+#include <console/console.h>
+#include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <delay.h>
-#include <stdlib.h>
-#include <boot/tables.h>
 #include <program_loading.h>
-#if CONFIG(HAVE_ACPI_RESUME)
-#include <arch/acpi.h>
-#endif
+#include <thread.h>
 #include <timer.h>
 #include <timestamp.h>
-#include <thread.h>
+#include <types.h>
+#include <version.h>
 
 static boot_state_t bs_pre_device(void *arg);
 static boot_state_t bs_dev_init_chips(void *arg);
@@ -50,19 +37,6 @@ static boot_state_t bs_os_resume(void *arg);
 static boot_state_t bs_write_tables(void *arg);
 static boot_state_t bs_payload_load(void *arg);
 static boot_state_t bs_payload_boot(void *arg);
-
-/*
- * Typically a state will take 4 time samples:
- *   1. Before state entry callbacks
- *   2. After state entry callbacks / Before state function.
- *   3. After state function / Before state exit callbacks.
- *   4. After state exit callbacks.
- */
-#define MAX_TIME_SAMPLES 4
-struct boot_state_times {
-	int num_samples;
-	struct mono_time samples[MAX_TIME_SAMPLES];
-};
 
 /* The prologue (BS_ON_ENTRY) and epilogue (BS_ON_EXIT) of a state can be
  * blocked from transitioning to the next (state,seq) pair. When the blockers
@@ -79,10 +53,8 @@ struct boot_state {
 	struct boot_phase phases[2];
 	boot_state_t (*run_state)(void *arg);
 	void *arg;
-	int complete : 1;
-#if CONFIG(HAVE_MONOTONIC_TIMER)
-	struct boot_state_times times;
-#endif
+	int num_samples;
+	bool complete;
 };
 
 #define BS_INIT(state_, run_func_)				\
@@ -93,7 +65,7 @@ struct boot_state {
 		.phases = { { NULL, 0 }, { NULL, 0 } },		\
 		.run_state = run_func_,				\
 		.arg = NULL,					\
-		.complete = 0,					\
+		.complete = false,					\
 	}
 #define BS_INIT_ENTRY(state_, run_func_)	\
 	[state_] = BS_INIT(state_, run_func_)
@@ -178,18 +150,16 @@ static boot_state_t bs_post_device(void *arg)
 
 static boot_state_t bs_os_resume_check(void *arg)
 {
-#if CONFIG(HAVE_ACPI_RESUME)
-	void *wake_vector;
+	void *wake_vector = NULL;
 
-	wake_vector = acpi_find_wakeup_vector();
+	if (CONFIG(HAVE_ACPI_RESUME))
+		wake_vector = acpi_find_wakeup_vector();
 
 	if (wake_vector != NULL) {
 		boot_states[BS_OS_RESUME].arg = wake_vector;
 		return BS_OS_RESUME;
 	}
 
-	acpi_prepare_resume_backup();
-#endif
 	timestamp_add_now(TS_CBMEM_POST);
 
 	return BS_WRITE_TABLES;
@@ -197,11 +167,12 @@ static boot_state_t bs_os_resume_check(void *arg)
 
 static boot_state_t bs_os_resume(void *wake_vector)
 {
-#if CONFIG(HAVE_ACPI_RESUME)
-	arch_bootstate_coreboot_exit();
-	acpi_resume(wake_vector);
-#endif
-	return BS_WRITE_TABLES;
+	if (CONFIG(HAVE_ACPI_RESUME)) {
+		arch_bootstate_coreboot_exit();
+		acpi_resume(wake_vector);
+		/* We will not come back. */
+	}
+	die("Failed OS resume\n");
 }
 
 static boot_state_t bs_write_tables(void *arg)
@@ -237,34 +208,43 @@ static boot_state_t bs_payload_boot(void *arg)
 	return BS_PAYLOAD_BOOT;
 }
 
-#if CONFIG(HAVE_MONOTONIC_TIMER)
+/*
+ * Typically a state will take 4 time samples:
+ *   1. Before state entry callbacks
+ *   2. After state entry callbacks / Before state function.
+ *   3. After state function / Before state exit callbacks.
+ *   4. After state exit callbacks.
+ */
 static void bs_sample_time(struct boot_state *state)
 {
-	struct mono_time *mt;
+	static const char *const sample_id[] = { "entry", "run", "exit" };
+	static struct mono_time previous_sample;
+	struct mono_time this_sample;
+	long console;
 
-	mt = &state->times.samples[state->times.num_samples];
-	timer_monotonic_get(mt);
-	state->times.num_samples++;
+	if (!CONFIG(HAVE_MONOTONIC_TIMER))
+		return;
+
+	console = console_time_get_and_reset();
+	timer_monotonic_get(&this_sample);
+	state->num_samples++;
+
+	int i = state->num_samples - 2;
+	if ((i >= 0) && (i < ARRAY_SIZE(sample_id))) {
+		long execution = mono_time_diff_microseconds(&previous_sample, &this_sample);
+
+		/* Report with millisecond precision to reduce log diffs. */
+		execution = DIV_ROUND_CLOSEST(execution, USECS_PER_MSEC);
+		console = DIV_ROUND_CLOSEST(console, USECS_PER_MSEC);
+		if (execution) {
+			printk(BIOS_DEBUG, "BS: %s %s times (exec / console): %ld / %ld ms\n",
+				state->name, sample_id[i], execution - console, console);
+			/* Reset again to ignore printk() time above. */
+			console_time_get_and_reset();
+		}
+	}
+	timer_monotonic_get(&previous_sample);
 }
-
-static void bs_report_time(struct boot_state *state)
-{
-	long entry_time;
-	long run_time;
-	long exit_time;
-	struct mono_time *samples = &state->times.samples[0];
-
-	entry_time = mono_time_diff_microseconds(&samples[0], &samples[1]);
-	run_time = mono_time_diff_microseconds(&samples[1], &samples[2]);
-	exit_time = mono_time_diff_microseconds(&samples[2], &samples[3]);
-
-	printk(BIOS_DEBUG, "BS: %s times (us): entry %ld run %ld exit %ld\n",
-	       state->name, entry_time, run_time, exit_time);
-}
-#else
-static inline void bs_sample_time(struct boot_state *state) {}
-static inline void bs_report_time(struct boot_state *state) {}
-#endif
 
 #if CONFIG(TIMER_QUEUE)
 static void bs_run_timers(int drain)
@@ -284,6 +264,7 @@ static void bs_call_callbacks(struct boot_state *state,
 			      boot_state_sequence_t seq)
 {
 	struct boot_phase *phase = &state->phases[seq];
+	struct mono_time mt_start, mt_stop;
 
 	while (1) {
 		if (phase->callbacks != NULL) {
@@ -294,11 +275,22 @@ static void bs_call_callbacks(struct boot_state *state,
 			phase->callbacks = bscb->next;
 			bscb->next = NULL;
 
-#if CONFIG(DEBUG_BOOT_STATE)
-			printk(BIOS_DEBUG, "BS: callback (%p) @ %s.\n",
-				bscb, bscb->location);
-#endif
+			if (CONFIG(DEBUG_BOOT_STATE)) {
+				printk(BIOS_DEBUG, "BS: callback (%p) @ %s.\n",
+					bscb, bscb_location(bscb));
+				timer_monotonic_get(&mt_start);
+			}
 			bscb->callback(bscb->arg);
+			if (CONFIG(DEBUG_BOOT_STATE)) {
+				timer_monotonic_get(&mt_stop);
+				printk(BIOS_DEBUG, "BS: callback (%p) @ %s (%ld ms).\n", bscb,
+				       bscb_location(bscb),
+				       mono_time_diff_microseconds(&mt_start, &mt_stop)
+					       / USECS_PER_MSEC);
+			}
+
+			bs_run_timers(0);
+
 			continue;
 		}
 
@@ -364,6 +356,8 @@ static void bs_walk_state_machine(void)
 
 		bs_sample_time(state);
 
+		bs_run_timers(0);
+
 		bs_call_callbacks(state, current_phase.seq);
 
 		if (CONFIG(DEBUG_BOOT_STATE))
@@ -376,9 +370,7 @@ static void bs_walk_state_machine(void)
 
 		bs_sample_time(state);
 
-		bs_report_time(state);
-
-		state->complete = 1;
+		state->complete = true;
 	}
 }
 
@@ -447,14 +439,15 @@ void main(void)
 
 	/* TODO: Understand why this is here and move to arch/platform code. */
 	/* For MMIO UART this needs to be called before any other printk. */
-	if (CONFIG(ARCH_X86))
+	if (ENV_X86)
 		init_timer();
 
 	/* console_init() MUST PRECEDE ALL printk()! Additionally, ensure
 	 * it is the very first thing done in ramstage.*/
 	console_init();
-
 	post_code(POST_CONSOLE_READY);
+
+	exception_init();
 
 	/*
 	 * CBMEM needs to be recovered because timestamps, ACPI, etc rely on
@@ -462,19 +455,11 @@ void main(void)
 	 */
 	cbmem_initialize();
 
-	/* Record current time, try to locate timestamps in CBMEM. */
-	timestamp_init(timestamp_get());
-
-	timestamp_add_now(TS_START_RAMSTAGE);
-	post_code(POST_ENTRY_RAMSTAGE);
+	timestamp_add_now(TS_RAMSTAGE_START);
+	post_code(POST_ENTRY_HARDWAREMAIN);
 
 	/* Handoff sleep type from romstage. */
-#if CONFIG(HAVE_ACPI_RESUME)
-	acpi_is_wakeup();
-#endif
-
-	exception_init();
-	threads_initialize();
+	acpi_is_wakeup_s3();
 
 	/* Schedule the static boot state entries. */
 	boot_state_schedule_static_entries();
@@ -529,14 +514,4 @@ int boot_state_unblock(boot_state_t state, boot_state_sequence_t seq)
 	bp->blockers--;
 
 	return 0;
-}
-
-void boot_state_current_block(void)
-{
-	boot_state_block(current_phase.state_id, current_phase.seq);
-}
-
-void boot_state_current_unblock(void)
-{
-	boot_state_unblock(current_phase.state_id, current_phase.seq);
 }

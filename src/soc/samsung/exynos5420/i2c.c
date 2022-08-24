@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * (C) Copyright 2002
- * David Mueller, ELSOFT AG, d.mueller@elsoft.ch
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
 #include <assert.h>
@@ -23,8 +9,9 @@
 #include <soc/i2c.h>
 #include <soc/periph.h>
 #include <soc/pinmux.h>
-#include <stddef.h>
 #include <timer.h>
+
+#define I2C_TIMEOUT_US (1000 * USECS_PER_MSEC)
 
 struct __packed i2c_regs
 {
@@ -82,10 +69,9 @@ struct i2c_bus
 	struct hsi2c_regs *hsregs;
 	int is_highspeed;	/* High speed type, rather than I2C */
 	int id;
-	unsigned clk_cycle;
-	unsigned clk_div;
+	unsigned int clk_cycle;
+	unsigned int clk_div;
 };
-
 
 static struct i2c_bus i2c_busses[] = {
 	{
@@ -251,11 +237,8 @@ enum {
 	I2cStatMasterXmit = 0x3 << 6
 };
 
-
-
-
 static int hsi2c_get_clk_details(struct i2c_bus *i2c, int *div, int *cycle,
-				 unsigned op_clk)
+				 unsigned int op_clk)
 {
 	struct hsi2c_regs *regs = i2c->hsregs;
 	unsigned long clkin = clock_get_periph_rate(i2c->periph_id);
@@ -361,7 +344,7 @@ static void i2c_ch_init(struct i2c_bus *i2c, int speed)
 	write32(&regs->stat, I2cStatMasterXmit | I2cStatEnable);
 }
 
-void i2c_init(unsigned bus, int speed, int slaveadd)
+void i2c_init(unsigned int bus, int speed, int slaveadd)
 {
 	struct i2c_bus *i2c = &i2c_busses[bus];
 
@@ -502,9 +485,6 @@ static int hsi2c_transfer(struct i2c_bus *i2c, struct i2c_msg *segments,
 	return 0;
 }
 
-
-
-
 static int i2c_int_pending(struct i2c_regs *regs)
 {
 	return read8(&regs->con) & I2cConIntPending;
@@ -530,9 +510,9 @@ static int i2c_got_ack(struct i2c_regs *regs)
 	return !(read8(&regs->stat) & I2cStatAck);
 }
 
-static int i2c_wait_for_idle(struct i2c_regs *regs)
+static int i2c_wait_for_idle(struct i2c_regs *regs, int timeout_us)
 {
-	int timeout = 1000 * 100; // 1s.
+	int timeout = timeout_us / 10;
 	while (timeout--) {
 		if (!(read8(&regs->stat) & I2cStatBusy))
 			return 0;
@@ -542,9 +522,9 @@ static int i2c_wait_for_idle(struct i2c_regs *regs)
 	return 1;
 }
 
-static int i2c_wait_for_int(struct i2c_regs *regs)
+static int i2c_wait_for_int(struct i2c_regs *regs, int timeout_us)
 {
-	int timeout = 1000 * 100; // 1s.
+	int timeout = timeout_us / 10;
 	while (timeout--) {
 		if (i2c_int_pending(regs))
 			return 0;
@@ -554,15 +534,12 @@ static int i2c_wait_for_int(struct i2c_regs *regs)
 	return 1;
 }
 
-
-
-
 static int i2c_send_stop(struct i2c_regs *regs)
 {
 	uint8_t mode = read8(&regs->stat) & (I2cStatModeMask);
 	write8(&regs->stat, mode | I2cStatEnable);
 	i2c_clear_int(regs);
-	return i2c_wait_for_idle(regs);
+	return i2c_wait_for_idle(regs, I2C_TIMEOUT_US);
 }
 
 static int i2c_send_start(struct i2c_regs *regs, int read, int chip)
@@ -572,7 +549,7 @@ static int i2c_send_start(struct i2c_regs *regs, int read, int chip)
 	write8(&regs->stat, mode | I2cStatStartStop | I2cStatEnable);
 	i2c_clear_int(regs);
 
-	if (i2c_wait_for_int(regs))
+	if (i2c_wait_for_int(regs, I2C_TIMEOUT_US))
 		return 1;
 
 	if (!i2c_got_ack(regs)) {
@@ -594,7 +571,7 @@ static int i2c_xmit_buf(struct i2c_regs *regs, uint8_t *data, int len)
 		write8(&regs->ds, data[i]);
 
 		i2c_clear_int(regs);
-		if (i2c_wait_for_int(regs))
+		if (i2c_wait_for_int(regs, CONFIG_I2C_TRANSFER_TIMEOUT_US))
 			return 1;
 
 		if (!i2c_got_ack(regs)) {
@@ -618,7 +595,7 @@ static int i2c_recv_buf(struct i2c_regs *regs, uint8_t *data, int len)
 			i2c_ack_disable(regs);
 
 		i2c_clear_int(regs);
-		if (i2c_wait_for_int(regs))
+		if (i2c_wait_for_int(regs, CONFIG_I2C_TRANSFER_TIMEOUT_US))
 			return 1;
 
 		data[i] = read8(&regs->ds);
@@ -627,7 +604,7 @@ static int i2c_recv_buf(struct i2c_regs *regs, uint8_t *data, int len)
 	return 0;
 }
 
-int platform_i2c_transfer(unsigned bus, struct i2c_msg *segments, int count)
+int platform_i2c_transfer(unsigned int bus, struct i2c_msg *segments, int count)
 {
 	struct i2c_bus *i2c = &i2c_busses[bus];
 	if (i2c->is_highspeed)
@@ -636,7 +613,7 @@ int platform_i2c_transfer(unsigned bus, struct i2c_msg *segments, int count)
 	struct i2c_regs *regs = i2c->regs;
 	int res = 0;
 
-	if (!regs || i2c_wait_for_idle(regs))
+	if (!regs || i2c_wait_for_idle(regs, I2C_TIMEOUT_US))
 		return 1;
 
 	write8(&regs->stat, I2cStatMasterXmit | I2cStatEnable);

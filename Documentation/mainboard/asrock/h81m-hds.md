@@ -70,7 +70,7 @@ facing towards the bottom of the board.
 - The VGA port doesn't work until the OS reinitialises the display.
 
 - There is no automatic, OS-independent fan control. This is because
-  the super I/O hardware monitor can only obtain valid CPU temperature
+  the Super I/O hardware monitor can only obtain valid CPU temperature
   readings from the PECI agent, but the required driver doesn't exist
   in coreboot. The `coretemp` driver can still be used for accurate CPU
   temperature readings from an OS.
@@ -130,4 +130,4 @@ Please also see :doc:`../../northbridge/intel/haswell/known-issues`.
 [ASRock H81M-HDS]: https://www.asrock.com/mb/Intel/H81M-HDS/
 [W25Q32FV]: https://www.winbond.com/resource-files/w25q32fv%20revi%2010202015.pdf
 [flashrom]: https://flashrom.org/Flashrom
-[Board manual]: http://asrock.pc.cdn.bitgravity.com/Manual/H81M-HDS.pdf
+[Board manual]: https://web.archive.org/web/20191231093418/http://asrock.pc.cdn.bitgravity.com/Manual/H81M-HDS.pdf

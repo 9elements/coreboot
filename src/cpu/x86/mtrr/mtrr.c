@@ -1,27 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
 /*
  * mtrr.c: setting MTRR to decent values for cache initialization on P6
- *
  * Derived from intel_set_mtrr in intel_subr.c and mtrr.c in linux kernel
- *
- * Copyright 2000 Silicon Integrated System Corporation
- * Copyright 2013 Google Inc.
- *
- *	This program is free software; you can redistribute it and/or modify
- *	it under the terms of the GNU General Public License as published by
- *	the Free Software Foundation; either version 2 of the License, or
- *	(at your option) any later version.
- *
- *	This program is distributed in the hope that it will be useful,
- *	but WITHOUT ANY WARRANTY; without even the implied warranty of
- *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *	GNU General Public License for more details.
- *
  *
  * Reference: Intel Architecture Software Developer's Manual, Volume 3: System
  * Programming
  */
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <bootstate.h>
 #include <commonlib/helpers.h>
@@ -32,7 +20,6 @@
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
-#include <cpu/x86/lapic.h>
 #include <memrange.h>
 #include <cpu/amd/mtrr.h>
 #include <assert.h>
@@ -42,10 +29,8 @@
 #define MTRR_FIXED_WRBACK_BITS 0
 #endif
 
-/* 2 MTRRS are reserved for the operating system */
-#define BIOS_MTRRS 6
-#define OS_MTRRS   2
-#define MTRRS      (BIOS_MTRRS + OS_MTRRS)
+#define MIN_MTRRS	8
+
 /*
  * Static storage size for variable MTRRs. It's sized sufficiently large to
  * handle different types of CPUs. Empirically, 16 variable MTRRs has not
@@ -53,16 +38,11 @@
  */
 #define NUM_MTRR_STATIC_STORAGE 16
 
-static int total_mtrrs = MTRRS;
-static int bios_mtrrs = BIOS_MTRRS;
+static int total_mtrrs;
 
 static void detect_var_mtrrs(void)
 {
-	msr_t msr;
-
-	msr = rdmsr(MTRR_CAP_MSR);
-
-	total_mtrrs = msr.lo & 0xff;
+	total_mtrrs = get_var_mtrr_count();
 
 	if (total_mtrrs > NUM_MTRR_STATIC_STORAGE) {
 		printk(BIOS_WARNING,
@@ -70,7 +50,6 @@ static void detect_var_mtrrs(void)
 			total_mtrrs, NUM_MTRR_STATIC_STORAGE);
 		total_mtrrs = NUM_MTRR_STATIC_STORAGE;
 	}
-	bios_mtrrs = total_mtrrs - OS_MTRRS;
 }
 
 void enable_fixed_mtrr(void)
@@ -118,9 +97,7 @@ static void enable_var_mtrr(unsigned char deftype)
 
 #define MTRR_VERBOSE_LEVEL BIOS_NEVER
 
-/* MTRRs are at a 4KiB granularity. Therefore all address calculations can
- * be done with 32-bit numbers. This allows for the MTRR code to handle
- * up to 2^44 bytes (16 TiB) of address space. */
+/* MTRRs are at a 4KiB granularity. */
 #define RANGE_SHIFT 12
 #define ADDR_SHIFT_TO_RANGE_SHIFT(x) \
 	(((x) > RANGE_SHIFT) ? ((x) - RANGE_SHIFT) : RANGE_SHIFT)
@@ -129,18 +106,18 @@ static void enable_var_mtrr(unsigned char deftype)
 #define NUM_FIXED_MTRRS (NUM_FIXED_RANGES / RANGES_PER_FIXED_MTRR)
 
 /* Helpful constants. */
-#define RANGE_1MB PHYS_TO_RANGE_ADDR(1 << 20)
-#define RANGE_4GB (1 << (ADDR_SHIFT_TO_RANGE_SHIFT(32)))
+#define RANGE_1MB PHYS_TO_RANGE_ADDR(1ULL << 20)
+#define RANGE_4GB (1ULL << (ADDR_SHIFT_TO_RANGE_SHIFT(32)))
 
 #define MTRR_ALGO_SHIFT (8)
 #define MTRR_TAG_MASK ((1 << MTRR_ALGO_SHIFT) - 1)
 
-static inline uint32_t range_entry_base_mtrr_addr(struct range_entry *r)
+static inline uint64_t range_entry_base_mtrr_addr(struct range_entry *r)
 {
 	return PHYS_TO_RANGE_ADDR(range_entry_base(r));
 }
 
-static inline uint32_t range_entry_end_mtrr_addr(struct range_entry *r)
+static inline uint64_t range_entry_end_mtrr_addr(struct range_entry *r)
 {
 	return PHYS_TO_RANGE_ADDR(range_entry_end(r));
 }
@@ -178,7 +155,7 @@ static void print_physical_address_space(const struct memranges *addr_space,
 	memranges_each_entry(r, addr_space)
 		printk(BIOS_DEBUG,
 		       "0x%016llx - 0x%016llx size 0x%08llx type %ld\n",
-		       range_entry_base(r), range_entry_end(r),
+		       range_entry_base(r), range_entry_end(r) - 1,
 		       range_entry_size(r), range_entry_tag(r));
 }
 
@@ -296,7 +273,7 @@ static void calc_fixed_mtrrs(void)
 			type = range_entry_tag(r);
 			printk(MTRR_VERBOSE_LEVEL,
 			       "MTRR addr 0x%x-0x%x set to %d type @ %d\n",
-			       begin, begin + desc->step, type, type_index);
+			       begin, begin + desc->step - 1, type, type_index);
 			if (type == MTRR_TYPE_WRBACK)
 				type |= MTRR_FIXED_WRBACK_BITS;
 			fixed_mtrr_types[type_index] = type;
@@ -366,7 +343,6 @@ static void commit_fixed_mtrrs(void)
 		wrmsr(msr_index[i], fixed_msrs[i]);
 	enable_cache();
 	fixed_mtrrs_hide_amd_rwdram();
-
 }
 
 void x86_setup_fixed_mtrrs_no_enable(void)
@@ -415,24 +391,32 @@ static void clear_var_mtrr(int index)
 	wrmsr(MTRR_PHYS_MASK(index), msr);
 }
 
+static int get_os_reserved_mtrrs(void)
+{
+	return CONFIG(RESERVE_MTRRS_FOR_OS) ? 2 : 0;
+}
+
 static void prep_var_mtrr(struct var_mtrr_state *var_state,
-			  uint32_t base, uint32_t size, int mtrr_type)
+			  uint64_t base, uint64_t size, int mtrr_type)
 {
 	struct var_mtrr_regs *regs;
 	resource_t rbase;
 	resource_t rsize;
 	resource_t mask;
 
-	/* Some variable MTRRs are attempted to be saved for the OS use.
-	 * However, it's more important to try to map the full address space
-	 * properly. */
-	if (var_state->mtrr_index >= bios_mtrrs)
-		printk(BIOS_WARNING, "Taking a reserved OS MTRR.\n");
 	if (var_state->mtrr_index >= total_mtrrs) {
-		printk(BIOS_ERR, "ERROR: Not enough MTRRs available! MTRR index is %d with %d MTRRs in total.\n",
+		printk(BIOS_ERR, "Not enough MTRRs available! MTRR index is %d with %d MTRRs in total.\n",
 		       var_state->mtrr_index, total_mtrrs);
 		return;
 	}
+
+	/*
+	 * If desired, 2 variable MTRRs are attempted to be saved for the OS to
+	 * use. However, it's more important to try to map the full address
+	 * space properly.
+	 */
+	if (var_state->mtrr_index >= total_mtrrs - get_os_reserved_mtrrs())
+		printk(BIOS_WARNING, "Taking a reserved OS MTRR.\n");
 
 	rbase = base;
 	rsize = size;
@@ -458,24 +442,51 @@ static void prep_var_mtrr(struct var_mtrr_state *var_state,
 	regs->mask.hi = rsize >> 32;
 }
 
+/*
+ * fls64: find least significant bit set in a 64-bit word
+ * As samples, fls64(0x0) = 64; fls64(0x4400) = 10;
+ * fls64(0x40400000000) = 34.
+ */
+static uint32_t fls64(uint64_t x)
+{
+	uint32_t lo = (uint32_t)x;
+	if (lo)
+		return fls(lo);
+	uint32_t hi = x >> 32;
+	return fls(hi) + 32;
+}
+
+/*
+ * fms64: find most significant bit set in a 64-bit word
+ * As samples, fms64(0x0) = 0; fms64(0x4400) = 14;
+ * fms64(0x40400000000) = 42.
+ */
+static uint32_t fms64(uint64_t x)
+{
+	uint32_t hi = (uint32_t)(x >> 32);
+	if (!hi)
+		return fms((uint32_t)x);
+	return fms(hi) + 32;
+}
+
 static void calc_var_mtrr_range(struct var_mtrr_state *var_state,
-				uint32_t base, uint32_t size, int mtrr_type)
+				uint64_t base, uint64_t size, int mtrr_type)
 {
 	while (size != 0) {
 		uint32_t addr_lsb;
 		uint32_t size_msb;
-		uint32_t mtrr_size;
+		uint64_t mtrr_size;
 
-		addr_lsb = fls(base);
-		size_msb = fms(size);
+		addr_lsb = fls64(base);
+		size_msb = fms64(size);
 
 		/* All MTRR entries need to have their base aligned to the mask
 		 * size. The maximum size is calculated by a function of the
 		 * min base bit set and maximum size bit set. */
 		if (addr_lsb > size_msb)
-			mtrr_size = 1 << size_msb;
+			mtrr_size = 1ULL << size_msb;
 		else
-			mtrr_size = 1 << addr_lsb;
+			mtrr_size = 1ULL << addr_lsb;
 
 		if (var_state->prepare_msrs)
 			prep_var_mtrr(var_state, base, mtrr_size, mtrr_type);
@@ -486,8 +497,8 @@ static void calc_var_mtrr_range(struct var_mtrr_state *var_state,
 	}
 }
 
-static uint32_t optimize_var_mtrr_hole(const uint32_t base,
-				       const uint32_t hole,
+static uint64_t optimize_var_mtrr_hole(const uint64_t base,
+				       const uint64_t hole,
 				       const uint64_t limit,
 				       const int carve_hole)
 {
@@ -545,7 +556,7 @@ static uint32_t optimize_var_mtrr_hole(const uint32_t base,
 static void calc_var_mtrrs_with_hole(struct var_mtrr_state *var_state,
 				     struct range_entry *r)
 {
-	uint32_t a1, a2, b1, b2;
+	uint64_t a1, a2, b1, b2;
 	int mtrr_type, carve_hole;
 
 	/*
@@ -685,6 +696,7 @@ static void __calc_var_mtrrs(struct memranges *addr_space,
 			wb_deftype_count += var_state.mtrr_index;
 		}
 	}
+
 	*num_def_wb_mtrrs = wb_deftype_count;
 	*num_def_uc_mtrrs = uc_deftype_count;
 }
@@ -698,6 +710,7 @@ static int calc_var_mtrrs(struct memranges *addr_space,
 	__calc_var_mtrrs(addr_space, above4gb, address_bits, &wb_deftype_count,
 			 &uc_deftype_count);
 
+	const int bios_mtrrs = total_mtrrs - get_os_reserved_mtrrs();
 	if (wb_deftype_count > bios_mtrrs && uc_deftype_count > bios_mtrrs) {
 		printk(BIOS_DEBUG, "MTRR: Removing WRCOMB type. "
 		       "WB/UC MTRR counts: %d/%d > %d.\n",
@@ -788,7 +801,7 @@ void x86_setup_var_mtrrs(unsigned int address_bits, unsigned int above4gb)
 	commit_var_mtrrs(sol);
 }
 
-void x86_setup_mtrrs(void)
+static void _x86_setup_mtrrs(unsigned int above4gb)
 {
 	int address_size;
 
@@ -796,14 +809,28 @@ void x86_setup_mtrrs(void)
 	address_size = cpu_phys_address_size();
 	printk(BIOS_DEBUG, "CPU physical address size: %d bits\n",
 		address_size);
+	x86_setup_var_mtrrs(address_size, above4gb);
+}
+
+void x86_setup_mtrrs(void)
+{
+	/* Without detect, assume the minimum */
+	total_mtrrs = MIN_MTRRS;
 	/* Always handle addresses above 4GiB. */
-	x86_setup_var_mtrrs(address_size, 1);
+	_x86_setup_mtrrs(1);
 }
 
 void x86_setup_mtrrs_with_detect(void)
 {
 	detect_var_mtrrs();
-	x86_setup_mtrrs();
+	/* Always handle addresses above 4GiB. */
+	_x86_setup_mtrrs(1);
+}
+
+void x86_setup_mtrrs_with_detect_no_above_4gb(void)
+{
+	detect_var_mtrrs();
+	_x86_setup_mtrrs(0);
 }
 
 void x86_mtrr_check(void)
@@ -841,6 +868,28 @@ void mtrr_use_temp_range(uintptr_t begin, size_t size, int type)
 	struct memranges addr_space;
 	const int above4gb = 1; /* Cover above 4GiB by default. */
 	int address_bits;
+	static struct temp_range {
+		uintptr_t begin;
+		size_t size;
+		int type;
+	} temp_ranges[10];
+
+	if (size == 0)
+		return;
+
+	int i;
+	for (i = 0; i < ARRAY_SIZE(temp_ranges); i++) {
+		if (temp_ranges[i].size == 0) {
+			temp_ranges[i].begin = begin;
+			temp_ranges[i].size = size;
+			temp_ranges[i].type = type;
+			break;
+		}
+	}
+	if (i == ARRAY_SIZE(temp_ranges)) {
+		printk(BIOS_ERR, "Out of temporary ranges for MTRR use\n");
+		return;
+	}
 
 	/* Make a copy of the original address space and tweak it with the
 	 * provided range. */
@@ -859,7 +908,11 @@ void mtrr_use_temp_range(uintptr_t begin, size_t size, int type)
 	}
 
 	/* Place new range into the address space. */
-	memranges_insert(&addr_space, begin, size, type);
+	for (i = 0; i < ARRAY_SIZE(temp_ranges); i++) {
+		if (temp_ranges[i].size != 0)
+			memranges_insert(&addr_space, temp_ranges[i].begin,
+					 temp_ranges[i].size, temp_ranges[i].type);
+	}
 
 	print_physical_address_space(&addr_space, "TEMPORARY");
 
@@ -873,7 +926,7 @@ void mtrr_use_temp_range(uintptr_t begin, size_t size, int type)
 
 	if (commit_var_mtrrs(&sol) < 0)
 		printk(BIOS_WARNING, "Unable to insert temporary MTRR range: 0x%016llx - 0x%016llx size 0x%08llx type %d\n",
-			(long long)begin, (long long)begin + size,
+			(long long)begin, (long long)begin + size - 1,
 			(long long)size, type);
 	else
 		put_back_original_solution = true;
@@ -888,4 +941,4 @@ static void remove_temp_solution(void *unused)
 }
 
 BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, remove_temp_solution, NULL);
-BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, remove_temp_solution, NULL);
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_BOOT, BS_ON_ENTRY, remove_temp_solution, NULL);

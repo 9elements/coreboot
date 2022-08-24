@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __MAINBOARD_ONBOARD_H
 #define __MAINBOARD_ONBOARD_H
@@ -26,6 +15,12 @@
 
 /* WLAN wake is GPIO 10 */
 #define WLAN_WAKE_GPIO		10
+
+/* Recovery: GPIO12 = RECOVERY_L, active low */
+#define GPIO_REC_MODE	12
+
+/* Write Protect: GPIO58 = GPIO_SPI_WP, active high */
+#define GPIO_SPI_WP	58
 
 /* IT8772F defs */
 #define IT8772F_BASE 0x2e

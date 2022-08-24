@@ -9,7 +9,7 @@ The "Initial Boot Block" or "Core Root of Trust for Measurement" is the first
 code block loaded at reset vector and measured by a DRTM solution.
 In case SRTM mode is active, the IBB measures itself before measuring the next
 code block. In coreboot, cbfs files which are part of the IBB are identified
-by a metatdata tag. This makes it possible to have platform specific IBB
+by a metadata tag. This makes it possible to have platform specific IBB
 measurements without hardcoding them.
 
 ## Known Limitations
@@ -120,12 +120,12 @@ PCR-7 are left empty.
 ### PCR-0
 _Hash:_ SHA1
 
-_Description:_ Google VBoot GBB flags.
+_Description:_ Google vboot GBB flags.
 
 ### PCR-1
 _Hash:_ SHA1/SHA256
 
-_Description:_ Google VBoot GBB HWID.
+_Description:_ Google vboot GBB HWID.
 
 ### PCR-2
 _Hash:_ SHA1/SHA256

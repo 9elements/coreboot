@@ -1,55 +1,15 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/io.h>
 #include <device/device.h>
 #include <device/path.h>
 #include <device/smbus.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <device/pci_ops.h>
 #include <soc/smbus.h>
+#include <device/smbus_host.h>
+#include <intelblocks/tco.h>
+#include <southbridge/intel/common/smbus_ops.h>
 #include "smbuslib.h"
-
-static int lsmbus_read_byte(struct device *dev, u8 address)
-{
-	u16 device;
-	struct resource *res;
-	struct bus *pbus;
-	device = dev->path.i2c.device;
-	pbus = get_pbus_smbus(dev);
-	res = find_resource(pbus->dev, PCI_BASE_ADDRESS_4);
-	return smbus_read8(res->base, device, address);
-}
-
-static int lsmbus_write_byte(struct device *dev, u8 address, u8 data)
-{
-	u16 device;
-	struct resource *res;
-	struct bus *pbus;
-
-	device = dev->path.i2c.device;
-	pbus = get_pbus_smbus(dev);
-	res = find_resource(pbus->dev, PCI_BASE_ADDRESS_4);
-	return smbus_write8(res->base, device, address, data);
-}
-
-static struct smbus_bus_operations lops_smbus_bus = {
-	.read_byte	= lsmbus_read_byte,
-	.write_byte	= lsmbus_write_byte,
-};
 
 static void pch_smbus_init(struct device *dev)
 {
@@ -60,22 +20,22 @@ static void pch_smbus_init(struct device *dev)
 		~((1 << 8) | (1 << 10) | (1 << 12) | (1 << 14)), 0);
 
 	/* Set Receive Slave Address */
-	res = find_resource(dev, PCI_BASE_ADDRESS_4);
+	res = probe_resource(dev, PCI_BASE_ADDRESS_4);
 	if (res)
-		outb(SMBUS_SLAVE_ADDR, res->base + SMB_RCV_SLVA);
+		smbus_set_slave_addr(res->base, SMBUS_SLAVE_ADDR);
 }
 
-static void smbus_read_resources(struct device *dev)
+/*
+ * `finalize_smbus` function is native implementation of equivalent events
+ * performed by each FSP NotifyPhase() API invocations.
+ *
+ * Operations are:
+ * 1. TCO Lock.
+ */
+static void finalize_smbus(struct device *dev)
 {
-	struct resource *res = new_resource(dev, PCI_BASE_ADDRESS_4);
-	res->base = SMBUS_IO_BASE;
-	res->size = 32;
-	res->limit = res->base + res->size - 1;
-	res->flags = IORESOURCE_IO | IORESOURCE_FIXED | IORESOURCE_RESERVE |
-		     IORESOURCE_STORED | IORESOURCE_ASSIGNED;
-
-	/* Also add MMIO resource */
-	res = pci_get_resource(dev, PCI_BASE_ADDRESS_0);
+	if (!CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM))
+		tco_lockdown();
 }
 
 static struct device_operations smbus_ops = {
@@ -86,20 +46,35 @@ static struct device_operations smbus_ops = {
 	.init			= pch_smbus_init,
 	.ops_pci		= &pci_dev_ops_pci,
 	.ops_smbus_bus		= &lops_smbus_bus,
+	.final			= finalize_smbus,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_INTEL_CNL_SMBUS,
-	PCI_DEVICE_ID_INTEL_SPT_LP_SMBUS,
-	PCI_DEVICE_ID_INTEL_SPT_H_SMBUS,
-	PCI_DEVICE_ID_INTEL_KBP_H_SMBUS,
-	PCI_DEVICE_ID_INTEL_ICP_LP_SMBUS,
-	PCI_DEVICE_ID_INTEL_CMP_SMBUS,
+	PCI_DID_INTEL_MTL_SMBUS,
+	PCI_DID_INTEL_RPP_P_SMBUS,
+	PCI_DID_INTEL_APL_SMBUS,
+	PCI_DID_INTEL_CNL_SMBUS,
+	PCI_DID_INTEL_CNP_H_SMBUS,
+	PCI_DID_INTEL_SPT_LP_SMBUS,
+	PCI_DID_INTEL_SPT_H_SMBUS,
+	PCI_DID_INTEL_LWB_SMBUS_SUPER,
+	PCI_DID_INTEL_LWB_SMBUS,
+	PCI_DID_INTEL_ICP_LP_SMBUS,
+	PCI_DID_INTEL_CMP_SMBUS,
+	PCI_DID_INTEL_CMP_H_SMBUS,
+	PCI_DID_INTEL_TGP_LP_SMBUS,
+	PCI_DID_INTEL_TGP_H_SMBUS,
+	PCI_DID_INTEL_MCC_SMBUS,
+	PCI_DID_INTEL_JSP_SMBUS,
+	PCI_DID_INTEL_ADP_P_SMBUS,
+	PCI_DID_INTEL_ADP_S_SMBUS,
+	PCI_DID_INTEL_ADP_M_N_SMBUS,
+	PCI_DID_INTEL_DNV_SMBUS_LEGACY,
 	0
 };
 
 static const struct pci_driver pch_smbus __pci_driver = {
 	.ops	 = &smbus_ops,
-	.vendor	 = PCI_VENDOR_ID_INTEL,
+	.vendor	 = PCI_VID_INTEL,
 	.devices	 = pci_device_ids,
 };

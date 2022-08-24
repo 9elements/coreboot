@@ -1,15 +1,4 @@
-/*
- * Copyright (C) 2015 Google, Inc.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * This is a driver for the Whirlwind LED ring, which is equipped with two LED
@@ -102,7 +91,7 @@ static const TiLp55231Program solid_000000_program = {
  *
  * When solid patterns are deployed with instanteneous color intensity
  * changes, all three LEDs can be controlled by one engine in sequential
- * accesses. But the controllers still neeed to be synchronized.
+ * accesses. But the controllers still need to be synchronized.
  *
  * The maximum timer duration of lp55231 is .48 seconds. To achieve longer
  * blinking intervals the loops delays are deployed. Only the first controller

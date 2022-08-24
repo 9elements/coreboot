@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_INTEL_COMMON_BLOCK_SA_H
 #define SOC_INTEL_COMMON_BLOCK_SA_H
 
 #include <device/device.h>
 #include <soc/iomap.h>
+#include <soc/nvs.h>
 #include <stddef.h>
 
 /* Device 0:0.0 PCI configuration space */
@@ -29,11 +17,35 @@
 #define TSEG	0xb8 /* TSEG base */
 #define TOLUD	0xbc /* Top of Low Used Memory */
 
+/* PCIEXBAR register fields */
+#define PCIEXBAR_LENGTH_4096MB	6
+#define PCIEXBAR_LENGTH_2048MB	5
+#define PCIEXBAR_LENGTH_1024MB	4
+#define PCIEXBAR_LENGTH_512MB	3
+#define PCIEXBAR_LENGTH_64MB	2
+#define PCIEXBAR_LENGTH_128MB	1
+#define PCIEXBAR_LENGTH_256MB	0
+#define  PCIEXBAR_PCIEXBAREN	(1 << 0)
+
+/* GMCH Graphics Control Register */
+#define GGC		0x50
+#define  G_GMS_OFFSET	0x8
+#define  G_GMS_MASK	0xff00
+#define  G_GGMS_OFFSET	0x6
+#define  G_GGMS_MASK	0xc0
+
 /* MCHBAR */
-#define MCHBAR8(x)	(*(volatile u8 *)(MCH_BASE_ADDRESS + x))
-#define MCHBAR16(x)	(*(volatile u16 *)(MCH_BASE_ADDRESS + x))
-#define MCHBAR32(x)	(*(volatile u32 *)(MCH_BASE_ADDRESS + x))
-#define MCHBAR64(x)	(*(volatile u64 *)(MCH_BASE_ADDRESS + x))
+#define MCHBAR8(x)	(*(volatile u8 *)(uintptr_t)(MCH_BASE_ADDRESS + x))
+#define MCHBAR16(x)	(*(volatile u16 *)(uintptr_t)(MCH_BASE_ADDRESS + x))
+#define MCHBAR32(x)	(*(volatile u32 *)(uintptr_t)(MCH_BASE_ADDRESS + x))
+#define MCHBAR64(x)	(*(volatile u64 *)(uintptr_t)(MCH_BASE_ADDRESS + x))
+
+/* REGBAR */
+#define REGBAR_OFFSET(pid, x)	(REG_BASE_ADDRESS + ((pid) << 16) + (x))
+#define REGBAR8(pid, x)		(*(volatile u8 *)(uintptr_t)REGBAR_OFFSET(pid, x))
+#define REGBAR16(pid, x)	(*(volatile u16 *)(uintptr_t)REGBAR_OFFSET(pid, x))
+#define REGBAR32(pid, x)	(*(volatile u32 *)(uintptr_t)REGBAR_OFFSET(pid, x))
+#define REGBAR64(pid, x)	(*(volatile u64 *)(uintptr_t)REGBAR_OFFSET(pid, x))
 
 /* Perform System Agent Initialization during Bootblock phase */
 void bootblock_systemagent_early_init(void);
@@ -42,14 +54,14 @@ void bootblock_systemagent_early_init(void);
  * Fixed MMIO range
  *   INDEX = Either PCI configuration space registers or MMIO offsets
  *   mapped from REG.
- *   BASE = 32 bit Address.
- *   SIZE = base length
+ *   BASE = 64 bit Address.
+ *   SIZE = 64 bit base length
  *   DESCRIPTION = Name of the register/offset.
  */
 struct sa_mmio_descriptor {
 	unsigned int index;
-	uintptr_t base;
-	size_t size;
+	uint64_t base;
+	uint64_t size;
 	const char *description;
 };
 
@@ -76,18 +88,15 @@ void enable_pam_region(void);
 void enable_power_aware_intr(void);
 /* API to get TOLUD base address */
 uintptr_t sa_get_tolud_base(void);
-/* API to get DSM size */
-size_t sa_get_dsm_size(void);
 /* API to get GSM base address */
 uintptr_t sa_get_gsm_base(void);
-/* API to get GSM size */
-size_t sa_get_gsm_size(void);
 /* API to get TSEG base address */
 uintptr_t sa_get_tseg_base(void);
 /* API to get TSEG size */
 size_t sa_get_tseg_size(void);
-/* API to get DPR size */
-size_t sa_get_dpr_size(void);
+/* API to lock PAM registers */
+void sa_lock_pam(void);
+
 /*
  * SoC overrides
  *
@@ -103,11 +112,21 @@ void soc_systemagent_init(struct device *dev);
  */
 void soc_add_fixed_mmio_resources(struct device *dev, int *resource_cnt);
 
+/*
+ * SoC call to provide all known configurable memory ranges for Device 0:0.0.
+ * SoC function should provide configurable resource ranges in form of
+ * struct sa_mmio_descriptor along with resource count.
+ */
+void soc_add_configurable_mmio_resources(struct device *dev, int *resource_cnt);
+
 /* SoC specific APIs to get UNCORE PRMRR base and mask values
  * returns 0, if able to get base and mask values; otherwise returns -1 */
 int soc_get_uncore_prmmr_base_and_mask(uint64_t *base, uint64_t *mask);
 
-/* SoC call to summarize all Intel Reserve MMIO size and report to SA */
-size_t soc_reserved_mmio_size(void);
+/* Returns the maximum supported capacity of a channel as encoded by DDRSZ in MiB */
+uint32_t soc_systemagent_max_chan_capacity_mib(u8 capid0_a_ddrsz);
+
+/* To be called in the acpi_fill_ssdt op of the domain */
+void ssdt_set_above_4g_pci(const struct device *dev);
 
 #endif	/* SOC_INTEL_COMMON_BLOCK_SA_H */

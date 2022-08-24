@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015  Damien Zammit <damien@zamaudio.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <bootblock_common.h>
 #include <device/pci_ops.h>
@@ -22,7 +8,6 @@
 #include <superio/winbond/common/winbond.h>
 
 #define SERIAL_DEV PNP_DEV(0x4e, W83627THG_SP1)
-#define SUPERIO_DEV PNP_DEV(0x4e, 0)
 
 void bootblock_mainboard_early_init(void)
 {

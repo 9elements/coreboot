@@ -1,40 +1,17 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corp.
- * (Written by Lance Zhao <lijian.zhao@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#ifndef __SOC_PICASSO_ACPI_H__
-#define __SOC_PICASSO_ACPI_H__
+#ifndef AMD_PICASSO_ACPI_H
+#define AMD_PICASSO_ACPI_H
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
+#include <amdblocks/acpi.h>
+#include <device/device.h>
+#include <stdint.h>
 
-#if CONFIG(STONEYRIDGE_LEGACY_FREE)
-	#define FADT_BOOT_ARCH ACPI_FADT_LEGACY_FREE
-#else
-	#define FADT_BOOT_ARCH (ACPI_FADT_LEGACY_DEVICES | ACPI_FADT_8042)
-#endif
+/* RTC Registers */
+#define RTC_DATE_ALARM		0x0d
 
-#ifndef FADT_PM_PROFILE
-	#define FADT_PM_PROFILE PM_UNSPECIFIED
-#endif
+uintptr_t agesa_write_acpi_tables(const struct device *device, uintptr_t current,
+				  acpi_rsdp_t *rsdp);
 
-unsigned long southbridge_write_acpi_tables(struct device *device,
-		unsigned long current, struct acpi_rsdp *rsdp);
-
-void southbridge_inject_dsdt(struct device *device);
-
-const char *soc_acpi_name(const struct device *dev);
-
-#endif /* __SOC_PICASSO_ACPI_H__ */
+#endif /* AMD_PICASSO_ACPI_H */

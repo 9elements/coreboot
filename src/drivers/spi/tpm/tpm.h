@@ -1,14 +1,13 @@
-/*
- * Copyright 2016 The Chromium OS Authors. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #ifndef __COREBOOT_SRC_DRIVERS_SPI_TPM_TPM_H
 #define __COREBOOT_SRC_DRIVERS_SPI_TPM_TPM_H
 
+#include <drivers/tpm/cr50.h>
 #include <stddef.h>
 #include <spi-generic.h>
+
+#define TPM_LOCALITY_0_SPI_BASE 0x00d40000
 
 /*
  * A tpm device descriptor, values read from the appropriate device regisrers
@@ -28,7 +27,6 @@ struct tpm2_info {
  * Return 0 on success, non-zero on failure.
  */
 int tpm2_init(struct spi_slave *spi_if);
-
 
 /*
  * Each command processing consists of sending the command to the TPM, by

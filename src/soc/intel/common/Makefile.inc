@@ -17,15 +17,13 @@ postcar-$(CONFIG_SOC_INTEL_COMMON_RESET) += reset.c
 ramstage-y += hda_verb.c
 ramstage-$(CONFIG_SOC_INTEL_COMMON_RESET) += reset.c
 ramstage-$(CONFIG_MMA) += mma.c
-ramstage-$(CONFIG_SOC_INTEL_COMMON_ACPI_WAKE_SOURCE) += acpi_wake_source.c
 ramstage-y += vbt.c
 ramstage-$(CONFIG_SOC_INTEL_COMMON_NHLT) += nhlt.c
 
-bootblock-$(CONFIG_TPM_CR50) += tpm_tis.c
-verstage-$(CONFIG_TPM_CR50) += tpm_tis.c
-romstage-$(CONFIG_TPM_CR50) += tpm_tis.c
-ramstage-$(CONFIG_TPM_CR50) += tpm_tis.c
-postcar-$(CONFIG_TPM_CR50) += tpm_tis.c
+all-$(CONFIG_TPM_GOOGLE) += tpm_tis.c
+
+romstage-$(CONFIG_SOC_INTEL_COMMON_FSP_RESET) += fsp_reset.c
+ramstage-$(CONFIG_SOC_INTEL_COMMON_FSP_RESET) += fsp_reset.c
 
 ifeq ($(CONFIG_MMA),y)
 MMA_BLOBS_PATH = $(call strip_quotes,$(CONFIG_MMA_BLOBS_PATH))
@@ -39,7 +37,7 @@ MMA_TEST_CONFIG_NAMES = $(notdir $(wildcard $(MMA_BLOBS_PATH)/configs/*))
 #	$(3) is file type, efi for test names (all .EFI files under $(MMA_BLOBS_PATH)/tests )
 #			 , mma for test param (all .BIN files under $(MMA_BLOBS_PATH)/configs/<test name>)
 #
-# $(MMA_BLOBS_PATH)/tests/<testX>.efi has coresponding test params
+# $(MMA_BLOBS_PATH)/tests/<testX>.efi has corresponding test params
 #  at $(MMA_BLOBS_PATH)/configs/<testX>/<XYZ>.bin
 #
 

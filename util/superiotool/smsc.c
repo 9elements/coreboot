@@ -1,19 +1,4 @@
-/*
- * This file is part of the superiotool project.
- *
- * Copyright (C) 2007 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2008 coresystems GmbH <info@coresystems.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include "superiotool.h"
 
@@ -860,9 +845,6 @@ static const struct superio_registers reg_table[] = {
 		{EOT}}},
 	{0x83, "SCH5514D", {	/* From sensors-detect */
 		{EOT}}},
-	{0x85, "SCH5317", {	/* From sensors-detect */
-		/* The SCH5317 can have either 0x85 or 0x8c as device ID. */
-		{EOT}}},
 	{0x86, "SCH5127", {	/* From sensors-detect, dump from datasheet */
 		{NOLDN, NULL,
 			{0x02,0x03,0x21,0x22,0x23,0x24,0x26,0x27,
@@ -972,6 +954,39 @@ static const struct superio_registers reg_table[] = {
 	{0x66, "FDC37C666GT", {
 		/* Init: 0x55, 0x55. Exit: 0xaa. Port: 0x3f0. Chiprev: 0x02. */
 		{EOT}}},
+	{0xc4, "SCH5545", {
+		/* based on SCH5627 datasheet */
+		/* Init: 0x55. Exit: 0xaa. */
+		{0x7, "COM1",
+			{0x30, 0xf0, EOT},
+			{0x00, 0x00, EOT}},
+		{0x0c, "LPC Interface",
+			{0x30,
+			/* IRQ config */
+			 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
+			 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
+			/* DMA Channel 0 - 7 */
+			 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59,
+			 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f,
+			/* BAR configuration port */
+			 0x60, 0x61, 0x62, 0x63,
+			/* BAR EMI */
+			 0x64, 0x65, 0x66, 0x67,
+			/* BAR UART1 */
+			 0x68, 0x69, 0x6a, 0x6b,
+			/* BAR UART2 */
+			 0x6c, 0x6d, 0x6e, 0x6f,
+			/* BAR Runtime Registers */
+			 0x70, 0x71, 0x72, 0x73,
+			/* BAR 8042 */
+			 0x78, 0x79, 0x7a, 0x7b,
+			/* BAR Floppy Disk Controller */
+			 0x7c, 0x7d, 0x7e, 0x7f,
+			/* BAR Parallel Port */
+			 0x80, 0x81, 0x82, 0x83,
+			EOT},
+			{EOT}},
+		{EOT}}},
 	{EOT}
 };
 
@@ -1042,6 +1057,13 @@ static void probe_idregs_smsc_helper(uint16_t port, uint8_t idreg,
 				dump_io(runtime_base, 16);
 			else
 				printf("Runtime Register Block not mapped on this Super I/O.\n");
+			break;
+		case 0xc4: /* SMSC5545 */
+			/* choose LPC interface */
+			regwrite(port, LDN_SEL, 0x0c);
+			runtime_base = regval(port, 0x73) << 8;
+			runtime_base |= regval(port, 0x72);
+			dump_io(runtime_base, 0x34);
 			break;
 		default:
 			printf("No extra registers known for this chip.\n");

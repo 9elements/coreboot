@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <assert.h>
+#include <commonlib/helpers.h>
 #include <spi-generic.h>
+#include <stddef.h>
 #include <string.h>
 
 int spi_claim_bus(const struct spi_slave *slave)
@@ -110,10 +98,20 @@ unsigned int spi_crop_chunk(const struct spi_slave *slave, unsigned int cmd_len,
 	if (deduct_opcode_len)
 		cmd_len--;
 
-	if (deduct_cmd_len && (ctrlr_max > cmd_len))
-		ctrlr_max -= cmd_len;
+	/* Subtract command length from useable buffer size. If
+	   deduct_opcode_len is set, only subtract the number command bytes
+	   after the opcode. If the adjusted cmd_len is larger than ctrlr_max
+	   return 0 to inidicate an error. */
+	if (deduct_cmd_len) {
+		if (ctrlr_max >= cmd_len) {
+			ctrlr_max -= cmd_len;
+		} else {
+			ctrlr_max = 0;
+			printk(BIOS_WARNING, "%s: Command longer than buffer\n", __func__);
+		}
+	}
 
-	return min(ctrlr_max, buf_len);
+	return MIN(ctrlr_max, buf_len);
 }
 
 void __weak spi_init(void)
@@ -135,8 +133,10 @@ int spi_setup_slave(unsigned int bus, unsigned int cs, struct spi_slave *slave)
 		}
 	}
 
-	if (slave->ctrlr == NULL)
+	if (slave->ctrlr == NULL) {
+		printk(BIOS_ERR, "Can't find SPI bus %u\n", bus);
 		return -1;
+	}
 
 	slave->bus = bus;
 	slave->cs = cs;

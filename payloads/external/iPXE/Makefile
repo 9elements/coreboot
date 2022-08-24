@@ -1,21 +1,8 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2016 Google Inc.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
-# 2019.3 - Last commit of March 2019
+# 2022.1 - Last commit of January 2022
 # When updating, change the name both here and in payloads/external/iPXE/Kconfig
-STABLE_COMMIT_ID=ebf2eaf515e46abd43bc798e7e4ba77bfe529218
+STABLE_COMMIT_ID=6ba671acd922ee046b257c5119b8a0f64d275473
 
 TAG-$(CONFIG_IPXE_MASTER)=origin/master
 TAG-$(CONFIG_IPXE_STABLE)=$(STABLE_COMMIT_ID)
@@ -54,15 +41,19 @@ ifeq ($(CONSOLE_SERIAL),yy)
 	sed 's|#define\s*COMCONSOLE.*|#define COMCONSOLE $(IPXE_UART)|' "$(project_dir)/src/config/serial.h" > "$(project_dir)/src/config/serial.h.tmp"
 	sed 's|#define\s*COMSPEED.*|#define COMSPEED $(CONFIG_TTYS0_BAUD)|'  "$(project_dir)/src/config/serial.h.tmp" > "$(project_dir)/src/config/serial.h"
 endif
-ifneq ($(filter y,$(CONFIG_HAS_SCRIPT) $(CONFIG_PXE_NO_PROMT)),)
+ifneq ($(filter y,$(CONFIG_HAS_SCRIPT) $(CONFIG_PXE_NO_PROMPT)),)
 	cp "$(project_dir)/src/config/general.h" "$(project_dir)/src/config/general.h.cb"
 endif
 ifeq ($(CONFIG_HAS_SCRIPT),y)
 	sed 's|//#define\s*IMAGE_SCRIPT.*|#define IMAGE_SCRIPT|' "$(project_dir)/src/config/general.h" > "$(project_dir)/src/config/general.h.tmp"
 	mv "$(project_dir)/src/config/general.h.tmp" "$(project_dir)/src/config/general.h"
 endif
-ifeq ($(CONFIG_PXE_NO_PROMT),y)
+ifeq ($(CONFIG_PXE_NO_PROMPT),y)
 	sed 's|#define\s*BANNER_TIMEOUT.*|#define BANNER_TIMEOUT 0|' "$(project_dir)/src/config/general.h" > "$(project_dir)/src/config/general.h.tmp"
+	mv "$(project_dir)/src/config/general.h.tmp" "$(project_dir)/src/config/general.h"
+endif
+ifeq ($(CONFIG_PXE_HAS_HTTPS),y)
+	sed 's|.*DOWNLOAD_PROTO_HTTPS|#define DOWNLOAD_PROTO_HTTPS|g' "$(project_dir)/src/config/general.h" > "$(project_dir)/src/config/general.h.tmp"
 	mv "$(project_dir)/src/config/general.h.tmp" "$(project_dir)/src/config/general.h"
 endif
 
@@ -79,7 +70,7 @@ ifeq ($(CONSOLE_SERIAL),yy)
 	cp "$(project_dir)/src/config/console.h.cb" "$(project_dir)/src/config/console.h"
 	cp "$(project_dir)/src/config/serial.h.cb" "$(project_dir)/src/config/serial.h"
 endif
-ifneq ($(filter y,$(CONFIG_HAS_SCRIPT) $(CONFIG_PXE_NO_PROMT)),)
+ifneq ($(filter y,$(CONFIG_HAS_SCRIPT) $(CONFIG_PXE_NO_PROMPT)),)
 	cp "$(project_dir)/src/config/general.h.cb" "$(project_dir)/src/config/general.h"
 endif
 

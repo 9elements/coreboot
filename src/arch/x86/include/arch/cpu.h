@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef ARCH_CPU_H
 #define ARCH_CPU_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include <types.h>
 
 /*
  * EFLAGS bits
@@ -141,6 +129,11 @@ static inline unsigned int cpuid_edx(unsigned int op)
 	return edx;
 }
 
+static inline unsigned int cpuid_get_max_func(void)
+{
+	return cpuid_eax(0);
+}
+
 #define X86_VENDOR_INVALID    0
 #define X86_VENDOR_INTEL      1
 #define X86_VENDOR_CYRIX      2
@@ -158,11 +151,16 @@ static inline unsigned int cpuid_edx(unsigned int op)
 
 #define CPUID_FEATURE_PAE (1 << 6)
 #define CPUID_FEATURE_PSE36 (1 << 17)
+#define CPUID_FEAURE_HTT (1 << 28)
 
 // Intel leaf 0x4, AMD leaf 0x8000001d EAX
 
 #define CPUID_CACHE(x, res) \
 	(((res) >> CPUID_CACHE_##x##_SHIFT) & CPUID_CACHE_##x##_MASK)
+
+#define CPUID_CACHE_SHARING_CACHE_SHIFT 14
+#define CPUID_CACHE_SHARING_CACHE_MASK 0xfff
+#define CPUID_CACHE_SHARING_CACHE(res) CPUID_CACHE(SHARING_CACHE, (res).eax)
 
 #define CPUID_CACHE_FULL_ASSOC_SHIFT 9
 #define CPUID_CACHE_FULL_ASSOC_MASK 0x1
@@ -200,25 +198,18 @@ static inline unsigned int cpuid_edx(unsigned int op)
 #define CPUID_CACHE_NO_OF_SETS_MASK 0xffffffff
 #define CPUID_CACHE_NO_OF_SETS(res) CPUID_CACHE(NO_OF_SETS, (res).ecx)
 
-int cpu_cpuid_extended_level(void);
+unsigned int cpu_cpuid_extended_level(void);
 int cpu_have_cpuid(void);
-
-void smm_init(void);
-void smm_init_completion(void);
-void smm_lock(void);
-void smm_setup_structures(void *gnvs, void *tcg, void *smi1);
 
 static inline bool cpu_is_amd(void)
 {
-	return CONFIG(CPU_AMD_AGESA) || CONFIG(CPU_AMD_PI);
+	return CONFIG(CPU_AMD_AGESA) || CONFIG(CPU_AMD_PI) || CONFIG(SOC_AMD_COMMON);
 }
 
 static inline bool cpu_is_intel(void)
 {
 	return CONFIG(CPU_INTEL_COMMON) || CONFIG(SOC_INTEL_COMMON);
 }
-
-#ifndef __SIMPLE_DEVICE__
 
 struct device;
 
@@ -230,7 +221,6 @@ struct cpu_device_id {
 struct cpu_driver {
 	struct device_operations *ops;
 	const struct cpu_device_id *id_table;
-	struct acpi_cstate *cstates;
 };
 
 struct cpu_driver *find_cpu_driver(struct device *cpu);
@@ -239,32 +229,45 @@ struct thread;
 
 struct cpu_info {
 	struct device *cpu;
-	unsigned int index;
-#if CONFIG(COOP_MULTITASKING)
-	struct thread *thread;
-#endif
+	size_t index;
+};
+
+/*
+ * This structure describes the data allocated in the %gs segment for each CPU.
+ * In order to read from this structure you will need to use assembly to
+ * reference the segment.
+ *
+ * e.g., Reading the cpu_info pointer:
+ *     %%gs:0
+ */
+struct per_cpu_segment_data {
+	/*
+	 * Instead of keeping a `struct cpu_info`, we actually keep a pointer
+	 * pointing to the cpu_info struct located in %ds. This prevents
+	 * needing specific access functions to read the fields in the cpu_info.
+	 */
+	struct cpu_info *cpu_info;
 };
 
 static inline struct cpu_info *cpu_info(void)
 {
-	struct cpu_info *ci;
-	__asm__(
-#ifdef __x86_64__
-		"and %%rsp,%0; "
-		"or  %2, %0 "
-#else
-		"andl %%esp,%0; "
-		"orl  %2, %0 "
-#endif
-		: "=r" (ci)
-		: "0" (~(CONFIG_STACK_SIZE - 1)),
-		"r" (CONFIG_STACK_SIZE - sizeof(struct cpu_info))
-	);
-	return ci;
-}
-#endif
+/* We use a #if because we don't want to mess with the &s below. */
+#if CONFIG(CPU_INFO_V2)
+	struct cpu_info *ci = NULL;
 
-#ifndef __ROMCC__ // romcc is segfaulting in some cases
+	__asm__("mov %%gs:%c[offset], %[ci]"
+		: [ci] "=r" (ci)
+		: [offset] "i" (offsetof(struct per_cpu_segment_data, cpu_info))
+	);
+
+	return ci;
+#else
+	char s;
+	uintptr_t info = ALIGN_UP((uintptr_t)&s, CONFIG_STACK_SIZE) - sizeof(struct cpu_info);
+	return (struct cpu_info *)info;
+#endif /* CPU_INFO_V2 */
+}
+
 struct cpuinfo_x86 {
 	uint8_t	x86;		/* CPU family */
 	uint8_t	x86_vendor;	/* CPU vendor */
@@ -283,72 +286,20 @@ static inline void get_fms(struct cpuinfo_x86 *c, uint32_t tfms)
 		c->x86_model += ((tfms >> 16) & 0xF) << 4;
 
 }
-#endif
+
+/* REP NOP (PAUSE) is a good thing to insert into busy-wait loops. */
+static __always_inline void cpu_relax(void)
+{
+	__asm__ __volatile__("rep;nop" : : : "memory");
+}
 
 #define asmlinkage __attribute__((regparm(0)))
 
-#ifndef __ROMCC__
 /*
- * When using CONFIG_C_ENVIRONMENT_BOOTBLOCK the car_stage_entry()
- * is the symbol jumped to for each stage after bootblock using
- * cache-as-ram.
+ * The car_stage_entry() is the symbol jumped to for each stage
+ * after bootblock using cache-as-ram.
  */
 asmlinkage void car_stage_entry(void);
-
-/*
- * Support setting up a stack frame consisting of MTRR information
- * for use in bootstrapping the caching attributes after cache-as-ram
- * is torn down.
- */
-
-struct postcar_frame {
-	uintptr_t stack;
-	uint32_t upper_mask;
-	int max_var_mtrrs;
-	int num_var_mtrrs;
-};
-
-/*
- * Initialize postcar_frame object allocating stack size in cbmem
- * with the provided size. Returns 0 on success, < 0 on error.
- */
-int postcar_frame_init(struct postcar_frame *pcf, size_t stack_size);
-
-/*
- * Add variable MTRR covering the provided range with MTRR type.
- */
-void postcar_frame_add_mtrr(struct postcar_frame *pcf,
-				uintptr_t addr, size_t size, int type);
-
-/*
- * Add variable MTRR covering the memory-mapped ROM with given MTRR type.
- */
-void postcar_frame_add_romcache(struct postcar_frame *pcf, int type);
-
-/*
- * Push used MTRR and Max MTRRs on to the stack
- * and return pointer to stack top.
- */
-void *postcar_commit_mtrrs(struct postcar_frame *pcf);
-
-/*
- * Load and run a program that takes control of execution that
- * tears down CAR and loads ramstage. The postcar_frame object
- * indicates how to set up the frame. If caching is enabled at
- * the time of the call it is up to the platform code to handle
- * coherency with dirty lines in the cache using some mechansim
- * such as platform_prog_run() because run_postcar_phase()
- * utilizes prog_run() internally.
- */
-void run_postcar_phase(struct postcar_frame *pcf);
-
-/*
- * Systems without a native coreboot cache-as-ram teardown may implement
- * this to use an alternate method.
- */
-void late_car_teardown(void);
-
-#endif
 
 /*
  * Get processor id using cpuid eax=1
@@ -373,7 +324,7 @@ uint32_t cpu_get_feature_flags_edx(void);
  * function will always getting called from coreboot context
  * (ESP stack pointer will always refer to coreboot).
  *
- * But with FSP_USES_MP_SERVICES_PPI implementation in coreboot this
+ * But with MP_SERVICES_PPI implementation in coreboot this
  * assumption might not be true, where FSP context (stack pointer refers
  * to FSP) will request to get cpu_index().
  *
@@ -381,5 +332,77 @@ uint32_t cpu_get_feature_flags_edx(void);
  * cpus_default_apic_id[] variable to return correct cpu_index().
  */
 int cpu_index(void);
+
+#define DETERMINISTIC_CACHE_PARAMETERS_CPUID_IA	0x04
+#define DETERMINISTIC_CACHE_PARAMETERS_CPUID_AMD	0x8000001d
+
+enum cache_level {
+	CACHE_L1D = 0,
+	CACHE_L1I = 1,
+	CACHE_L2 = 2,
+	CACHE_L3 = 3,
+	CACHE_LINV = 0xFF,
+};
+
+enum cpu_type {
+	CPUID_COMMAND_UNSUPPORTED = 0,
+	CPUID_TYPE_AMD = 1,
+	CPUID_TYPE_INTEL = 2,
+	CPUID_TYPE_INVALID = 0xFF,
+};
+
+struct cpu_cache_info {
+	uint8_t type;
+	uint8_t level;
+	size_t num_ways;
+	size_t num_sets;
+	size_t line_size;
+	size_t size;
+	size_t physical_partitions;
+	size_t num_cores_shared;
+	bool fully_associative;
+};
+
+enum cpu_type cpu_check_deterministic_cache_cpuid_supported(void);
+
+/* cpu_get_cache_assoc_info to get cache ways of associativity information. */
+size_t cpu_get_cache_ways_assoc_info(const struct cpu_cache_info *info);
+
+/*
+ * cpu_get_cache_type to get cache type.
+ * Cache type can be between 0: no cache, 1: data cache, 2: instruction cache
+ * 3: unified cache and rests are reserved.
+ */
+uint8_t cpu_get_cache_type(const struct cpu_cache_info *info);
+
+/*
+ * cpu_get_cache_level to get cache level.
+ * Cache level can be between 0: reserved, 1: L1, 2: L2, 3: L3 and rests are reserved.
+ */
+uint8_t cpu_get_cache_level(const struct cpu_cache_info *info);
+
+/* cpu_get_cache_phy_partition_info to get cache physical partitions information. */
+size_t cpu_get_cache_phy_partition_info(const struct cpu_cache_info *info);
+
+/* cpu_get_cache_line_size to get cache line size in bytes. */
+size_t cpu_get_cache_line_size(const struct cpu_cache_info *info);
+
+/* cpu_get_cache_line_size to get cache number of sets information. */
+size_t cpu_get_cache_sets(const struct cpu_cache_info *info);
+
+/* cpu_is_cache_full_assoc checks if cache is fully associative. */
+bool cpu_is_cache_full_assoc(const struct cpu_cache_info *info);
+
+/* cpu_get_max_cache_share checks the number of cores are sharing this cache. */
+size_t cpu_get_max_cache_share(const struct cpu_cache_info *info);
+
+/* get_cache_size to calculate the cache size. */
+size_t get_cache_size(const struct cpu_cache_info *info);
+
+/*
+ * fill_cpu_cache_info to get all required cache info data and fill into cpu_cache_info
+ * structure by calling CPUID.EAX=leaf and ECX=Cache Level.
+ */
+bool fill_cpu_cache_info(uint8_t level, struct cpu_cache_info *info);
 
 #endif /* ARCH_CPU_H */

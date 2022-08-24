@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <spi-generic.h>
 #include <spi_flash.h>
@@ -22,7 +9,6 @@ static struct spi_slave slave;
 void spiconsole_init(void) {
 	spi_init();
 	spi_setup_slave(0, 0, &slave);
-	return;
 }
 
 /*
@@ -62,6 +48,4 @@ void spiconsole_tx_byte(unsigned char c) {
 
 		msg.header.msg_length = 0;
 	}
-
-	return;
 }

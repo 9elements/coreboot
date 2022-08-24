@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _PCI_IO_CFG_H
 #define _PCI_IO_CFG_H
@@ -80,7 +69,7 @@ void pci_io_write_config32(pci_devfn_t dev, uint16_t reg, uint32_t value)
 	outl(value, 0xCFC);
 }
 
-#if !CONFIG(MMCONF_SUPPORT)
+#if !CONFIG(ECAM_MMCONF_SUPPORT)
 
 /* Avoid name collisions as different stages have different signature
  * for these functions. The _s_ stands for simple, fundamental IO or

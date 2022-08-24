@@ -1,46 +1,31 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
+#include <amdblocks/smm.h>
 #include <console/console.h>
-#include <cpu/x86/msr.h>
 #include <cpu/amd/msr.h>
-#include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
-#include <device/device.h>
-#include <cpu/x86/pae.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/cache.h>
-#include <arch/acpi.h>
+#include <cpu/x86/msr.h>
+#include <cpu/x86/mtrr.h>
+#include <device/device.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
 
 static void model_16_init(struct device *dev)
 {
 	printk(BIOS_DEBUG, "Model 16 Init.\n");
 
-	u8 i;
 	msr_t msr;
-	int num_banks;
 	int msrno;
 #if CONFIG(LOGICAL_CPUS)
 	u32 siblings;
 #endif
 
-	//x86_enable_cache();
-	//amd_setup_mtrrs();
-	//x86_mtrr_check();
+	/*
+	 * AGESA sets the MTRRs main MTRRs. The shadow area needs to be set
+	 * by coreboot.
+	 */
 	disable_cache();
 	/* Enable access to AMD RdDram and WrDram extension bits */
 	msr = rdmsr(SYSCFG_MSR);
@@ -62,22 +47,14 @@ static void model_16_init(struct device *dev)
 	msr.lo |= SYSCFG_MSR_MtrrFixDramEn;
 	wrmsr(SYSCFG_MSR, msr);
 
-	if (acpi_is_wakeup())
+	if (acpi_is_wakeup_s3())
 		restore_mtrr();
 
 	x86_mtrr_check();
-	x86_enable_cache();
+	enable_cache();
 
 	/* zero the machine check error status registers */
-	msr = rdmsr(IA32_MCG_CAP);
-	num_banks = msr.lo & MCA_BANKS_MASK;
-	msr.lo = 0;
-	msr.hi = 0;
-	for (i = 0; i < num_banks; i++)
-		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
-
-	/* Enable the local CPU APICs */
-	setup_lapic();
+	mca_clear_status();
 
 #if CONFIG(LOGICAL_CPUS)
 	siblings = cpuid_ecx(0x80000008) & 0xff;
@@ -100,9 +77,7 @@ static void model_16_init(struct device *dev)
 	wrmsr(NB_CFG_MSR, msr);
 
 	/* Write protect SMM space with SMMLOCK. */
-	msr = rdmsr(HWCR_MSR);
-	msr.lo |= (1 << 0);
-	wrmsr(HWCR_MSR, msr);
+	lock_smm();
 }
 
 static struct device_operations cpu_dev_ops = {

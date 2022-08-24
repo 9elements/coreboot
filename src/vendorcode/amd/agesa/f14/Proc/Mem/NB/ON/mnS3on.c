@@ -133,7 +133,7 @@ MemS3ResumeConstructNBBlockON (
  *
  *----------------------------------------------------------------------------
  */
-PCI_SPECIAL_CASE PciSpecialCaseFuncON[] = {
+CONST PCI_SPECIAL_CASE PciSpecialCaseFuncON[] = {
   {MemNS3GetCSRNb, MemNS3SetCSRNb},
   {MemNS3GetBitFieldNb, MemNS3SetBitFieldNb},
   {MemNS3DisNbPsDbgNb, MemNS3DisNbPsDbgNb},
@@ -144,7 +144,7 @@ PCI_SPECIAL_CASE PciSpecialCaseFuncON[] = {
   {MemNS3GetBitFieldNb, MemNS3SetPreDriverCalUnb}
 };
 
-PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorON[] = {
+CONST PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorON[] = {
   {{0, 2, 0}, FUNC_2, 0x110, 0x00000708},
   {{0, 0, 0}, FUNC_1, 0x40,  0x0FFF0003},
   {{0, 0, 0}, FUNC_1, 0x44,  0xFFFF0000},
@@ -240,12 +240,12 @@ PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorON[] = {
 
 CONST PCI_REGISTER_BLOCK_HEADER ROMDATA S3PciPreSelfRefON = {
   0,
-  (sizeof (S3PciPreSelfRefDescriptorON) / sizeof (PCI_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3PciPreSelfRefDescriptorON),
   S3PciPreSelfRefDescriptorON,
   PciSpecialCaseFuncON
 };
 
-CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorON[] = {
+CONST CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorON[] = {
   // DCT0
   {{0, 0, 1}, FUNC_2, SET_S3_SPECIAL_OFFSET (DCT_PHY_FLAG, 0, 0x10),  0x01FF01FF, DCT0_MASK, 0x01},
   {{0, 0, 1}, FUNC_2, SET_S3_SPECIAL_OFFSET (DCT_PHY_FLAG, 0, 0x11),  0x01FF01FF, DCT0_MASK, 0x01},
@@ -293,12 +293,12 @@ CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorON[] = {
 
 CONST CPCI_REGISTER_BLOCK_HEADER ROMDATA S3CPciPostSelfRefON = {
   0,
-  (sizeof (S3CPciPostSelfDescriptorON) / sizeof (CONDITIONAL_PCI_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3CPciPostSelfDescriptorON),
   S3CPciPostSelfDescriptorON,
   PciSpecialCaseFuncON
 };
 
-MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorON[] = {
+CONST MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorON[] = {
   {{0, 0, 0}, 0xC0010010, 0x00000000007F0000},
   {{0, 0, 0}, 0xC001001A, 0x0000000FFF800000},
   {{0, 0, 0}, 0xC001001D, 0x0000000FFF800000},
@@ -307,12 +307,12 @@ MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorON[] = {
 
 CONST MSR_REGISTER_BLOCK_HEADER ROMDATA S3MSRPreSelfRefON = {
   0,
-  (sizeof (S3MSRPreSelfRefDescriptorON) / sizeof (MSR_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3MSRPreSelfRefDescriptorON),
   S3MSRPreSelfRefDescriptorON,
   NULL
 };
 
-VOID *MemS3RegListON[] = {
+VOID * CONST MemS3RegListON[] = {
   (VOID *)&S3PciPreSelfRefON,
   NULL,
   NULL,

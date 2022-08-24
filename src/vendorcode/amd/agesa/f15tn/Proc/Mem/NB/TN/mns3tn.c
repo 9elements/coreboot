@@ -96,7 +96,7 @@ AGESA_STATUS
 STATIC
 MemNS3GetDeviceRegLstTN (
   IN       UINT32 RegisterLstID,
-     OUT   VOID **RegisterHeader
+  CONST OUT   VOID **RegisterHeader
   );
 
 VOID
@@ -189,7 +189,7 @@ MemS3ResumeConstructNBBlockTN (
  *
  *----------------------------------------------------------------------------
  */
-PCI_SPECIAL_CASE PciSpecialCaseFuncTN[] = {
+CONST PCI_SPECIAL_CASE PciSpecialCaseFuncTN[] = {
   {MemNS3GetCSRTN, MemNS3SetCSRTN},
   {MemNS3GetBitFieldNb, MemNS3SetBitFieldNb},
   {MemNS3GetNBPStateDepRegUnb, MemNS3SetNBPStateDepRegUnb},
@@ -207,7 +207,7 @@ PCI_SPECIAL_CASE PciSpecialCaseFuncTN[] = {
   { (VOID (*) (ACCESS_WIDTH, PCI_ADDR, VOID *, VOID *)) memDefRet, MemNS3ForceNBP0Unb}
 };
 
-PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorTN[] = {
+CONST PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorTN[] = {
   {{14,3, 1}, DO_NOT_CARE, 0, 0},
   {{0, 0, 0}, FUNC_2, 0x110, 0xFFFFF8E7},
   {{0, 0, 0}, FUNC_1, 0x40,  0xFFFF0703},
@@ -228,12 +228,12 @@ PCI_REG_DESCRIPTOR ROMDATA S3PciPreSelfRefDescriptorTN[] = {
 
 CONST PCI_REGISTER_BLOCK_HEADER ROMDATA S3PciPreSelfRefTN = {
   0,
-  (sizeof (S3PciPreSelfRefDescriptorTN) / sizeof (PCI_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3PciPreSelfRefDescriptorTN),
   S3PciPreSelfRefDescriptorTN,
   PciSpecialCaseFuncTN
 };
 
-CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPreSelfDescriptorTN[] = {
+CONST CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPreSelfDescriptorTN[] = {
    // DCT 0
   {{7, 0, 1}, DCT0,   0x40,  0x7FF8FFED, DCT0_MASK, DCT0_ANY_DIMM_MASK},
   {{7, 0, 1}, DCT0,   0x44,  0x7FF8FFED, DCT0_MASK, DCT0_ANY_DIMM_MASK},
@@ -510,12 +510,12 @@ CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPreSelfDescriptorTN[] = {
 
 CONST CPCI_REGISTER_BLOCK_HEADER ROMDATA S3CPciPreSelfRefTN = {
   0,
-  (sizeof (S3CPciPreSelfDescriptorTN) / sizeof (CONDITIONAL_PCI_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3CPciPreSelfDescriptorTN),
   S3CPciPreSelfDescriptorTN,
   PciSpecialCaseFuncTN
 };
 
-CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorTN[] = {
+CONST CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorTN[] = {
   // DCT0
   {{12, 2, 1}, DCT1,  BFChAM1FenceSave, 0, DCT0_MEMPSTATE_MASK, ANY_DIMM_MASK},
   {{1, 2, 1}, DCT0,   BFRx4thStgEn, 0, DCT0_MASK, ANY_DIMM_MASK},
@@ -797,12 +797,12 @@ CONDITIONAL_PCI_REG_DESCRIPTOR ROMDATA S3CPciPostSelfDescriptorTN[] = {
 
 CONST CPCI_REGISTER_BLOCK_HEADER ROMDATA S3CPciPostSelfRefTN = {
   0,
-  (sizeof (S3CPciPostSelfDescriptorTN) / sizeof (CONDITIONAL_PCI_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3CPciPostSelfDescriptorTN),
   S3CPciPostSelfDescriptorTN,
   PciSpecialCaseFuncTN
 };
 
-MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorTN[] = {
+CONST MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorTN[] = {
   {{0, 0, 0}, 0xC0010010, 0x00000000007F0000},
   {{0, 0, 0}, 0xC001001A, 0x0000FFFFFF800000},
   {{0, 0, 0}, 0xC001001D, 0x0000FFFFFF800000},
@@ -811,12 +811,12 @@ MSR_REG_DESCRIPTOR ROMDATA S3MSRPreSelfRefDescriptorTN[] = {
 
 CONST MSR_REGISTER_BLOCK_HEADER ROMDATA S3MSRPreSelfRefTN = {
   0,
-  (sizeof (S3MSRPreSelfRefDescriptorTN) / sizeof (MSR_REG_DESCRIPTOR)),
+  ARRAY_SIZE(S3MSRPreSelfRefDescriptorTN),
   S3MSRPreSelfRefDescriptorTN,
   NULL
 };
 
-VOID *MemS3RegListTN[] = {
+CONST VOID * CONST MemS3RegListTN[] = {
   (VOID *)&S3PciPreSelfRefTN,
   NULL,
   (VOID *)&S3CPciPreSelfRefTN,
@@ -992,7 +992,7 @@ AGESA_STATUS
 STATIC
 MemNS3GetDeviceRegLstTN (
   IN       UINT32 RegisterLstID,
-     OUT   VOID **RegisterHeader
+  CONST OUT   VOID **RegisterHeader
   )
 {
   if (RegisterLstID >= (sizeof (MemS3RegListTN) / sizeof (VOID *))) {

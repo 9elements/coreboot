@@ -1,20 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * This file is part of the coreboot project.
- *
  * drivers/video/tegra/dc/dp.c
- *
- * Copyright (c) 2011-2013, NVIDIA Corporation.
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #include <console/console.h>
@@ -27,8 +14,8 @@
 #include <soc/nvidia/tegra/dc.h>
 #include <soc/nvidia/tegra/displayport.h>
 #include <soc/sor.h>
-#include <stdlib.h>
 #include <string.h>
+#include <types.h>
 
 #include "chip.h"
 
@@ -478,7 +465,7 @@ static int _tegra_dp_lower_link_config(struct tegra_dc_dp_data *dp,
 	return (cfg->lane_count > 0) ? DP_LT_SUCCESS : DP_LT_FAILED;
 }
 
-/* Calcuate if given cfg can meet the mode request. */
+/* Calculate if given cfg can meet the mode request. */
 /* Return true if mode is possible, false otherwise. */
 static int tegra_dc_dp_calc_config(struct tegra_dc_dp_data *dp,
 	const struct soc_nvidia_tegra124_config *config,
@@ -628,7 +615,6 @@ static int tegra_dc_dp_calc_config(struct tegra_dc_dp_data *dp,
 
 	if (link_cfg->hblank_sym < 0)
 		link_cfg->hblank_sym = 0;
-
 
 	/* Refer to dev_disp.ref for more information. */
 	/* # symbols/vblank = ((SetRasterBlankStart.X - */

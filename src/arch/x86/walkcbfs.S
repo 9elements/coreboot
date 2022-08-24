@@ -1,24 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#define CBFS_HEADER_PTR 0xfffffffc
-
-#define CBFS_HEADER_MAGIC 0
-#define CBFS_HEADER_VERSION (CBFS_HEADER_MAGIC + 4)
-#define CBFS_HEADER_ROMSIZE (CBFS_HEADER_VERSION + 4)
-#define CBFS_HEADER_BOOTBLOCKSIZE (CBFS_HEADER_ROMSIZE + 4)
-#define CBFS_HEADER_ALIGN (CBFS_HEADER_BOOTBLOCKSIZE + 4)
-#define CBFS_HEADER_OFFSET (CBFS_HEADER_ALIGN + 4)
+#include <fmap_config.h>
 
 /* we use this instead of CBFS_HEADER_ALIGN because the latter is retired. */
 #define CBFS_ALIGNMENT 64
@@ -31,7 +13,14 @@
 
 #define CBFS_FILE_STRUCTSIZE (CBFS_FILE_OFFSET + 4)
 
-.section .text
+#if FMAP_SECTION_COREBOOT_START < (0xffffffff - CONFIG_ROM_SIZE + 1)
+#define COREBOOT_CBFS_START (0xffffffff - CONFIG_ROM_SIZE + 1 + FMAP_SECTION_COREBOOT_START)
+#else
+#define COREBOOT_CBFS_START FMAP_SECTION_COREBOOT_START
+#endif
+
+.code32
+.section .init
 .global walkcbfs_asm
 
 /*
@@ -43,14 +32,7 @@
 walkcbfs_asm:
 	cld
 
-	mov CBFS_HEADER_PTR, %eax
-	mov CBFS_HEADER_ROMSIZE(%eax), %ecx
-	bswap %ecx
-	mov $0, %ebx
-	sub %ecx, %ebx	/* ROM base address in ebx */
-	mov CBFS_HEADER_OFFSET(%eax), %ecx
-	bswap %ecx
-	add %ecx, %ebx	/* address where we start looking for LARCHIVEs */
+	movl $COREBOOT_CBFS_START, %ebx
 
 	/* determine filename length */
 	mov $0, %eax
@@ -106,17 +88,11 @@ tryharder:
 	mov %ecx, %ebx
 
 check_for_exit:
-	/* look if we should exit: did we pass into the bootblock already? */
-	mov CBFS_HEADER_PTR, %ecx
-	mov CBFS_HEADER_BOOTBLOCKSIZE(%ecx), %ecx
-	bswap %ecx
-	not %ecx
-	add $1, %ecx
+	/* if addr <= COREBOOT_END - 1, continue */
+#define FMAP_SECTION_COREBOOT_END (FMAP_SECTION_COREBOOT_START - 1 + FMAP_SECTION_COREBOOT_SIZE)
 
+	movl $FMAP_SECTION_COREBOOT_END, %ecx
 	cmp %ecx, %ebx
-	/* if bootblockstart >= addr (==we're still in the data area),
-	 * jump back
-	 */
 	jbe walker
 
 out:

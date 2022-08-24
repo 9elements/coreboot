@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -23,13 +10,13 @@ Device (EC0)
 {
 	Name (_HID, EISAID ("PNP0C09"))
 	Name (_UID, 1)
-	Name (_GPE, Add(EC_SCI_GPI, 16)) // GPE for Runtime SCI
+	Name (_GPE, EC_SCI_GPI + 16) // GPE for Runtime SCI
 
 	// EC RAM fields
 	OperationRegion(ERAM, EmbeddedControl, 0, 0xFF)
 	Field (ERAM, ByteAcc, NoLock, Preserve)
 	{
-		Offset(0x00),   // [Configuration Space 0]
+				//   [Configuration Space 0]
 		    , 1,        //   Reserved bit[0]
 		ENGA, 1,        //   Enable Global attention
 		ENHY, 1,        //   Enable Hotkey function
@@ -457,7 +444,7 @@ Device (EC0)
 		MBTH, 4,        //   bit 3-0: battery 0 highest level
 		SBTH, 4,        //   bit 7-4: battery 1 highest level
 		                //   note: if highest level is 0 or 0xF, it means not defined
-		                //         (in this case, use default hightest level, it is 6)
+		                //         (in this case, use default highest level, it is 6)
 
 		Offset(0xEF),   // [EC Function Specification Major Version]
 		Offset(0xF0),   // [Build ID]~ offset:0F7h
@@ -569,8 +556,7 @@ Device (EC0)
 		// TODO Which temperature corresponds to the CPU?
 		Store (TMP0, Local0)
 		/* So that we don't get a warning that Local0 is unused.  */
-		Increment (Local0)
-
+		Local0++
 	}
 
 /* Attention Codes

@@ -1,22 +1,10 @@
-/*
- * inteltool - dump all registers on an Intel CPU + chipset based system.
- *
- * Copyright (C) 2008-2010 by coresystems GmbH
- * Copyright (C) 2009 Carl-Daniel Hailfinger
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* inteltool - dump all registers on an Intel CPU + chipset based system */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef INTELTOOL_H
 #define INTELTOOL_H 1
 
+#include <arch/mmio.h>
 #include <commonlib/helpers.h>
 
 #include <stdint.h>
@@ -86,8 +74,10 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_ICH9		0x2918
 #define PCI_DEVICE_ID_INTEL_ICH9M		0x2919
 #define PCI_DEVICE_ID_INTEL_ICH9ME		0x2917
+#define PCI_DEVICE_ID_INTEL_ICH10DO		0x3a14
 #define PCI_DEVICE_ID_INTEL_ICH10R		0x3a16
-#define PCI_DEVICE_ID_INTEL_ICH10               0x3a18
+#define PCI_DEVICE_ID_INTEL_ICH10		0x3a18
+#define PCI_DEVICE_ID_INTEL_ICH10D		0x3a1a
 #define PCI_DEVICE_ID_INTEL_3400_DESKTOP	0x3b00
 #define PCI_DEVICE_ID_INTEL_3400_MOBILE		0x3b01
 #define PCI_DEVICE_ID_INTEL_P55			0x3b02
@@ -106,6 +96,7 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_3450		0x3b16
 #define PCI_DEVICE_ID_INTEL_B55_B		0x3b1e
 #define PCI_DEVICE_ID_INTEL_SCH_POULSBO_LPC	0x8119
+#define PCI_DEVICE_ID_INTEL_ICELAKE_LP_U	0x3482
 #define PCI_DEVICE_ID_INTEL_Z68			0x1c44
 #define PCI_DEVICE_ID_INTEL_P67			0x1c46
 #define PCI_DEVICE_ID_INTEL_UM67		0x1c47
@@ -155,6 +146,14 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_SUNRISEPOINT_LP_U_IHDCP_BASE	0x9d50
 #define PCI_DEVICE_ID_INTEL_SUNRISEPOINT_LP_U_IHDCP_PREM	0x9d4e
 #define PCI_DEVICE_ID_INTEL_SUNRISEPOINT_LP_Y_IHDCP_PREM	0x9d4b
+#define PCI_DEVICE_ID_INTEL_CANNONPOINT_LP_U_PREM	0x9d84
+#define PCI_DEVICE_ID_INTEL_COMETPOINT_LP_U_PREM	0x0284
+#define PCI_DEVICE_ID_INTEL_COMETPOINT_LP_U_BASE	0x0285
+#define PCI_DEVICE_ID_INTEL_TIGERPOINT_U_SUPER	0xa081
+#define PCI_DEVICE_ID_INTEL_TIGERPOINT_U_PREM	0xa082
+#define PCI_DEVICE_ID_INTEL_TIGERPOINT_U_BASE	0xa083
+#define PCI_DEVICE_ID_INTEL_TIGERPOINT_Y_SUPER	0xa086
+#define PCI_DEVICE_ID_INTEL_TIGERPOINT_Y_PREM	0xa087
 #define PCI_DEVICE_ID_INTEL_H110		0xa143
 #define PCI_DEVICE_ID_INTEL_H170		0xa144
 #define PCI_DEVICE_ID_INTEL_Z170		0xa145
@@ -170,6 +169,37 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_QM175		0xa153
 #define PCI_DEVICE_ID_INTEL_CM238		0xa154
 
+#define PCI_DEVICE_ID_INTEL_C621		0xa1c1
+#define PCI_DEVICE_ID_INTEL_C622		0xa1c2
+#define PCI_DEVICE_ID_INTEL_C624		0xa1c3
+#define PCI_DEVICE_ID_INTEL_C625		0xa1c4
+#define PCI_DEVICE_ID_INTEL_C626		0xa1c5
+#define PCI_DEVICE_ID_INTEL_C627		0xa1c6
+#define PCI_DEVICE_ID_INTEL_C628		0xa1c7
+#define PCI_DEVICE_ID_INTEL_C629		0xa1ca
+#define PCI_DEVICE_ID_INTEL_C621A		0xa1cb
+#define PCI_DEVICE_ID_INTEL_C627A		0xa1cc
+#define PCI_DEVICE_ID_INTEL_C629A		0xa1cd
+#define PCI_DEVICE_ID_INTEL_C624_SUPER		0xa242
+#define PCI_DEVICE_ID_INTEL_C627_SUPER_1	0xa243
+#define PCI_DEVICE_ID_INTEL_C621_SUPER		0xa244
+#define PCI_DEVICE_ID_INTEL_C627_SUPER_2	0xa245
+#define PCI_DEVICE_ID_INTEL_C628_SUPER		0xa246
+#define PCI_DEVICE_ID_INTEL_C621A_SUPER		0xa24a
+#define PCI_DEVICE_ID_INTEL_C627A_SUPER		0xa24b
+#define PCI_DEVICE_ID_INTEL_C629A_SUPER		0xa24c
+
+#define PCI_DEVICE_ID_INTEL_EBG		0x1b81
+
+#define PCI_DEVICE_ID_INTEL_H270		0xa2c4
+#define PCI_DEVICE_ID_INTEL_Z270		0xa2c5
+#define PCI_DEVICE_ID_INTEL_Q270		0xa2c6
+#define PCI_DEVICE_ID_INTEL_Q250		0xa2c7
+#define PCI_DEVICE_ID_INTEL_B250		0xa2c8
+#define PCI_DEVICE_ID_INTEL_Z370		0xa2c9
+#define PCI_DEVICE_ID_INTEL_H310C		0xa2ca
+#define PCI_DEVICE_ID_INTEL_X299		0xa2d2
+
 #define PCI_DEVICE_ID_INTEL_H310		0xa303
 #define PCI_DEVICE_ID_INTEL_H370		0xa304
 #define PCI_DEVICE_ID_INTEL_Z390		0xa305
@@ -180,6 +210,30 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_QM370		0xa30c
 #define PCI_DEVICE_ID_INTEL_HM370		0xa30d
 #define PCI_DEVICE_ID_INTEL_CM246		0xa30e
+
+#define PCI_DEVICE_ID_INTEL_Q570		0x4384
+#define PCI_DEVICE_ID_INTEL_Z590		0x4385
+#define PCI_DEVICE_ID_INTEL_H570		0x4386
+#define PCI_DEVICE_ID_INTEL_B560		0x4387
+#define PCI_DEVICE_ID_INTEL_H510		0x4388
+#define PCI_DEVICE_ID_INTEL_WM590		0x4389
+#define PCI_DEVICE_ID_INTEL_QM580		0x438a
+#define PCI_DEVICE_ID_INTEL_HM570		0x438b
+#define PCI_DEVICE_ID_INTEL_C252		0x438c
+#define PCI_DEVICE_ID_INTEL_C256		0x438d
+#define PCI_DEVICE_ID_INTEL_W580		0x438f
+
+#define PCI_DEVICE_ID_INTEL_H610		0x7a87
+#define PCI_DEVICE_ID_INTEL_B660		0x7a86
+#define PCI_DEVICE_ID_INTEL_H670		0x7a85
+#define PCI_DEVICE_ID_INTEL_Q670		0x7a83
+#define PCI_DEVICE_ID_INTEL_Z690		0x7a84
+#define PCI_DEVICE_ID_INTEL_W680		0x7a88
+#define PCI_DEVICE_ID_INTEL_W685		0x7a8a
+#define PCI_DEVICE_ID_INTEL_WM690		0x7a8d
+#define PCI_DEVICE_ID_INTEL_HM670		0x7a8c
+#define PCI_DEVICE_ID_INTEL_WM790		0x7a0d
+#define PCI_DEVICE_ID_INTEL_HM770		0x7a0c
 
 #define PCI_DEVICE_ID_INTEL_82810		0x7120
 #define PCI_DEVICE_ID_INTEL_82810_DC	0x7122
@@ -252,6 +306,7 @@ static inline uint32_t inl(unsigned port)
 
 #define PCI_DEVICE_ID_INTEL_APL_LPC		0x5ae8
 #define PCI_DEVICE_ID_INTEL_DNV_LPC		0x19dc
+#define PCI_DEVICE_ID_INTEL_GLK_LPC		0x31E8
 
 /* Intel starts counting these generations with the integration of the DRAM controller */
 #define PCI_DEVICE_ID_INTEL_CORE_0TH_GEN	0xd132 /* Nehalem */
@@ -269,13 +324,39 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_U	0x0a04 /* Haswell-ULT */
 #define PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_U	0x1604 /* Broadwell-ULT */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_D2	0x190f /* Skylake (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_U	0x1904 /* Skylake (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_Y	0x190c /* Skylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_M	0x1910 /* Skylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_WST	0x1918 /* Skylake (Workstation) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_D	0x191f /* Skylake (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_E	0x2020 /* Skylake-E (Server) */
 #define PCI_DEVICE_ID_INTEL_CORE_7TH_GEN_U	0x5904 /* Kabylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_7TH_GEN_Y	0x590C /* Kabylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_7TH_GEN_U_Q	0x5914 /* Kabylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_7TH_GEN_E3	0x5918 /* Kabylake Xeon E3 */
+#define PCI_DEVICE_ID_INTEL_CORE_8TH_GEN_U_1	0x3ed0 /* Coffeelake (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_8TH_GEN_U_2	0x3e34 /* Whiskeylake (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_10TH_GEN_U	0x8a12 /* Icelake U */
+#define PCI_DEVICE_ID_INTEL_CORE_CML_U1		0x9b51 /* Cometlake U (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_CML_U2		0x9b61 /* Cometlake U (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_CML_U3		0x9b71 /* Cometlake U (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_U_2	0x9a04 /* Tigerlake UP3 2 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_U_4	0x9a14 /* Tigerlake UP3 4 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_Y_2	0x9a02 /* Tigerlake UP4 2 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_Y_4	0x9a12 /* Tigerlake UP4 4 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_H_4	0x9a16 /* Tigerlake H 4 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_H_6	0x9a26 /* Tigerlake H 6 Cores */
+#define PCI_DEVICE_ID_INTEL_CORE_TGL_ID_H_8	0x9a36 /* Tigerlake H 8 Cores */
+#define PCI_DEVICE_ID_INTEL_HEWITTLAKE		0x6f00 /* Hewitt Lake */
+#define PCI_DEVICE_ID_INTEL_SAPPHIRERAPIDS_SP	0x09a2 /* Sapphire Rapids SP */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_8_8	0x4660 /* Alderlake S LGA 8+8 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_8_4	0x4668 /* Alderlake S LGA 8+4 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_6_4	0x4648 /* Alderlake S LGA 6+4 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_8_0	0x4670 /* Alderlake S LGA 8+0 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_6_0	0x4650 /* Alderlake S LGA 6+0 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_8_8	0x4637 /* Alderlake HX 8+8 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_6_8	0x463B /* Alderlake HX 6+8 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_4_8	0x4623 /* Alderlake HX 4+8 */
 
 
 /* Intel GPUs */
@@ -316,6 +397,8 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_HD_4000_2		0x016A
 #define PCI_DEVICE_ID_INTEL_HD_4600		0x0412
 #define PCI_DEVICE_ID_INTEL_HD_4600_1		0x0416
+#define PCI_DEVICE_ID_INTEL_HD_4400		0x041E
+#define PCI_DEVICE_ID_INTEL_HD_4400_1		0x0A16
 #define PCI_DEVICE_ID_INTEL_HD_5000		0x0422
 #define PCI_DEVICE_ID_INTEL_HD_5000_1		0x0426
 #define PCI_DEVICE_ID_INTEL_HD_5000_2		0x042A
@@ -343,6 +426,18 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_IRIS_PRO_580	0x193B
 #define PCI_DEVICE_ID_INTEL_IRIS_PLUS_650	0x5927
 #define PCI_DEVICE_ID_INTEL_IRIS_PLUS_655	0x3EA5
+#define PCI_DEVICE_ID_INTEL_IRIS_PLUS_G7	0x8A52
+#define PCI_DEVICE_ID_INTEL_UHD_GRAPHICS	0x9b41
+#define PCI_DEVICE_ID_INTEL_TGL_GT2_Y		0x9A40
+#define PCI_DEVICE_ID_INTEL_TGL_GT2_UY		0x9A49
+#define PCI_DEVICE_ID_INTEL_TGL_GT1		0x9A60
+#define PCI_DEVICE_ID_INTEL_TGL_GT1_2		0x9A68
+#define PCI_DEVICE_ID_INTEL_TGL_GT2_ULT_1	0x9A78
+#define PCI_DEVICE_ID_INTEL_TGL_GT2_ULT_2	0x9A70
+#define PCI_DEVICE_ID_INTEL_ADL_S_GT1		0x4680
+#define PCI_DEVICE_ID_INTEL_ADL_S_GT1_2		0x4682
+#define PCI_DEVICE_ID_INTEL_ADL_S_GT1_3		0x4690
+#define PCI_DEVICE_ID_INTEL_ADL_S_GT1_4		0x4692
 
 #if !defined(__DARWIN__) && !defined(__FreeBSD__)
 typedef struct { uint32_t hi, lo; } msr_t;
@@ -354,8 +449,6 @@ typedef struct { uint32_t hi, lo; } msr_t;
 #define rdmsr freebsd_rdmsr
 #define wrmsr freebsd_wrmsr
 typedef struct { uint32_t hi, lo; } msr_t;
-msr_t freebsd_rdmsr(int addr);
-int freebsd_wrmsr(int addr, msr_t msr);
 #endif
 typedef struct { uint16_t addr; int size; char *name; } io_register_t;
 typedef struct {
@@ -369,11 +462,16 @@ void *map_physical(uint64_t phys_addr, size_t len);
 void unmap_physical(void *virt_addr, size_t len);
 
 unsigned int cpuid(unsigned int op);
-int print_intel_core_msrs(void);
+int print_intel_msrs(unsigned int range_start, unsigned int range_end);
 int print_mchbar(struct pci_dev *nb, struct pci_access *pacc, const char *dump_spd_file);
 int print_pmbase(struct pci_dev *sb, struct pci_access *pacc);
+int print_lpc(struct pci_dev *sb, struct pci_access *pacc);
 int print_rcba(struct pci_dev *sb);
+void print_iobp(struct pci_dev *sb, volatile uint8_t *rcba);
 int print_gpios(struct pci_dev *sb, int show_all, int show_diffs);
+const struct gpio_community *const *get_gpio_communities(struct pci_dev *const sb,
+						size_t* community_count,
+						size_t* pad_stepping);
 void print_gpio_groups(struct pci_dev *sb);
 int print_epbar(struct pci_dev *nb);
 int print_dmibar(struct pci_dev *nb);
@@ -383,6 +481,7 @@ int print_spi(struct pci_dev *sb);
 int print_gfx(struct pci_dev *gfx);
 int print_ahci(struct pci_dev *ahci);
 int print_sgx(void);
+void print_tme(void);
 void ivybridge_dump_timings(const char *dump_spd_file);
 
 #endif

@@ -1,19 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <thread.h>
+
+#if ENV_X86_64
+#error COOP_MULTITASKING does not currently support x86_64
+#endif
 
 /* The stack frame looks like the following after a pushad instruction. */
 struct pushad_regs {
@@ -51,11 +42,4 @@ void arch_prepare_thread(struct thread *t,
 	stack -= sizeof(struct pushad_regs);
 
 	t->stack_current = stack;
-}
-
-void *arch_get_thread_stackbase(void)
-{
-	/* defined in c_start.S */
-	extern u8 thread_stacks[];
-	return &thread_stacks[0];
 }

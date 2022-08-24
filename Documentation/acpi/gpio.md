@@ -73,16 +73,16 @@ calling the platform specific acpigen_soc_{set,clear}_tx_gpio
 functions internally. Thus, all the ACPI AML calling conventions for
 the platform functions apply to these helper functions as well.
 
-## Implementation Details
+3. Get Rx GPIO
+   int acpigen_get_rx_gpio(struct acpi_gpio gpio)
 
-ACPI library in coreboot will provide weak definitions for all the
-above functions with error messages indicating that these functions
-are being used. This allows drivers to conditionally make use of GPIOs
-based on device-tree entries or any other config option. It is
-recommended that the SoC code in coreboot should provide
-implementations of all the above functions generating ACPI AML code
-irrespective of them being used in any driver. This allows mainboards
-to use any drivers and take advantage of this common infrastructure.
+This function takes as input, an struct acpi_gpio type and outputs
+AML code to read the *logical* value of a gpio (after taking its
+polarity into consideration), into the Local0 variable. It calls
+the platform specific acpigen_soc_read_rx_gpio() to actually read
+the raw Rx gpio value.
+
+## Implementation Details
 
 Platforms are restricted to using Local5, Local6 and Local7 variables
 only in implementations of the above functions. Any AML methods called
@@ -150,7 +150,6 @@ for the GPIO.
 	 */
 	acpigen_write_if_and(Local5, TX_BIT);
 	acpigen_write_store_args(ONE_OP, LOCAL0_OP);
-	acpigen_pop_len();
 	acpigen_write_else();
 	acpigen_write_store_args(ZERO_OP, LOCAL0_OP);
 	acpigen_pop_len();

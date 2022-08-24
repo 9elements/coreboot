@@ -1,33 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <symbols.h>
 #include <soc/ipq_uart.h>
 
-#define RESERVED_SIZE_KB	(0x01500000 / KiB)
+#define RESERVED_SIZE	0x01500000 /* 21 MiB */
 
 static void soc_read_resources(struct device *dev)
 {
-	/* Reserve bottom 0x150_0000 bytes for NSS, SMEM, etc. */
-	reserved_ram_resource(dev, 0, (uintptr_t)_dram / KiB, RESERVED_SIZE_KB);
-	ram_resource(dev, 0, (uintptr_t)_dram / KiB + RESERVED_SIZE_KB,
-		     (CONFIG_DRAM_SIZE_MB * KiB) - RESERVED_SIZE_KB);
+	/* Reserve bottom 21 MiB for NSS, SMEM, etc. */
+	uintptr_t reserve_ram_end = (uintptr_t)_dram + RESERVED_SIZE;
+	uint64_t ram_end = CONFIG_DRAM_SIZE_MB * (uint64_t)MiB;
+
+	reserved_ram_from_to(dev, 0, (uintptr_t)_dram, reserve_ram_end);
+	ram_from_to(dev, 1, reserve_ram_end, ram_end);
 }
 
 static void soc_init(struct device *dev)

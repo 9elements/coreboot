@@ -1,16 +1,4 @@
-/*
- * Copyright (C) 2013 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _ENDIAN_H_
 #define _ENDIAN_H_
@@ -79,12 +67,6 @@
 #define clrsetbits_le16(addr, clear, set) __clrsetbits(le, 16, addr, clear, set)
 #define clrsetbits_be16(addr, clear, set) __clrsetbits(be, 16, addr, clear, set)
 
-#define clrsetbits_8(addr, clear, set) \
-	write8(addr, (read8(addr) & ~(clear)) | (set))
-#define clrbits_8(addr, clear) clrsetbits_8(addr, clear, 0)
-#define setbits_8(addr, set) setbits_8(addr, 0, set)
-
-#ifndef __ROMCC__
 /* be16dec/be32dec/be64dec/le16dec/le32dec/le64dec family of functions. */
 #define DEFINE_ENDIAN_DEC(endian, width) \
 	static inline uint##width##_t endian##width##dec(const void *p) \
@@ -174,6 +156,5 @@ static inline uint64_t le64toh(uint64_t little_endian_64bits)
 {
 	return le64_to_cpu(little_endian_64bits);
 }
-#endif
 
 #endif

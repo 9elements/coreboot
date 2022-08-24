@@ -1,27 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- * Copyright (C) 2014 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+#define __SIMPLE_DEVICE__
 
 #include <stdint.h>
 #include <arch/io.h>
 #include <console/console.h>
-
+#include <device/pci.h>
+#include <intelblocks/pmclib.h>
 #include <soc/iomap.h>
-#include <soc/soc_util.h>
+#include <soc/pci_devs.h>
 #include <soc/pm.h>
+#include <soc/soc_util.h>
 
 static void print_num_status_bits(int num_bits, uint32_t status,
 				  const char *const bit_names[])
@@ -95,6 +84,18 @@ void enable_smi(uint32_t mask)
 	outl(smi_en, (uint16_t)(pmbase + SMI_EN));
 }
 
+uint8_t *pmc_mmio_regs(void)
+{
+	uint32_t reg32;
+
+	reg32 = pci_read_config32(PCH_DEV_PMC, PMC_PWRM_BASE);
+
+	/* 4KiB alignment. */
+	reg32 &= ~0xfff;
+
+	return (void *)(uintptr_t) reg32;
+}
+
 void disable_smi(uint32_t mask)
 {
 	uint16_t pmbase = get_pmbase();
@@ -138,9 +139,9 @@ static uint16_t print_pm1_status(uint16_t pm1_sts)
 	if (!pm1_sts)
 		return 0;
 
-	printk(BIOS_SPEW, "PM1_STS: ");
+	printk(BIOS_DEBUG, "PM1_STS: ");
 	print_num_status_bits(ARRAY_SIZE(pm1_sts_bits), pm1_sts, pm1_sts_bits);
-	printk(BIOS_SPEW, "\n");
+	printk(BIOS_DEBUG, "\n");
 
 	return pm1_sts;
 }

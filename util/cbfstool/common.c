@@ -1,19 +1,5 @@
-/*
- * common utility functions for cbfstool
- *
- * Copyright (C) 2009 coresystems GmbH
- *                 written by Patrick Georgi <patrick.georgi@coresystems.de>
- * Copyright (C) 2012 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* common utility functions for cbfstool */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,17 +14,6 @@
 
 /* Utilities */
 int verbose = 0;
-
-/* Small, OS/libc independent runtime check for endianness */
-int is_big_endian(void)
-{
-	static const uint32_t inttest = 0x12345678;
-	const uint8_t inttest_lsb = *(const uint8_t *)&inttest;
-	if (inttest_lsb == 0x12) {
-		return 1;
-	}
-	return 0;
-}
 
 static off_t get_file_size(FILE *f)
 {
@@ -63,32 +38,42 @@ int buffer_create(struct buffer *buffer, size_t size, const char *name)
 	return (buffer->data == NULL);
 }
 
-int buffer_from_file(struct buffer *buffer, const char *filename)
+int buffer_from_file_aligned_size(struct buffer *buffer, const char *filename,
+				  size_t size_granularity)
 {
 	FILE *fp = fopen(filename, "rb");
 	if (!fp) {
 		perror(filename);
 		return -1;
 	}
-	buffer->offset = 0;
 	off_t file_size = get_file_size(fp);
 	if (file_size < 0) {
 		fprintf(stderr, "could not determine size of %s\n", filename);
 		fclose(fp);
 		return -1;
 	}
-	buffer->size = file_size;
-	buffer->name = strdup(filename);
-	buffer->data = (char *)malloc(buffer->size);
-	assert(buffer->data);
-	if (fread(buffer->data, 1, buffer->size, fp) != buffer->size) {
+	if (buffer_create(buffer, ALIGN_UP(file_size, size_granularity), filename)) {
+		fprintf(stderr, "could not allocate buffer\n");
+		fclose(fp);
+		return -1;
+	}
+	if (fread(buffer->data, 1, file_size, fp) != (size_t)file_size) {
 		fprintf(stderr, "incomplete read: %s\n", filename);
 		fclose(fp);
 		buffer_delete(buffer);
 		return -1;
 	}
 	fclose(fp);
+
+	if (buffer->size > (size_t)file_size)
+		memset(buffer->data + file_size, 0xff, buffer->size - file_size);
+
 	return 0;
+}
+
+int buffer_from_file(struct buffer *buffer, const char *filename)
+{
+	return buffer_from_file_aligned_size(buffer, filename, 1);
 }
 
 int buffer_write_file(struct buffer *buffer, const char *filename)
@@ -182,10 +167,10 @@ void print_supported_architectures(void)
 
 void print_supported_filetypes(void)
 {
-	int i, number = ARRAY_SIZE(filetypes);
+	int i;
 
-	for (i=0; i<number; i++) {
-		printf(" %s%c", filetypes[i].name, (i==(number-1))?'\n':',');
+	for (i=0; filetypes[i].name; i++) {
+		printf(" %s%c", filetypes[i].name, filetypes[i + 1].name ? ',' : '\n');
 		if ((i%8) == 7)
 			printf("\n");
 	}
@@ -194,7 +179,7 @@ void print_supported_filetypes(void)
 uint64_t intfiletype(const char *name)
 {
 	size_t i;
-	for (i = 0; i < (sizeof(filetypes) / sizeof(struct typedesc_t)); i++)
+	for (i = 0; filetypes[i].name; i++)
 		if (strcmp(filetypes[i].name, name) == 0)
 			return filetypes[i].type;
 	return -1;

@@ -1,17 +1,4 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright 2014 Google Inc.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 if BOARD_GOOGLE_GALE
 
@@ -28,7 +15,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select SPI_FLASH_STMICRO
 	select SPI_FLASH_WINBOND
 	select DRIVERS_UART
-	select MAINBOARD_HAS_I2C_TPM_GENERIC
+	select I2C_TPM
 	select MAINBOARD_HAS_TPM1
 
 config VBOOT
@@ -40,18 +27,11 @@ config BOARD_VARIANT_DK01
 	default n
 
 config MAINBOARD_DIR
-	string
-	default google/gale
+	default "google/gale"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "DK01" if BOARD_VARIANT_DK01
 	default "Gale"
-
-config GBB_HWID
-	string
-	depends on CHROMEOS
-	default "Gale TEST 1"
 
 config DRAM_SIZE_MB
 	int

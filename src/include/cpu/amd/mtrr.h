@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef CPU_AMD_MTRR_H
 #define CPU_AMD_MTRR_H
 
@@ -38,11 +40,11 @@
 #define TOP_MEM_MASK			0x007fffff
 #define TOP_MEM_MASK_KB			(TOP_MEM_MASK >> 10)
 
-#if !defined(__PRE_RAM__) && !defined(__ASSEMBLER__)
+#if !defined(__ASSEMBLER__)
 
 #include <cpu/x86/msr.h>
+#include <stdint.h>
 
-void amd_setup_mtrrs(void);
 struct device;
 void add_uma_resource_below_tolm(struct device *nb, int idx);
 
@@ -66,10 +68,16 @@ static __always_inline void wrmsr_amd(unsigned int index, msr_t msr)
 		);
 }
 
-/* To distribute topmem MSRs to APs. */
-void setup_bsp_ramtop(void);
-uint64_t bsp_topmem(void);
-uint64_t bsp_topmem2(void);
+static inline uint64_t amd_topmem(void)
+{
+	return rdmsr(TOP_MEM).lo;
+}
+
+static inline uint64_t amd_topmem2(void)
+{
+	msr_t msr = rdmsr(TOP_MEM2);
+	return (uint64_t)msr.hi << 32 | msr.lo;
+}
 #endif
 
 #endif /* CPU_AMD_MTRR_H */

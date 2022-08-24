@@ -1,18 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
 /*
- * This file is part of the coreboot project.
- *
- * (C) Copyright 2001 Wolfgang Denk, DENX Software Engineering, wd@denx.de.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  * From U-Boot 2016.05
  */
 
@@ -23,7 +11,7 @@
 #define STARTOFTIME		1970
 #define SECDAY			86400L
 #define SECYR			(SECDAY * 365)
-#define LEAP_YEAR(year)		((year) % 4 == 0)
+#define LEAP_YEAR(year)		(((year) % 4 == 0 && (year) % 100 != 0) || (year) % 400 == 0)
 #define DAYS_IN_YEAR(a)		(LEAP_YEAR(a) ? 366 : 365)
 #define DAYS_IN_MONTH(a)	(month_days[(a) - 1])
 
@@ -34,9 +22,6 @@ static const char *const weekdays[] = {
 /* Zeller's rule */
 static int rtc_calc_weekday(struct rtc_time *tm)
 {
-	if (tm->year < 1971)
-		return -1;
-
 	/* In Zeller's rule, January and February are treated as if they
 	   are months 13 and 14 of the previous year (March is still month 3) */
 	const int zyear = ((tm->mon < 3) ? tm->year - 1 : tm->year);
@@ -135,4 +120,20 @@ void rtc_display(const struct rtc_time *tm)
 	       tm->year,  tm->mon,  tm->mday,
 	       (tm->wday < 0 || tm->wday > 6) ? "unknown " : weekdays[tm->wday],
 	       tm->hour,  tm->min,  tm->sec);
+}
+
+static int rtc_month_days(unsigned int month, unsigned int year)
+{
+	int month_days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+	return month_days[month] + (LEAP_YEAR(year) && month == 2);
+}
+
+int rtc_invalid(const struct rtc_time *tm)
+{
+	if (tm->sec > 59 || tm->min > 59 || tm->hour > 23 || tm->mon == 0 || tm->mon > 12 ||
+	    tm->year < 1970 || tm->mday > rtc_month_days(tm->mon - 1, tm->year))
+		return 1;
+	else
+		return 0;
 }

@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2003-2004 Eric Biederman
- * Copyright (C) 2005-2010 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <commonlib/bsd/compression.h>
 #include <console/console.h>
 #include <bootmem.h>
 #include <cbmem.h>
@@ -25,10 +11,7 @@
 #include <program_loading.h>
 #include <timestamp.h>
 #include <string.h>
-#include <commonlib/cbfs_serialized.h>
-#include <commonlib/compression.h>
 #include <lib.h>
-#include <fit_payload.h>
 #include <boardid.h>
 
 /* Pack the device_tree and place it at given position. */
@@ -51,6 +34,11 @@ static bool extract(struct region *region, struct fit_image_node *node)
 	const char *comp_name;
 	size_t true_size = 0;
 
+	if (node->size == 0) {
+		printk(BIOS_ERR, "The %s size is 0\n", node->name);
+		return true;
+	}
+
 	switch (node->compression) {
 	case CBFS_COMPRESS_NONE:
 		comp_name = "Relocating uncompressed";
@@ -62,7 +50,7 @@ static bool extract(struct region *region, struct fit_image_node *node)
 		comp_name = "Decompressing LZ4";
 		break;
 	default:
-		printk(BIOS_ERR, "ERROR: Unsupported compression\n");
+		printk(BIOS_ERR, "Unsupported compression\n");
 		return true;
 	}
 
@@ -74,21 +62,21 @@ static bool extract(struct region *region, struct fit_image_node *node)
 		true_size = node->size;
 		break;
 	case CBFS_COMPRESS_LZMA:
-		timestamp_add_now(TS_START_ULZMA);
+		timestamp_add_now(TS_ULZMA_START);
 		true_size = ulzman(node->data, node->size, dst, region->size);
-		timestamp_add_now(TS_END_ULZMA);
+		timestamp_add_now(TS_ULZMA_END);
 		break;
 	case CBFS_COMPRESS_LZ4:
-		timestamp_add_now(TS_START_ULZ4F);
+		timestamp_add_now(TS_ULZ4F_START);
 		true_size = ulz4fn(node->data, node->size, dst, region->size);
-		timestamp_add_now(TS_END_ULZ4F);
+		timestamp_add_now(TS_ULZ4F_END);
 		break;
 	default:
 		return true;
 	}
 
 	if (!true_size) {
-		printk(BIOS_ERR, "ERROR: %s decompression failed!\n",
+		printk(BIOS_ERR, "%s decompression failed!\n",
 		       comp_name);
 		return true;
 	}
@@ -178,31 +166,23 @@ static void add_cb_fdt_data(struct device_tree *tree)
 /*
  * Parse the uImage FIT, choose a configuration and extract images.
  */
-void fit_payload(struct prog *payload)
+void fit_payload(struct prog *payload, void *data)
 {
 	struct device_tree *dt = NULL;
 	struct region kernel = {0}, fdt = {0}, initrd = {0};
-	void *data;
-
-	data = rdev_mmap_full(prog_rdev(payload));
-
-	if (data == NULL)
-		return;
 
 	printk(BIOS_INFO, "FIT: Examine payload %s\n", payload->name);
 
 	struct fit_config_node *config = fit_load(data);
 
 	if (!config) {
-		printk(BIOS_ERR, "ERROR: Could not load FIT\n");
-		rdev_munmap(prog_rdev(payload), data);
+		printk(BIOS_ERR, "Could not load FIT\n");
 		return;
 	}
 
 	dt = unpack_fdt(config->fdt);
 	if (!dt) {
-		printk(BIOS_ERR, "ERROR: Failed to unflatten the FDT.\n");
-		rdev_munmap(prog_rdev(payload), data);
+		printk(BIOS_ERR, "Failed to unflatten the FDT.\n");
 		return;
 	}
 
@@ -210,7 +190,7 @@ void fit_payload(struct prog *payload)
 	list_for_each(chain, config->overlays, list_node) {
 		struct device_tree *overlay = unpack_fdt(chain->overlay);
 		if (!overlay || dt_apply_overlay(dt, overlay)) {
-			printk(BIOS_ERR, "ERROR: Failed to apply overlay %s!\n",
+			printk(BIOS_ERR, "Failed to apply overlay %s!\n",
 			       chain->overlay->name);
 		}
 	}
@@ -228,14 +208,13 @@ void fit_payload(struct prog *payload)
 
 	/* Collect infos for fit_payload_arch */
 	kernel.size = config->kernel->size;
-	fdt.size = dt ? dt_flat_size(dt) : 0;
+	fdt.size = dt_flat_size(dt);
 	initrd.size = config->ramdisk ? config->ramdisk->size : 0;
 
 	/* Invoke arch specific payload placement and fixups */
 	if (!fit_payload_arch(payload, config, &kernel, &fdt, &initrd)) {
-		printk(BIOS_ERR, "ERROR: Failed to find free memory region\n");
+		printk(BIOS_ERR, "Failed to find free memory region\n");
 		bootmem_dump_ranges();
-		rdev_munmap(prog_rdev(payload), data);
 		return;
 	}
 
@@ -248,22 +227,18 @@ void fit_payload(struct prog *payload)
 
 	if (config->ramdisk &&
 	    extract(&initrd, config->ramdisk)) {
-		printk(BIOS_ERR, "ERROR: Failed to extract initrd\n");
+		printk(BIOS_ERR, "Failed to extract initrd\n");
 		prog_set_entry(payload, NULL, NULL);
-		rdev_munmap(prog_rdev(payload), data);
 		return;
 	}
 
 	timestamp_add_now(TS_KERNEL_DECOMPRESSION);
 
 	if (extract(&kernel, config->kernel)) {
-		printk(BIOS_ERR, "ERROR: Failed to extract kernel\n");
+		printk(BIOS_ERR, "Failed to extract kernel\n");
 		prog_set_entry(payload, NULL, NULL);
-		rdev_munmap(prog_rdev(payload), data);
 		return;
 	}
 
-	timestamp_add_now(TS_START_KERNEL);
-
-	rdev_munmap(prog_rdev(payload), data);
+	timestamp_add_now(TS_KERNEL_START);
 }

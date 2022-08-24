@@ -11,17 +11,23 @@ payload or can be made to work as one.
 
 [SeaBIOS](https://www.seabios.org) is an open source implementation of
 the PCBIOS API that exists since the original IBM PC and was extended
-since. While originally written for emulators such as QEMU, it can be made
-to work as a coreboot payload and all the necessary code is in SeaBIOS'
-mainline code.
+since. While originally written for emulators such as QEMU, it can be built
+as a coreboot payload. It supports executing Option ROMs in a more complete
+fashion than coreboot. It also supports Multiboot.
 
-## Tianocore
+When chainloaded from GRUB2, the following menuentry could be used:
 
-[Tianocore](https://www.tianocore.org) is the open source reference
-implementation of the UEFI Specifications that modern firmware for PCs is
-based on. There were various projects in the past to make it suitable as a
-coreboot payload, but these days this function is available directly in the
-CorebootPayloadPkg part of its source tree.
+    menuentry "SeaBIOS" --unrestricted {
+        root=(cbfsdisk)
+        multiboot /img/seabios
+        module /vgaroms/seavgabios.bin
+    }
+
+## edk2
+
+[edk2](https://github.com/tianocore/tianocore.github.io/wiki/Getting-Started-with-EDK-II) is an open-source modern, feature-rich,
+cross-platform firmware development environment for the UEFI and UEFI
+Platform Initialization (PI) specifications. 
 
 ## GRUB2
 
@@ -40,3 +46,15 @@ availability of well-tested, battle-hardened drivers (as compared to
 firmware project drivers that often reinvent the wheel) and the ability to
 define boot policy with familiar tools, no matter if those are shell scripts
 or compiled userland programs written in C, Go or other programming languages.
+
+## Heads
+
+[Heads] is a distribution that bundles coreboot, Linux, busybox and custom
+tools to provide reproducible ROMs. [Heads] aims to provide a secure and
+flexible boot environment for laptops and servers.
+It supports features like measured boot, kexec, GPG, OTP, TLS, firmware
+updates, but only works on a limited amount of mainboards.
+For more details have a look at [heads-wiki].
+
+[Heads]: https://github.com/osresearch/heads
+[heads-wiki]: http://osresearch.net/

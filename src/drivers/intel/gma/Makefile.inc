@@ -1,17 +1,4 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2013 Google Inc.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 ramstage-$(CONFIG_INTEL_DDI) += intel_ddi.c
 ramstage-$(CONFIG_INTEL_EDID) += edid.c vbt.c
@@ -21,6 +8,7 @@ endif
 ramstage-$(CONFIG_INTEL_GMA_ACPI) += acpi.c
 ramstage-$(CONFIG_INTEL_GMA_ACPI) += opregion.c
 
+ifeq ($(CONFIG_INTEL_GMA_ADD_VBT),y)
 # add_vbt_to_cbfs, first argument is the filename in cbfs, the second one
 # is the filename in the coreboot tree.
 add_vbt_to_cbfs= \
@@ -28,10 +16,9 @@ add_vbt_to_cbfs= \
 	$(eval $1-file := $2) \
 	$(eval $1-type := raw) \
 	$(eval $1-compression := lzma)
-
-ifeq ($(CONFIG_INTEL_GMA_ADD_VBT),y)
-$(call add_vbt_to_cbfs, vbt.bin, $(call strip_quotes,$(CONFIG_INTEL_GMA_VBT_FILE)))
 endif
+
+$(call add_vbt_to_cbfs, vbt.bin, $(call strip_quotes,$(CONFIG_INTEL_GMA_VBT_FILE)))
 
 ifeq ($(CONFIG_GFX_GMA),y)
 
@@ -50,7 +37,7 @@ CONFIG_GFX_GMA_DEFAULT_MMIO := 0 # dummy, will be overwritten at runtime
 
 subdirs-y += ../../../../3rdparty/libgfxinit
 
-ramstage-y += gma.ads
+ramstage-y += gma.ads gma.adb
 
 ramstage-$(CONFIG_MAINBOARD_USE_LIBGFXINIT) += gma-gfx_init.ads
 ifeq ($(CONFIG_LINEAR_FRAMEBUFFER),y)

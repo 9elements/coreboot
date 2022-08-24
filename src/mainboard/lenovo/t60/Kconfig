@@ -1,4 +1,4 @@
-if BOARD_LENOVO_T60
+if BOARD_LENOVO_T60 || BOARD_LENOVO_Z61T || BOARD_LENOVO_R60
 
 config BOARD_SPECIFIC_OPTIONS
 	def_bool y
@@ -19,21 +19,35 @@ config BOARD_SPECIFIC_OPTIONS
 	select BOARD_ROMSIZE_KB_2048
 	select HAVE_ACPI_TABLES
 	select HAVE_ACPI_RESUME
-	select H8_DOCK_EARLY_INIT
 	select HAVE_CMOS_DEFAULT
 	select I945_LVDS
 	select INTEL_GMA_HAVE_VBT
 
 config MAINBOARD_DIR
-	string
-	default lenovo/t60
+	default "lenovo/t60"
+
+config VARIANT_DIR
+	default "t60" if BOARD_LENOVO_T60 || BOARD_LENOVO_R60
+	default "z61t" if BOARD_LENOVO_Z61T
+
+config OVERRIDE_DEVICETREE
+	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
 
 config MAINBOARD_PART_NUMBER
-	string
-	default "ThinkPad T60"
+	default "ThinkPad T60" if BOARD_LENOVO_T60
+	default "ThinkPad Z61t" if BOARD_LENOVO_Z61T
+	default "ThinkPad R60" if BOARD_LENOVO_R60
 
 config MAX_CPUS
 	int
 	default 2
 
-endif
+config PS2K_EISAID
+	default "PNP0303" if BOARD_LENOVO_T60
+	default "PNP0303" if BOARD_LENOVO_R60
+
+config PS2M_EISAID
+	default "IBM0057" if BOARD_LENOVO_T60
+	default "IBM0057" if BOARD_LENOVO_R60
+
+endif # BOARD_LENOVO_T60 || BOARD_LENOVO_Z61T || BOARD_LENOVO_R60

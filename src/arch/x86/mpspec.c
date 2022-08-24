@@ -1,31 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Sage Electronic Engineering, LLC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/path.h>
 #include <device/pci_ids.h>
+#include <arch/ioapic.h>
 #include <arch/smp/mpspec.h>
 #include <string.h>
-#include <arch/cpu.h>
+#include <cpu/cpu.h>
 #include <cpu/x86/lapic.h>
 #include <drivers/generic/ioapic/chip.h>
 
 /* Initialize the specified "mc" struct with initial values. */
-void mptable_init(struct mp_config_table *mc, u32 lapic_addr)
+void mptable_init(struct mp_config_table *mc)
 {
 	int i;
+	u32 lapic_addr = cpu_get_lapic_addr();
 
 	memset(mc, 0, sizeof(*mc));
 
@@ -232,6 +221,14 @@ void smp_write_ioapic(struct mp_config_table *mc,
 	smp_add_mpc_entry(mc, sizeof(*mpc));
 }
 
+u8 smp_write_ioapic_from_hw(struct mp_config_table *mc, void *apicaddr)
+{
+	u8 id = get_ioapic_id(apicaddr);
+	u8 ver = get_ioapic_version(apicaddr);
+	smp_write_ioapic(mc, id, ver, apicaddr);
+	return id;
+}
+
 /*
  * Type 3: I/O Interrupt Table Entries:
  * Entry Type, Int Type, Int Polarity, Int Level,
@@ -253,12 +250,6 @@ void smp_write_intsrc(struct mp_config_table *mc,
 	mpc->mpc_dstapic = dstapic;
 	mpc->mpc_dstirq = dstirq;
 	smp_add_mpc_entry(mc, sizeof(*mpc));
-#ifdef DEBUG_MPTABLE
-	printk(BIOS_DEBUG,
-		"add intsrc srcbus 0x%x srcbusirq 0x%x, dstapic 0x%x, dstirq 0x%x\n",
-				srcbus, srcbusirq, dstapic, dstirq);
-	hexdump(__func__, mpc, sizeof(*mpc));
-#endif
 }
 
 /*
@@ -552,7 +543,7 @@ unsigned long __weak write_smp_table(unsigned long addr)
 	v = smp_write_floating_table(addr, 0);
 	mc = (void *)(((char *)v) + SMP_FLOATING_TABLE_LEN);
 
-	mptable_init(mc, LOCAL_APIC_ADDR);
+	mptable_init(mc);
 
 	smp_write_processors(mc);
 

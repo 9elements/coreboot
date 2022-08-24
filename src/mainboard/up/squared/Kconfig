@@ -2,9 +2,6 @@ if BOARD_UP_SQUARED
 
 config BOARD_SPECIFIC_OPTIONS
 	def_bool y
-	select USE_BLOBS
-	select ADD_FSP_BINARIES
-	select FSP_USE_REPO
 	select HAVE_ACPI_TABLES
 	select HAVE_ACPI_RESUME
 	select INTEL_GMA_HAVE_VBT
@@ -13,6 +10,9 @@ config BOARD_SPECIFIC_OPTIONS
 	select BOARD_ROMSIZE_KB_16384
 	select ONBOARD_VGA_IS_PRIMARY
 	select MAINBOARD_HAS_LIBGFXINIT
+	select CRB_TPM
+	select HAVE_INTEL_PTT
+	select NO_UART_ON_SUPERIO
 
 config VBOOT
 	select VBOOT_NO_BOARD_SUPPORT
@@ -27,7 +27,6 @@ config GBB_HWID
 	default "UPSQUARED"
 
 config MAINBOARD_DIR
-	string
 	default "up/squared"
 
 config MAINBOARD_VENDOR
@@ -35,23 +34,13 @@ config MAINBOARD_VENDOR
 	default "Up"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "Squared"
 
 config FMDFILE
-	string
-	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/upsquared.fmd"	if !VBOOT
-	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-ro.fmd"	if !VBOOT_SLOTS_RW_A
-	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-roa.fmd"	if VBOOT_SLOTS_RW_A && !VBOOT_SLOTS_RW_AB
-	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-roab.fmd"	if VBOOT_SLOTS_RW_AB
-
-config SUBSYSTEM_VENDOR_ID
-	hex
-	default 0x8086
-
-config SUBSYSTEM_DEVICE_ID
-	hex
-	default 0x7270
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/upsquared.fmd"	if !VBOOT
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/vboot-ro.fmd"	if !VBOOT_SLOTS_RW_A
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/vboot-roa.fmd"	if VBOOT_SLOTS_RW_A && !VBOOT_SLOTS_RW_AB
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/vboot-roab.fmd"	if VBOOT_SLOTS_RW_AB
 
 config VGA_BIOS_ID
 	string
@@ -60,10 +49,6 @@ config VGA_BIOS_ID
 config PXE_ROM_ID
 	string
 	default "10ec,8168"
-
-config MAX_CPUS
-	int
-	default 2
 
 config LINUX_COMMAND_LINE
 	string

@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  *
@@ -32,6 +31,7 @@
 
 #include <arch/types.h>
 #include <ipchksum.h>
+#include <stdint.h>
 
 enum {
 	CB_TAG_UNUSED			= 0x0000,
@@ -57,7 +57,7 @@ enum {
 	CB_TAG_CBMEM_CONSOLE		= 0x0017,
 	CB_TAG_MRC_CACHE		= 0x0018,
 	CB_TAG_VBNV			= 0x0019,
-	CB_TAG_VBOOT_HANDOFF		= 0x0020,
+	CB_TAG_VBOOT_HANDOFF		= 0x0020,  /* deprecated */
 	CB_TAG_X86_ROM_MTRR		= 0x0021,
 	CB_TAG_DMA			= 0x0022,
 	CB_TAG_RAM_OOPS			= 0x0023,
@@ -78,6 +78,13 @@ enum {
 	CB_TAG_VBOOT_WORKBUF		= 0x0034,
 	CB_TAG_MMC_INFO			= 0x0035,
 	CB_TAG_TCPA_LOG			= 0x0036,
+	CB_TAG_FMAP			= 0x0037,
+	CB_TAG_SMMSTOREV2		= 0x0039,
+	CB_TAG_BOARD_CONFIG		= 0x0040,
+	CB_TAG_ACPI_CNVS		= 0x0041,
+	CB_TAG_TYPE_C_INFO		= 0x0042,
+	CB_TAG_ACPI_RSDP                = 0x0043,
+	CB_TAG_PCIE			= 0x0044,
 	CB_TAG_CMOS_OPTION_TABLE	= 0x00c8,
 	CB_TAG_OPTION			= 0x00c9,
 	CB_TAG_OPTION_ENUM		= 0x00ca,
@@ -85,10 +92,7 @@ enum {
 	CB_TAG_OPTION_CHECKSUM		= 0x00cc,
 };
 
-struct cbuint64 {
-	u32 lo;
-	u32 hi;
-};
+typedef __aligned(4) uint64_t cb_uint64_t;
 
 struct cb_header {
 	u8 signature[4];
@@ -105,8 +109,8 @@ struct cb_record {
 };
 
 struct cb_memory_range {
-	struct cbuint64 start;
-	struct cbuint64 size;
+	cb_uint64_t start;
+	cb_uint64_t size;
 	u32 type;
 };
 
@@ -136,6 +140,33 @@ struct cb_mainboard {
 	u8 vendor_idx;
 	u8 part_number_idx;
 	u8 strings[0];
+};
+
+enum type_c_orientation {
+	TYPEC_ORIENTATION_NONE,
+	TYPEC_ORIENTATION_NORMAL,
+	TYPEC_ORIENTATION_REVERSE,
+};
+
+struct type_c_port_info {
+	/*
+	 * usb2_port_number and usb3_port_number are expected to be
+	 * the port numbers as seen by the USB controller in the SoC.
+	 */
+	uint8_t usb2_port_number;
+	uint8_t usb3_port_number;
+
+	/*
+	 * Valid sbu_orientation and data_orientation values will be of
+	 * type enum type_c_orienation.
+	 */
+	uint8_t sbu_orientation;
+	uint8_t data_orientation;
+};
+
+struct type_c_info {
+	u32 port_count;
+	struct type_c_port_info port_info[0];
 };
 
 struct cb_string {
@@ -189,6 +220,14 @@ struct cb_forward {
 	u64 forward;
 };
 
+/* Panel orientation, matches drm_connector.h in the Linux kernel. */
+enum cb_fb_orientation {
+	CB_FB_ORIENTATION_NORMAL = 0,
+	CB_FB_ORIENTATION_BOTTOM_UP = 1,
+	CB_FB_ORIENTATION_LEFT_UP = 2,
+	CB_FB_ORIENTATION_RIGHT_UP = 3,
+};
+
 struct cb_framebuffer {
 	u32 tag;
 	u32 size;
@@ -206,6 +245,7 @@ struct cb_framebuffer {
 	u8 blue_mask_size;
 	u8 reserved_mask_pos;
 	u8 reserved_mask_size;
+	u8 orientation;
 };
 
 #define CB_GPIO_ACTIVE_LOW 0
@@ -226,17 +266,23 @@ struct cb_gpios {
 	struct cb_gpio gpios[0];
 };
 
+struct cb_pcie {
+	uint32_t tag;
+	uint32_t size;
+	cb_uint64_t ctrl_base;	/* Base address of PCIe controller */
+};
+
 struct lb_range {
 	uint32_t tag;
 	uint32_t size;
-	uint64_t range_start;
+	cb_uint64_t range_start;
 	uint32_t range_size;
 };
 
 struct cb_cbmem_tab {
 	uint32_t tag;
 	uint32_t size;
-	uint64_t cbmem_tab;
+	cb_uint64_t cbmem_tab;
 };
 
 struct cb_x86_rom_mtrr {
@@ -249,10 +295,11 @@ struct cb_x86_rom_mtrr {
 	uint32_t index;
 };
 
-struct cb_strapping_id {
-	uint32_t tag;
+/* Memory map windows to translate addresses between SPI flash space and host address space. */
+struct flash_mmap_window {
+	uint32_t flash_base;
+	uint32_t host_base;
 	uint32_t size;
-	uint32_t id_code;
 };
 
 struct cb_spi_flash {
@@ -261,16 +308,32 @@ struct cb_spi_flash {
 	uint32_t flash_size;
 	uint32_t sector_size;
 	uint32_t erase_cmd;
+	/*
+	 * Number of mmap windows used by the platform to decode addresses between SPI flash
+	 * space and host address space. This determines the number of entries in mmap_table.
+	 */
+	uint32_t mmap_count;
+	struct flash_mmap_window mmap_table[0];
 };
 
 struct cb_boot_media_params {
 	uint32_t tag;
 	uint32_t size;
 	/* offsets are relative to start of boot media */
-	uint64_t fmap_offset;
-	uint64_t cbfs_offset;
-	uint64_t cbfs_size;
-	uint64_t boot_media_size;
+	cb_uint64_t fmap_offset;
+	cb_uint64_t cbfs_offset;
+	cb_uint64_t cbfs_size;
+	cb_uint64_t boot_media_size;
+};
+
+
+struct cb_cbmem_entry {
+	uint32_t tag;
+	uint32_t size;
+
+	cb_uint64_t address;
+	uint32_t entry_size;
+	uint32_t id;
 };
 
 struct cb_tsc_info {
@@ -304,6 +367,16 @@ struct cb_mmc_info {
 	 * passes 1 on success
 	 */
 	int32_t early_cmd1_status;
+};
+
+struct cb_board_config {
+	uint32_t tag;
+	uint32_t size;
+
+	cb_uint64_t fw_config;
+	uint32_t board_id;
+	uint32_t ram_code;
+	uint32_t sku_id;
 };
 
 #define CB_MAX_SERIALNO_LENGTH	32
@@ -354,12 +427,17 @@ struct	cb_cmos_checksum {
 	u32 type;
 };
 
-/* Helpful inlines */
+/*
+ * Handoff the ACPI RSDP
+ */
+struct cb_acpi_rsdp {
+	uint32_t tag;
+	uint32_t size;
+	cb_uint64_t rsdp_pointer; /* Address of the ACPI RSDP */
+};
 
-static inline u64 cb_unpack64(struct cbuint64 val)
-{
-	return (((u64) val.hi) << 32) | val.lo;
-}
+
+/* Helpful inlines */
 
 static inline u16 cb_checksum(const void *ptr, unsigned len)
 {

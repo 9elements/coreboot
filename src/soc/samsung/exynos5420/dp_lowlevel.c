@@ -1,18 +1,4 @@
-/*
- * Copyright (C) 2012 Samsung Electronics
- *
- * Author: Donghwa Lee <dh09.lee@samsung.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/mmio.h>
 #include <console/console.h>
@@ -22,7 +8,6 @@
 #include <soc/i2c.h>
 #include <soc/power.h>
 #include <soc/sysreg.h>
-#include <stdlib.h>
 
 /* FIXME: I think the DP controller shouldn't be hardcoded here... */
 static struct exynos_dp * const dp_regs = (void *)EXYNOS5_DP1_BASE;
@@ -64,8 +49,6 @@ static void exynos_dp_enable_video_input(u32 enable)
 		reg |= VIDEO_EN_MASK;
 
 	lwrite32(reg, &dp_regs->video_ctl1);
-
-	return;
 }
 
 void exynos_dp_disable_video_bist(void)
@@ -86,10 +69,7 @@ void exynos_dp_enable_video_mute(unsigned int enable)
 		reg |= VIDEO_MUTE_MASK;
 
 	lwrite32(reg, &dp_regs->video_ctl1);
-
-	return;
 }
-
 
 static void exynos_dp_init_analog_param(void)
 {
@@ -190,8 +170,6 @@ void exynos_dp_reset(void)
 
 	exynos_dp_init_analog_param();
 	exynos_dp_init_interrupt();
-
-	return;
 }
 
 void exynos_dp_enable_sw_func(unsigned int enable)
@@ -205,8 +183,6 @@ void exynos_dp_enable_sw_func(unsigned int enable)
 		reg |= SW_FUNC_EN_N;
 
 	lwrite32(reg, &dp_regs->func_en1);
-
-	return;
 }
 
 unsigned int exynos_dp_set_analog_power_down(unsigned int block, u32 enable)
@@ -352,8 +328,6 @@ void exynos_dp_init_hpd(void)
 	reg = lread32(&dp_regs->sys_ctl3);
 	reg &= ~(F_HPD | HPD_CTRL);
 	lwrite32(reg, &dp_regs->sys_ctl3);
-
-	return;
 }
 
 static inline void exynos_dp_reset_aux(void)
@@ -364,8 +338,6 @@ static inline void exynos_dp_reset_aux(void)
 	reg = lread32(&dp_regs->func_en2);
 	reg |= AUX_FUNC_EN_N;
 	lwrite32(reg, &dp_regs->func_en2);
-
-	return;
 }
 
 void exynos_dp_init_aux(void)
@@ -391,8 +363,6 @@ void exynos_dp_init_aux(void)
 	reg = lread32(&dp_regs->func_en2);
 	reg &= ~AUX_FUNC_EN_N;
 	lwrite32(reg, &dp_regs->func_en2);
-
-	return;
 }
 
 void exynos_dp_config_interrupt(void)
@@ -414,8 +384,6 @@ void exynos_dp_config_interrupt(void)
 
 	reg = INT_STA_MASK;
 	lwrite32(reg, &dp_regs->int_sta_mask);
-
-	return;
 }
 
 unsigned int exynos_dp_get_plug_in_status(void)
@@ -926,7 +894,7 @@ void exynos_dp_set_lanex_pre_emphasis(unsigned char request_val,
 
 void exynos_dp_set_lane_pre_emphasis(unsigned int level, unsigned char lanecnt)
 {
-	unsigned char i;
+	unsigned int i;
 	u32 reg;
 	void *reg_list[DP_LANE_CNT_4] = {
 		&dp_regs->ln0_link_training_ctl,
@@ -1013,7 +981,6 @@ int exynos_dp_init_video(void)
 	lwrite32(reg, &dp_regs->sys_ctl1);
 	return 0;
 }
-
 
 void exynos_dp_config_video_slave_mode(struct edp_video_info *video_info)
 {

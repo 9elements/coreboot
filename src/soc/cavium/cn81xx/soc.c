@@ -1,22 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * This file is part of the coreboot project.
- *
- * Copyright 2018       Facebook, Inc.
- * Copyright 2003-2017  Cavium Inc.  <support@cavium.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  * Derived from Cavium's BSD-3 Clause OCTEONTX-SDK-6.2.0.
  */
 
-#include <bootmode.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <soc/addressmap.h>
@@ -336,7 +323,7 @@ void bootmem_platform_add_ranges(void)
 static void soc_read_resources(struct device *dev)
 {
 	// HACK: Don't advertise bootblock romstage CAR region, it's broken...
-	ram_resource(dev, 0, 2 * KiB, sdram_size_mb() * KiB - 2 * KiB);
+	ram_from_to(dev, 0, 2 * MiB, sdram_size_mb() * (uint64_t)MiB);
 }
 
 static void soc_init_atf(void)
@@ -347,14 +334,13 @@ static void soc_init_atf(void)
 
 	size_t size = 0;
 
-	void *ptr = cbfs_boot_map_with_leak("sff8104-linux.dtb",
-					    CBFS_TYPE_RAW, &size);
+	void *ptr = cbfs_map("sff8104-linux.dtb", &size);
 	if (ptr)
 		memcpy(_sff8104, ptr, size);
 	/* Point to devicetree in secure memory */
 	fdt_param.fdt_ptr = (uintptr_t)_sff8104;
 
-	register_bl31_param(&fdt_param.h);
+	cn81xx_register_bl31_param(&fdt_param.h);
 
 	static struct bl31_u64_param cbtable_param = {
 		.h = { .type = PARAM_COREBOOT_TABLE, },
@@ -362,7 +348,7 @@ static void soc_init_atf(void)
 	/* Point to coreboot tables */
 	cbtable_param.value = (uint64_t)cbmem_find(CBMEM_ID_CBTABLE);
 	if (cbtable_param.value)
-		register_bl31_param(&cbtable_param.h);
+		cn81xx_register_bl31_param(&cbtable_param.h);
 }
 
 static void soc_init(struct device *dev)
@@ -392,11 +378,9 @@ static void soc_final(struct device *dev)
 
 static struct device_operations soc_ops = {
 	.read_resources   = soc_read_resources,
-	.set_resources    = DEVICE_NOOP,
-	.enable_resources = DEVICE_NOOP,
+	.set_resources    = noop_set_resources,
 	.init             = soc_init,
 	.final            = soc_final,
-	.scan_bus         = NULL,
 };
 
 static void enable_soc_dev(struct device *dev)

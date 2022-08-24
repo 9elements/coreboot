@@ -1,37 +1,44 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 - 2017 Intel Corp.
- * Copyright (C) 2018 Online SAS
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <console/console.h>
 #include <cpu/cpu.h>
-#include <cpu/x86/cache.h>
+#include <cpu/x86/cr.h>
+#include <cpu/x86/lapic.h>
 #include <cpu/x86/mp.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
+#include <cpu/x86/smm.h>
+#include <cpu/intel/smm_reloc.h>
+#include <cpu/intel/em64t100_save_state.h>
 #include <cpu/intel/turbo.h>
+#include <cpu/intel/common/common.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <intelblocks/cpulib.h>
-#include <reg_script.h>
-
+#include <lib.h>
 #include <soc/msr.h>
 #include <soc/cpu.h>
 #include <soc/iomap.h>
 #include <soc/smm.h>
 #include <soc/soc_util.h>
+#include <types.h>
+
+bool cpu_soc_is_in_untrusted_mode(void)
+{
+	msr_t msr;
+
+	msr = rdmsr(MSR_POWER_MISC);
+	return !!(msr.lo & ENABLE_IA_UNTRUSTED);
+}
+
+void cpu_soc_bios_done(void)
+{
+	msr_t msr;
+
+	msr = rdmsr(MSR_POWER_MISC);
+	msr.lo |= ENABLE_IA_UNTRUSTED;
+	wrmsr(MSR_POWER_MISC, msr);
+}
 
 static struct smm_relocation_attrs relo_attrs;
 
@@ -57,6 +64,27 @@ static void dnv_configure_mca(void)
 	   of these banks are core vs package scope. For now every CPU clears
 	   every bank. */
 	mca_configure();
+
+	/* TODO install a fallback MC handler for each core in case OS does
+	   not provide one. Is it really needed? */
+
+	/* Enable the machine check exception */
+	write_cr4(read_cr4() | CR4_MCE);
+}
+
+static void configure_thermal_core(void)
+{
+	msr_t msr;
+
+	/* Disable Thermal interrupts */
+	msr.lo = 0;
+	msr.hi = 0;
+	wrmsr(IA32_THERM_INTERRUPT, msr);
+	wrmsr(IA32_PACKAGE_THERM_INTERRUPT, msr);
+
+	msr = rdmsr(IA32_MISC_ENABLE);
+	msr.lo |= THERMAL_MONITOR_ENABLE_BIT;	/* TM1/TM2/EMTTM enable */
+	wrmsr(IA32_MISC_ENABLE, msr);
 }
 
 static void denverton_core_init(struct device *cpu)
@@ -68,20 +96,25 @@ static void denverton_core_init(struct device *cpu)
 	/* Clear out pending MCEs */
 	dnv_configure_mca();
 
+	/* Configure Thermal Sensors */
+	configure_thermal_core();
+
 	/* Enable Fast Strings */
 	msr = rdmsr(IA32_MISC_ENABLE);
 	msr.lo |= FAST_STRINGS_ENABLE_BIT;
 	wrmsr(IA32_MISC_ENABLE, msr);
 
+	set_aesni_lock();
+
 	/* Enable Turbo */
 	enable_turbo();
 
-	/* Enable speed step. */
-	if (get_turbo_state() == TURBO_ENABLED) {
-		msr = rdmsr(IA32_MISC_ENABLE);
-		msr.lo |= SPEED_STEP_ENABLE_BIT;
-		wrmsr(IA32_MISC_ENABLE, msr);
-	}
+	/* Enable speed step. Always ON.*/
+	msr = rdmsr(IA32_MISC_ENABLE);
+	msr.lo |= SPEED_STEP_ENABLE_BIT;
+	wrmsr(IA32_MISC_ENABLE, msr);
+
+	enable_pm_timer_emulation();
 }
 
 static struct device_operations cpu_dev_ops = {
@@ -125,9 +158,9 @@ static void relocation_handler(int cpu, uintptr_t curr_smbase,
 static void get_smm_info(uintptr_t *perm_smbase, size_t *perm_smsize,
 			 size_t *smm_save_state_size)
 {
-	void *smm_base;
+	uintptr_t smm_base;
 	size_t smm_size;
-	void *handler_base;
+	uintptr_t handler_base;
 	size_t handler_size;
 
 	/* All range registers are aligned to 4KiB */
@@ -137,55 +170,45 @@ static void get_smm_info(uintptr_t *perm_smbase, size_t *perm_smsize,
 	smm_region(&smm_base, &smm_size);
 	smm_subregion(SMM_SUBREGION_HANDLER, &handler_base, &handler_size);
 
-	relo_attrs.smbase = (uint32_t)smm_base;
+	relo_attrs.smbase = smm_base;
 	relo_attrs.smrr_base = relo_attrs.smbase | MTRR_TYPE_WRBACK;
 	relo_attrs.smrr_mask = ~(smm_size - 1) & rmask;
 	relo_attrs.smrr_mask |= MTRR_PHYS_MASK_VALID;
 
-	*perm_smbase = (uintptr_t)handler_base;
+	*perm_smbase = handler_base;
 	*perm_smsize = handler_size;
 	*smm_save_state_size = sizeof(em64t100_smm_state_save_area_t);
 }
 
-static int detect_num_cpus_via_cpuid(void)
+static unsigned int detect_num_cpus_via_cpuid(void)
 {
-	register int ecx = 0;
-	struct cpuid_result leaf_b;
+	unsigned int ecx = 0;
 
 	while (1) {
-		leaf_b = cpuid_ext(0xb, ecx);
+		const struct cpuid_result leaf_b = cpuid_ext(0xb, ecx);
 
 		/* Processor doesn't have hyperthreading so just determine the
-		* number of cores by from level type (ecx[15:8] == * 2). */
-		if ((leaf_b.ecx & 0xff00) == 0x0200)
-			break;
+		   number of cores from level type (ecx[15:8] == 2). */
+		if ((leaf_b.ecx >> 8 & 0xff) == 2)
+			return leaf_b.ebx & 0xffff;
+
 		ecx++;
 	}
-	return (leaf_b.ebx & 0xffff);
 }
 
-static int detect_num_cpus_via_mch(void)
+/* Assumes that FSP has already programmed the cores disabled register */
+static unsigned int detect_num_cpus_via_mch(void)
 {
-	/* Assumes that FSP has already programmed the cores disabled register
-	 */
-	u32 core_exists_mask, active_cores_mask;
-	u32 core_disable_mask;
-	register int active_cores = 0, total_cores = 0;
-	register int counter = 0;
-
 	/* Get Masks for Total Existing SOC Cores and Core Disable Mask */
-	core_exists_mask = MMIO32(DEFAULT_MCHBAR + MCH_BAR_CORE_EXISTS_MASK);
-	core_disable_mask = MMIO32(DEFAULT_MCHBAR + MCH_BAR_CORE_DISABLE_MASK);
-	active_cores_mask = (~core_disable_mask) & core_exists_mask;
+	const u32 core_exists_mask = MMIO32(DEFAULT_MCHBAR + MCH_BAR_CORE_EXISTS_MASK);
+	const u32 core_disable_mask = MMIO32(DEFAULT_MCHBAR + MCH_BAR_CORE_DISABLE_MASK);
+	const u32 active_cores_mask = ~core_disable_mask & core_exists_mask;
 
 	/* Calculate Number of Active Cores */
-	for (; counter < CONFIG_MAX_CPUS;
-	     counter++, active_cores_mask >>= 1, core_exists_mask >>= 1) {
-		active_cores += (active_cores_mask & CORE_BIT_MSK);
-		total_cores += (core_exists_mask & CORE_BIT_MSK);
-	}
+	const unsigned int active_cores = popcnt(active_cores_mask);
+	const unsigned int total_cores = popcnt(core_exists_mask);
 
-	printk(BIOS_DEBUG, "Number of Active Cores: %d of %d total.\n",
+	printk(BIOS_DEBUG, "Number of Active Cores: %u of %u total.\n",
 	       active_cores, total_cores);
 
 	return active_cores;
@@ -194,11 +217,11 @@ static int detect_num_cpus_via_mch(void)
 /* Find CPU topology */
 int get_cpu_count(void)
 {
-	int num_cpus = detect_num_cpus_via_mch();
+	unsigned int num_cpus = detect_num_cpus_via_mch();
 
-	if (num_cpus <= 0 || num_cpus > CONFIG_MAX_CPUS) {
+	if (num_cpus == 0 || num_cpus > CONFIG_MAX_CPUS) {
 		num_cpus = detect_num_cpus_via_cpuid();
-		printk(BIOS_DEBUG, "Number of Cores (CPUID): %d.\n", num_cpus);
+		printk(BIOS_DEBUG, "Number of Cores (CPUID): %u.\n", num_cpus);
 	}
 	return num_cpus;
 }
@@ -252,7 +275,7 @@ static void post_mp_init(void)
 	 * Now that all APs have been relocated as well as the BSP let SMIs
 	 * start flowing.
 	 */
-	southcluster_smm_enable_smi();
+	global_smi_enable();
 }
 
 /*
@@ -266,14 +289,14 @@ static const struct mp_ops mp_ops = {
 	.pre_mp_init = pre_mp_init,
 	.get_cpu_count = get_cpu_count,
 	.get_smm_info = get_smm_info,
-	.pre_mp_smm_init = southcluster_smm_clear_state,
+	.pre_mp_smm_init = smm_southbridge_clear_state,
 	.relocation_handler = relocation_handler,
 	.post_mp_init = post_mp_init,
 };
 
-void denverton_init_cpus(struct device *dev)
+void mp_init_cpus(struct bus *cpu_bus)
 {
 	/* Clear for take-off */
-	if (mp_init_with_smm(dev->link_list, &mp_ops) < 0)
-		printk(BIOS_ERR, "MP initialization failure.\n");
+	/* TODO: Handle mp_init_with_smm failure? */
+	mp_init_with_smm(cpu_bus, &mp_ops);
 }

@@ -1,5 +1,4 @@
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (C) 2008 Advanced Micro Devices, Inc.
 ## Copyright (C) 2008 coresystems GmbH
@@ -39,7 +38,8 @@ libc-$(CONFIG_LP_LIBC) += hexdump.c
 libc-$(CONFIG_LP_LIBC) += die.c
 libc-$(CONFIG_LP_LIBC) += coreboot.c
 libc-$(CONFIG_LP_LIBC) += fmap.c
+libc-$(CONFIG_LP_LIBC) += fpmath.c
 
-ifeq ($(CONFIG_LP_ARCH_MIPS),y)
-libc-$(CONFIG_LP_LIBC) += 64bit_div.c
+ifeq ($(CONFIG_LP_LIBC),y)
+libc-srcs += $(coreboottop)/src/commonlib/bsd/elog.c
 endif

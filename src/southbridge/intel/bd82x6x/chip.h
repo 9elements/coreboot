@@ -1,22 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H
 #define SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H
 
-#include <stdint.h>
+#include <southbridge/intel/common/spi.h>
+#include <types.h>
 
 struct southbridge_intel_bd82x6x_config {
 	/**
@@ -70,20 +58,11 @@ struct southbridge_intel_bd82x6x_config {
 	uint32_t gen4_dec;
 
 	/* Enable linear PCIe Root Port function numbers starting at zero */
-	uint8_t pcie_port_coalesce;
+	bool pcie_port_coalesce;
 
 	/* Override PCIe ASPM */
-	uint8_t pcie_aspm_f0;
-	uint8_t pcie_aspm_f1;
-	uint8_t pcie_aspm_f2;
-	uint8_t pcie_aspm_f3;
-	uint8_t pcie_aspm_f4;
-	uint8_t pcie_aspm_f5;
-	uint8_t pcie_aspm_f6;
-	uint8_t pcie_aspm_f7;
+	uint8_t pcie_aspm[8];
 
-	int p_cnt_throttling_supported;
-	int c2_latency;
 	int docking_supported;
 
 	uint8_t pcie_hotplug_map[8];
@@ -97,14 +76,7 @@ struct southbridge_intel_bd82x6x_config {
 
 	uint32_t spi_uvscc;
 	uint32_t spi_lvscc;
-	struct {
-		uint8_t opprefixes[2];
-		struct {
-			uint8_t needs_address;
-			uint8_t is_write;
-			uint8_t op;
-		} ops[8];
-	} spi;
+	struct intel_swseq_spi_config spi;
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H */

@@ -1,19 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2019 HardenedLinux
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <console/console.h>
 #include <soc/otp.h>
@@ -59,7 +47,6 @@ static void do_fixup_memory(struct device_tree_node *node)
 	dt_add_reg_prop(node, addrs, sizes, 1, 2, 2);
 }
 
-
 static void fixup_memory(struct device_tree_node *parent)
 {
 	struct device_tree_property *prop;
@@ -85,7 +72,7 @@ static void fixup_fdt(void *unused)
 	struct device_tree *tree;
 
 	/* load flat dt from cbfs */
-	fdt_rom = cbfs_boot_map_with_leak("fallback/DTB", CBFS_TYPE_RAW, NULL);
+	fdt_rom = cbfs_map("fallback/DTB", NULL);
 
 	if (fdt_rom == NULL) {
 		printk(BIOS_ERR, "Unable to load fallback/DTB from CBFS\n");

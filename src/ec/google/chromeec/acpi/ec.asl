@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -19,11 +6,19 @@
  * re-evaluate their _PPC and _CST tables.
  */
 
+// DTT Power Participant Device Notification
+#define POWER_STATE_CHANGE_NOTIFICATION 0x81
+
 // Mainboard specific throttle handler
 #ifdef DPTF_ENABLE_CHARGER
 External (\_SB.DPTF.TCHG, DeviceObj)
 #endif
+/* Enable DPTC interface with AMD ALIB */
+#ifdef EC_ENABLE_AMD_DPTC_SUPPORT
+External(\_SB.DPTC, MethodObj)
+#endif
 
+External (\_SB.DPTF.TPWR, DeviceObj)
 
 Device (EC0)
 {
@@ -41,7 +36,6 @@ Device (EC0)
 	OperationRegion (ERAM, EmbeddedControl, 0x00, EC_ACPI_MEM_MAPPED_BEGIN)
 	Field (ERAM, ByteAcc, Lock, Preserve)
 	{
-		Offset (0x00),
 		RAMV, 8,	// EC RAM Version
 		TSTB, 8,	// Test Byte
 		TSTC, 8,	// Complement of Test Byte
@@ -92,7 +86,9 @@ Device (EC0)
 		Offset (0x12),
 		BTID, 8,	// Battery index that host wants to read
 		USPP, 8,	// USB Port Power
-}
+		RFWU, 8,	// Retimer Firmware Update
+		PBOK, 8,	// Power source change count from dptf
+	}
 
 #if CONFIG(EC_GOOGLE_CHROMEEC_ACPI_MEMMAP)
 	OperationRegion (EMEM, EmbeddedControl,
@@ -160,9 +156,25 @@ Device (EC0)
 	{
 		// Initialize AC power state
 		Store (ACEX, \PWRS)
+		/*
+		 * Inform platform code about the current AC power state.
+		 * This allows the platform to take any action based on the initialized state.
+		 * PWRS isn't valid before this point.
+		 */
+		\PNOT ()
 
 		// Initialize LID switch state
 		Store (LIDS, \LIDS)
+
+#ifdef EC_ENABLE_AMD_DPTC_SUPPORT
+		/*
+		 * Per the device mode (clamshell or tablet) to initialize
+		 * the thermal setting on OS startup.
+		 */
+		If (CondRefOf (\_SB.DPTC)) {
+			\_SB.DPTC()
+		}
+#endif
 	}
 
 	/* Read requested temperature and check against EC error values */
@@ -171,30 +183,30 @@ Device (EC0)
 		Store (\_SB.PCI0.LPCB.EC0.TINS (Arg0), Local0)
 
 		/* Check for sensor not calibrated */
-		If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNCA)) {
+		If (Local0 == \_SB.PCI0.LPCB.EC0.TNCA) {
 			Return (Zero)
 		}
 
 		/* Check for sensor not present */
-		If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNPR)) {
+		If (Local0 == \_SB.PCI0.LPCB.EC0.TNPR) {
 			Return (Zero)
 		}
 
 		/* Check for sensor not powered */
-		If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNOP)) {
+		If (Local0 == \_SB.PCI0.LPCB.EC0.TNOP) {
 			Return (Zero)
 		}
 
 		/* Check for sensor bad reading */
-		If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TBAD)) {
+		If (Local0 == \_SB.PCI0.LPCB.EC0.TBAD) {
 			Return (Zero)
 		}
 
 		/* Adjust by offset to get Kelvin */
-		Add (\_SB.PCI0.LPCB.EC0.TOFS, Local0, Local0)
+		Local0 += \_SB.PCI0.LPCB.EC0.TOFS
 
 		/* Convert to 1/10 Kelvin */
-		Multiply (Local0, 10, Local0)
+		Local0 *= 10
 
 		Return (Local0)
 	}
@@ -202,7 +214,7 @@ Device (EC0)
 	// Lid Closed Event
 	Method (_Q01, 0, NotSerialized)
 	{
-		Store ("EC: LID CLOSE", Debug)
+		Printf ("EC: LID CLOSE")
 		Store (LIDS, \LIDS)
 #ifdef EC_ENABLE_LID_SWITCH
 		Notify (LID0, 0x80)
@@ -212,7 +224,7 @@ Device (EC0)
 	// Lid Open Event
 	Method (_Q02, 0, NotSerialized)
 	{
-		Store ("EC: LID OPEN", Debug)
+		Printf ("EC: LID OPEN")
 		Store (LIDS, \LIDS)
 		Notify (CREC, 0x2)
 #ifdef EC_ENABLE_LID_SWITCH
@@ -223,13 +235,13 @@ Device (EC0)
 	// Power Button
 	Method (_Q03, 0, NotSerialized)
 	{
-		Store ("EC: POWER BUTTON", Debug)
+		Printf ("EC: POWER BUTTON")
 	}
 
 	// AC Connected
 	Method (_Q04, 0, NotSerialized)
 	{
-		Store ("EC: AC CONNECTED", Debug)
+		Printf ("EC: AC CONNECTED")
 		Store (ACEX, \PWRS)
 		Notify (AC, 0x80)
 #ifdef DPTF_ENABLE_CHARGER
@@ -243,7 +255,7 @@ Device (EC0)
 	// AC Disconnected
 	Method (_Q05, 0, NotSerialized)
 	{
-		Store ("EC: AC DISCONNECTED", Debug)
+		Printf ("EC: AC DISCONNECTED")
 		Store (ACEX, \PWRS)
 		Notify (AC, 0x80)
 #ifdef DPTF_ENABLE_CHARGER
@@ -257,21 +269,21 @@ Device (EC0)
 	// Battery Low Event
 	Method (_Q06, 0, NotSerialized)
 	{
-		Store ("EC: BATTERY LOW", Debug)
+		Printf ("EC: BATTERY LOW")
 		Notify (BAT0, 0x80)
 	}
 
 	// Battery Critical Event
 	Method (_Q07, 0, NotSerialized)
 	{
-		Store ("EC: BATTERY CRITICAL", Debug)
+		Printf ("EC: BATTERY CRITICAL")
 		Notify (BAT0, 0x80)
 	}
 
 	// Battery Info Event
 	Method (_Q08, 0, NotSerialized)
 	{
-		Store ("EC: BATTERY INFO", Debug)
+		Printf ("EC: BATTERY INFO")
 		Notify (BAT0, 0x81)
 #ifdef EC_ENABLE_SECOND_BATTERY_DEVICE
 		If (CondRefOf (BAT1)) {
@@ -283,41 +295,35 @@ Device (EC0)
 	// Thermal Overload Event
 	Method (_Q0A, 0, NotSerialized)
 	{
-		Store ("EC: THERMAL OVERLOAD", Debug)
+		Printf ("EC: THERMAL OVERLOAD")
 		Notify (\_TZ, 0x80)
 	}
 
 	// Thermal Event
 	Method (_Q0B, 0, NotSerialized)
 	{
-		Store ("EC: THERMAL", Debug)
+		Printf ("EC: THERMAL")
 		Notify (\_TZ, 0x80)
-	}
-
-	// USB Charger
-	Method (_Q0C, 0, NotSerialized)
-	{
-		Store ("EC: USB CHARGER", Debug)
 	}
 
 	// Key Pressed
 	Method (_Q0D, 0, NotSerialized)
 	{
-		Store ("EC: KEY PRESSED", Debug)
+		Printf ("EC: KEY PRESSED")
 		Notify (CREC, 0x2)
 	}
 
 	// Thermal Shutdown Imminent
 	Method (_Q10, 0, NotSerialized)
 	{
-		Store ("EC: THERMAL SHUTDOWN", Debug)
+		Printf ("EC: THERMAL SHUTDOWN")
 		Notify (\_TZ, 0x80)
 	}
 
 	// Battery Shutdown Imminent
 	Method (_Q11, 0, NotSerialized)
 	{
-		Store ("EC: BATTERY SHUTDOWN", Debug)
+		Printf ("EC: BATTERY SHUTDOWN")
 		Notify (BAT0, 0x80)
 	}
 
@@ -325,7 +331,7 @@ Device (EC0)
 	Method (_Q12, 0, NotSerialized)
 	{
 #ifdef EC_ENABLE_THROTTLING_HANDLER
-		Store ("EC: THROTTLE START", Debug)
+		Printf ("EC: THROTTLE START")
 		\_TZ.THRT (1)
 #endif
 	}
@@ -334,7 +340,7 @@ Device (EC0)
 	Method (_Q13, 0, NotSerialized)
 	{
 #ifdef EC_ENABLE_THROTTLING_HANDLER
-		Store ("EC: THROTTLE STOP", Debug)
+		Printf ("EC: THROTTLE STOP")
 		\_TZ.THRT (0)
 #endif
 	}
@@ -343,15 +349,18 @@ Device (EC0)
 	// PD event
 	Method (_Q16, 0, NotSerialized)
 	{
-		Store ("EC: GOT PD EVENT", Debug)
-		Notify (ECPD, 0x80)
+		Printf ("EC: GOT PD EVENT")
+		Notify (\_SB.PCI0.LPCB.EC0.CREC.ECPD, 0x80)
+		If (CondRefOf (\_SB.DPTF.TPWR)) {
+			Notify (\_SB.DPTF.TPWR, POWER_STATE_CHANGE_NOTIFICATION)
+		}
 	}
 #endif
 
 	// Battery Status
 	Method (_Q17, 0, NotSerialized)
 	{
-		Store ("EC: BATTERY STATUS", Debug)
+		Printf ("EC: BATTERY STATUS")
 		Notify (BAT0, 0x80)
 #ifdef EC_ENABLE_SECOND_BATTERY_DEVICE
 		If (CondRefOf (BAT1)) {
@@ -363,20 +372,34 @@ Device (EC0)
 	// MKBP interrupt.
 	Method (_Q1B, 0, NotSerialized)
 	{
-		Store ("EC: MKBP", Debug)
+		Printf ("EC: MKBP")
 		Notify (CREC, 0x80)
 	}
+
+#ifdef EC_ENABLE_PD_MCU_DEVICE
+	// USB MUX Interrupt
+	Method (_Q1C, 0, NotSerialized)
+	{
+		Printf ("EC: USB MUX")
+		Notify (\_SB.PCI0.LPCB.EC0.CREC.ECPD, 0x80)
+	}
+#endif
 
 	// TABLET mode switch Event
 	Method (_Q1D, 0, NotSerialized)
 	{
-		Store ("EC: TABLET mode switch Event", Debug)
+		Printf ("EC: TABLET mode switch Event")
 		Notify (CREC, 0x2)
 #ifdef EC_ENABLE_MULTIPLE_DPTF_PROFILES
 		\_SB.DPTF.TPET()
 #endif
 #ifdef EC_ENABLE_TBMC_DEVICE
 		Notify (TBMC, 0x80)
+#endif
+#ifdef EC_ENABLE_AMD_DPTC_SUPPORT
+		If (CondRefOf (\_SB.DPTC)) {
+			\_SB.DPTC()
+		}
 #endif
 	}
 
@@ -402,10 +425,10 @@ Device (EC0)
 		Store (ToInteger (Arg0), ^PATI)
 
 		/* Temperature is passed in 1/10 Kelvin */
-		Divide (ToInteger (Arg1), 10, , Local1)
+		Local1 = ToInteger (Arg1) / 10
 
 		/* Adjust by EC temperature offset */
-		Subtract (Local1, ^TOFS, ^PATT)
+		^PATT = Local1 - ^TOFS
 
 		/* Set commit value with SELECT=0 and ENABLE=1 */
 		Store (0x02, ^PATC)
@@ -429,10 +452,10 @@ Device (EC0)
 		Store (ToInteger (Arg0), ^PATI)
 
 		/* Temperature is passed in 1/10 Kelvin */
-		Divide (ToInteger (Arg1), 10, , Local1)
+		Local1 = ToInteger (Arg1) / 10
 
 		/* Adjust by EC temperature offset */
-		Subtract (Local1, ^TOFS, ^PATT)
+		^PATT = Local1 - ^TOFS
 
 		/* Set commit value with SELECT=1 and ENABLE=1 */
 		Store (0x03, ^PATC)
@@ -468,12 +491,12 @@ Device (EC0)
 	 */
 	Method (_Q09, 0, NotSerialized)
 	{
-		If (LNot(Acquire (^PATM, 1000))) {
+		If (!Acquire (^PATM, 1000)) {
 			/* Read sensor ID for event */
 			Store (^PATI, Local0)
 
 			/* When sensor ID returns 0xFF then no more events */
-			While (LNotEqual (Local0, EC_TEMP_SENSOR_NOT_PRESENT))
+			While (Local0 != EC_TEMP_SENSOR_NOT_PRESENT)
 			{
 #ifdef HAVE_THERM_EVENT_HANDLER
 				\_SB.DPTF.TEVT (Local0)
@@ -510,6 +533,7 @@ Device (EC0)
 		Return (^TBMD)
 	}
 
+#ifdef EC_ENABLE_MULTIPLE_DPTF_PROFILES
 	/* Read current Device DPTF Profile Number */
 	Method (RCDP, 0, NotSerialized)
 	{
@@ -517,14 +541,14 @@ Device (EC0)
 		 * DDPN = 0 is reserved for backwards compatibility.
 		 * If DDPN == 0 use TBMD to load appropriate DPTF table.
 		 */
-		If (LEqual (^DDPN, 0)) {
+		If (^DDPN == 0) {
 			Return (^TBMD)
 		} Else {
-			Subtract (^DDPN, 1, Local0)
+			Local0 = ^DDPN - 1
 			Return (Local0)
 		}
 	}
-
+#endif
 #if CONFIG(EC_GOOGLE_CHROMEEC_ACPI_USB_PORT_POWER)
 	/*
 	 * Enable USB Port Power
@@ -555,10 +579,6 @@ Device (EC0)
 
 #ifdef EC_ENABLE_KEYBOARD_BACKLIGHT
 	#include "keyboard_backlight.asl"
-#endif
-
-#ifdef EC_ENABLE_PD_MCU_DEVICE
-	#include "pd.asl"
 #endif
 
 #ifdef EC_ENABLE_TBMC_DEVICE

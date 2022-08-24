@@ -1,19 +1,5 @@
-/*
- * Firmware Interface Table support.
- *
- * Copyright (C) 2012 Google Inc.
- * Copyright (C) 2019 9elements Agency GmbH
- * Copyright (C) 2019 Facebook Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* Firmware Interface Table support */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -172,7 +158,7 @@ static inline size_t fit_free_space(struct fit_table *fit,
  * This one is critical, as mentioned in Chapter 1.2.1 "FIT Ordering Rules"
  * "Firmware Interface Table BIOS Specification".
  *
- * We need to use a stable sorting algortihm, as the order of
+ * We need to use a stable sorting algorithm, as the order of
  * FIT_TYPE_BIOS_STARTUP matter for measurements.
  */
 static void sort_fit_table(struct fit_table *fit)
@@ -448,6 +434,43 @@ static void update_fit_txt_policy_entry(struct fit_table *fit,
 	fit_entry_add_size(&fit->header, sizeof(struct fit_entry));
 }
 
+/*
+ * There can be zero or one FIT_TYPE_BOOT_POLICY entries
+ *
+ * The caller has to provide valid arguments as those aren't verified.
+ */
+static void update_fit_boot_policy_entry(struct fit_table *fit,
+					struct fit_entry *entry,
+					uint64_t boot_policy_addr,
+					uint32_t boot_policy_size)
+{
+	entry->address = boot_policy_addr;
+	entry->type_checksum_valid = FIT_TYPE_BOOT_POLICY;
+	entry->size_reserved = boot_policy_size;
+	entry->version = FIT_TXT_VERSION;
+	entry->checksum = 0;
+	fit_entry_add_size(&fit->header, sizeof(struct fit_entry));
+}
+
+/*
+ * There can be zero or one FIT_TYPE_KEY_MANIFEST entries
+ *
+ * The caller has to provide valid arguments as those aren't verified.
+ */
+static void update_fit_key_manifest_entry(struct fit_table *fit,
+					struct fit_entry *entry,
+					uint64_t key_manifest_addr,
+					uint32_t key_manifest_size)
+{
+	entry->address = key_manifest_addr;
+
+	entry->type_checksum_valid = FIT_TYPE_KEY_MANIFEST;
+	entry->size_reserved = key_manifest_size;
+	entry->version = FIT_TXT_VERSION;
+	entry->checksum = 0;
+	fit_entry_add_size(&fit->header, sizeof(struct fit_entry));
+}
+
 /* Special case for ucode CBFS file, as it might contain more than one ucode */
 int fit_add_microcode_file(struct fit_table *fit,
 			   struct cbfs_image *image,
@@ -496,6 +519,40 @@ int fit_add_microcode_file(struct fit_table *fit,
 	return 0;
 }
 
+static uint32_t *get_fit_ptr(struct buffer *bootblock, fit_offset_converter_t offset_fn,
+		      uint32_t topswap_size)
+{
+	return rom_buffer_pointer(bootblock,
+				  ptr_to_offset(offset_fn, bootblock,
+						FIT_POINTER_LOCATION - topswap_size));
+}
+
+/* Set the FIT pointer to a FIT table. */
+int set_fit_pointer(struct buffer *bootblock,
+		    const uint32_t fit_address,
+		    fit_offset_converter_t offset_fn,
+		    uint32_t topswap_size)
+{
+	struct fit_table *fit;
+	uint32_t *fit_pointer = get_fit_ptr(bootblock, offset_fn, topswap_size);
+
+	fit = rom_buffer_pointer(bootblock, ptr_to_offset(offset_fn, bootblock, fit_address));
+
+	if (fit_address < FIT_TABLE_LOWEST_ADDRESS) {
+		ERROR("FIT must be reside in the top 16MiB.\n");
+		return 1;
+	}
+
+	if (!fit_table_verified(fit)) {
+		ERROR("FIT not found at address.\n");
+		return 1;
+	}
+
+	fit_pointer[0] = fit_address;
+	fit_pointer[1] = 0;
+	return 0;
+}
+
 /*
  * Return a pointer to the active FIT.
  */
@@ -504,11 +561,7 @@ struct fit_table *fit_get_table(struct buffer *bootblock,
 				uint32_t topswap_size)
 {
 	struct fit_table *fit;
-	uint32_t *fit_pointer;
-
-	fit_pointer = rom_buffer_pointer(bootblock,
-			ptr_to_offset(offset_fn, bootblock,
-			FIT_POINTER_LOCATION));
+	uint32_t *fit_pointer = get_fit_ptr(bootblock, offset_fn, topswap_size);
 
 	/* Ensure pointer is below 4GiB and within 16MiB of 4GiB */
 	if (fit_pointer[1] != 0 || fit_pointer[0] < FIT_TABLE_LOWEST_ADDRESS) {
@@ -522,18 +575,6 @@ struct fit_table *fit_get_table(struct buffer *bootblock,
 		ERROR("FIT not found.\n");
 		return NULL;
 	}
-
-	if (topswap_size) {
-		struct fit_table *fit2 = (struct fit_table *)((uintptr_t)fit -
-							      topswap_size);
-		if (!fit_table_verified(fit2)) {
-			ERROR("second FIT is invalid\n");
-			return NULL;
-		}
-		fit = fit2;
-	}
-
-	DEBUG("Operating on table (0x%x)\n", *fit_pointer - topswap_size);
 
 	return fit;
 }
@@ -640,10 +681,10 @@ int fit_is_supported_type(const enum fit_type type)
 	case FIT_TYPE_BIOS_STARTUP:
 	case FIT_TYPE_BIOS_POLICY:
 	case FIT_TYPE_TXT_POLICY:
-		return 1;
-	case FIT_TYPE_TPM_POLICY:
 	case FIT_TYPE_KEY_MANIFEST:
 	case FIT_TYPE_BOOT_POLICY:
+		return 1;
+	case FIT_TYPE_TPM_POLICY:
 	default:
 		return 0;
 	}
@@ -697,6 +738,12 @@ int fit_add_entry(struct fit_table *fit,
 		break;
 	case FIT_TYPE_TXT_POLICY:
 		update_fit_txt_policy_entry(fit, entry, offset);
+		break;
+	case FIT_TYPE_KEY_MANIFEST:
+		update_fit_key_manifest_entry(fit, entry, offset, len);
+		break;
+	case FIT_TYPE_BOOT_POLICY:
+		update_fit_boot_policy_entry(fit, entry, offset, len);
 		break;
 	default:
 		return 1;

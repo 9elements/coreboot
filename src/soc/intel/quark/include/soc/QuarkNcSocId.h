@@ -1,22 +1,13 @@
-/** @file
-QuarkNcSocId Register Definitions
-
-Copyright (c) 2013-2017 Intel Corporation.
-
-This program and the accompanying materials are licensed and made available
-under the terms and conditions of the BSD License.  The full text of the license
-may be found at http://opensource.org/licenses/bsd-license.php
-
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-Definitions beginning with "R_" are registers
-Definitions beginning with "B_" are bits within registers
-Definitions beginning with "V_" are meaningful values of bits within registers
-Definitions beginning with "S_" are register sizes
-Definitions beginning with "N_" are the bit position
-
-**/
+/* SPDX-License-Identifier: BSD-2-Clause */
+/*
+ * QuarkNcSocId Register Definitions
+ * Definitions beginning with "R_" are registers
+ * Definitions beginning with "B_" are bits within registers
+ * Definitions beginning with "V_" are meaningful values of bits within registers
+ * Definitions beginning with "S_" are register sizes
+ * Definitions beginning with "N_" are the bit position
+ *
+ */
 
 #ifndef _QUARK_NC_SOC_ID_H_
 #define _QUARK_NC_SOC_ID_H_
@@ -64,7 +55,7 @@ Definitions beginning with "N_" are the bit position
 //
 
 //
-// DEVICE 0 (Memroy Controller Hub)
+// DEVICE 0 (Memory Controller Hub)
 //
 #define MC_BUS                  PCI_BUS_NUMBER_QNC
 #define MC_DEV                  0x00
@@ -74,7 +65,6 @@ Definitions beginning with "N_" are the bit position
 #define   QUARK_MC_DEVICE_ID      0x0958
 #define   QUARK2_MC_DEVICE_ID     0x12C0
 #define   QNC_MC_REV_ID_A0      0x00
-
 
 //
 // MCR - B0:D0:F0:RD0h (WO)- Message control register (Datasheet 12.5)
@@ -127,7 +117,6 @@ Definitions beginning with "N_" are the bit position
 //
 #define QUARK_OPCODE_IO_READ           0x02 // Message bus "IO read" opcode
 #define QUARK_OPCODE_IO_WRITE          0x03 // Message bus "IO write" opcode
-
 
 #define QUARK_DRAM_BASE_ADDR_READY     0x78 // Message bus "RMU Main binary
 					    // shadow" opcode
@@ -510,7 +499,6 @@ Definitions beginning with "N_" are the bit position
 #define   B_QNC_PM1BLK_PM1S_TO            (BIT0)
 #define    N_QNC_PM1BLK_PM1S_RTC           10
 
-
 #define R_QNC_PM1BLK_PM1E               0x02
 #define  S_QNC_PM1BLK_PM1E               2
 #define   B_QNC_PM1BLK_PM1E_PWAKED        (BIT14)
@@ -741,7 +729,7 @@ Definitions beginning with "N_" are the bit position
 #define   V_QNC_PCIE_SLCAP_PSN_OFFSET         19    //Slot number offset
 #define R_QNC_PCIE_SLCTL                    0x58    //~ 59h
 #define   B_QNC_PCIE_SLCTL_HPE                (BIT5)  // Hot plug intr enable
-#define   B_QNC_PCIE_SLCTL_PDE                (BIT3)  // Presense detect enable
+#define   B_QNC_PCIE_SLCTL_PDE                (BIT3)  // Presence detect enable
 #define   B_QNC_PCIE_SLCTL_ABE                (BIT0)  // Attn Btn Pressed Enable
 #define R_QNC_PCIE_SLSTS                    0x5A    //~ 5Bh
 #define   B_QNC_PCIE_SLSTS_PDS                (BIT6)  // Present Detect State
@@ -819,7 +807,7 @@ Definitions beginning with "N_" are the bit position
 #define   B_QNC_RCRB_SPIOPTYPE_NOADD_READ             0
 #define   B_QNC_RCRB_SPIOPTYPE_NOADD_WRITE            (BIT0)
 #define   B_QNC_RCRB_SPIOPTYPE_ADD_READ               (BIT1)
-#define   B_QNC_RCRB_SPIOPTYPE_ADD_WRITE              (BIT0 + BIT1)
+#define   B_QNC_RCRB_SPIOPTYPE_ADD_WRITE              (BIT0 | BIT1)
 // Opcode Menu Configuration //R_OPMENU
 #define R_QNC_RCRB_SPIOPMENU                        (R_QNC_RCRB_SPIBASE + 0x58)
 

@@ -1,24 +1,30 @@
-/*
- * (C) Copyright 2001
- * Gerald Van Baren, Custom IDEAS, vanbaren@cideas.com.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _SPI_GENERIC_H_
 #define _SPI_GENERIC_H_
 
+/* Common parameters -- kind of high, but they should only occur when there
+ * is a problem (and well your system already is broken), so err on the side
+ * of caution in case we're dealing with slower SPI buses and/or processors.
+ */
+#define SPI_FLASH_PROG_TIMEOUT_MS		200
+#define SPI_FLASH_PAGE_ERASE_TIMEOUT_MS		500
+
 #include <commonlib/region.h>
 #include <stdint.h>
 #include <stddef.h>
+
+/* SPI vendor IDs */
+#define VENDOR_ID_ADESTO			0x1f
+#define VENDOR_ID_AMIC				0x37
+#define VENDOR_ID_ATMEL				0x1f
+#define VENDOR_ID_EON				0x1c
+#define VENDOR_ID_GIGADEVICE			0xc8
+#define VENDOR_ID_MACRONIX			0xc2
+#define VENDOR_ID_SPANSION			0x01
+#define VENDOR_ID_SST				0xbf
+#define VENDOR_ID_STMICRO			0x20
+#define VENDOR_ID_WINBOND			0xef
 
 /* Controller-specific definitions: */
 
@@ -105,7 +111,8 @@ enum ctrlr_prot_type {
 
 enum {
 	/* Deduct the command length from the spi_crop_chunk() calculation for
-	   sizing a transaction. */
+	   sizing a transaction. If SPI_CNTRLR_DEDUCT_OPCODE_LEN is set, only
+	   the bytes after the command byte will be deducted. */
 	SPI_CNTRLR_DEDUCT_CMD_LEN = 1 << 0,
 	/* Remove the opcode size from the command length used in the
 	   spi_crop_chunk() calculation. Controllers which have a dedicated
@@ -245,7 +252,7 @@ void spi_release_bus(const struct spi_slave *slave);
  *   din:	Pointer to a string of bytes that will be filled in.
  *   bytesin:	How many bytes to read.
  *
- * Note that din and dout are transferred simulataneously in a full duplex
+ * Note that din and dout are transferred simultaneously in a full duplex
  * transaction. The number of clocks within one transaction is calculated
  * as: MAX(bytesout*8, bytesin*8).
  *

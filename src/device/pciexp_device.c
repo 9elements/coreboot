@@ -1,20 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2005 Linux Networx
- * (Written by Eric Biederman <ebiederman@lnxi.com> for Linux Networx)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
+#include <commonlib/helpers.h>
 #include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -22,34 +9,95 @@
 #include <device/pci_ops.h>
 #include <device/pciexp.h>
 
-unsigned int pciexp_find_extended_cap(struct device *dev, unsigned int cap)
+static unsigned int ext_cap_id(unsigned int cap)
 {
-	unsigned int this_cap_offset, next_cap_offset;
-	unsigned int this_cap, cafe;
+	return cap & 0xffff;
+}
 
-	this_cap_offset = PCIE_EXT_CAP_OFFSET;
-	do {
-		this_cap = pci_read_config32(dev, this_cap_offset);
-		next_cap_offset = this_cap >> 20;
-		this_cap &= 0xffff;
-		cafe = pci_read_config32(dev, this_cap_offset + 4);
-		cafe &= 0xffff;
-		if (this_cap == cap)
+static unsigned int ext_cap_next_offset(unsigned int cap)
+{
+	return cap >> 20 & 0xffc;
+}
+
+static unsigned int find_ext_cap_offset(const struct device *dev, unsigned int cap_id,
+					unsigned int offset)
+{
+	unsigned int this_cap_offset = offset;
+
+	while (this_cap_offset >= PCIE_EXT_CAP_OFFSET) {
+		const unsigned int this_cap = pci_read_config32(dev, this_cap_offset);
+
+		/* Bail out when this request is unsupported */
+		if (this_cap == 0xffffffff)
+			break;
+
+		if (ext_cap_id(this_cap) == cap_id)
 			return this_cap_offset;
-		else if (cafe == cap)
-			return this_cap_offset + 4;
-		else
-			this_cap_offset = next_cap_offset;
-	} while (next_cap_offset != 0);
+
+		this_cap_offset = ext_cap_next_offset(this_cap);
+	}
 
 	return 0;
+}
+
+/*
+ * Search for an extended capability with the ID `cap`.
+ *
+ * Returns the offset of the first matching extended
+ * capability if found, or 0 otherwise.
+ *
+ * A new search is started with `offset == 0`.
+ * To continue a search, the prior return value
+ * should be passed as `offset`.
+ */
+unsigned int pciexp_find_extended_cap(const struct device *dev, unsigned int cap,
+				      unsigned int offset)
+{
+	unsigned int next_cap_offset;
+
+	if (offset)
+		next_cap_offset = ext_cap_next_offset(pci_read_config32(dev, offset));
+	else
+		next_cap_offset = PCIE_EXT_CAP_OFFSET;
+
+	return find_ext_cap_offset(dev, cap, next_cap_offset);
+}
+
+/*
+ * Search for a vendor-specific extended capability,
+ * with the vendor-specific ID `cap`.
+ *
+ * Returns the offset of the vendor-specific header,
+ * i.e. the offset of the extended capability + 4,
+ * or 0 if none is found.
+ *
+ * A new search is started with `offset == 0`.
+ * To continue a search, the prior return value
+ * should be passed as `offset`.
+ */
+unsigned int pciexp_find_ext_vendor_cap(const struct device *dev, unsigned int cap,
+					unsigned int offset)
+{
+	/* Reconstruct capability offset from vendor-specific header offset. */
+	if (offset >= 4)
+		offset -= 4;
+
+	for (;;) {
+		offset = pciexp_find_extended_cap(dev, PCI_EXT_CAP_ID_VNDR, offset);
+		if (!offset)
+			return 0;
+
+		const unsigned int vndr_cap = pci_read_config32(dev, offset + 4);
+		if ((vndr_cap & 0xffff) == cap)
+			return offset + 4;
+	}
 }
 
 /*
  * Re-train a PCIe link
  */
 #define PCIE_TRAIN_RETRY 10000
-static int pciexp_retrain_link(struct device *dev, unsigned cap)
+static int pciexp_retrain_link(struct device *dev, unsigned int cap)
 {
 	unsigned int try;
 	u16 lnk;
@@ -94,8 +142,8 @@ static int pciexp_retrain_link(struct device *dev, unsigned cap)
  * and enable Common Clock Configuration if possible.  If CCC is
  * enabled the link must be retrained.
  */
-static void pciexp_enable_common_clock(struct device *root, unsigned root_cap,
-				       struct device *endp, unsigned endp_cap)
+static void pciexp_enable_common_clock(struct device *root, unsigned int root_cap,
+				       struct device *endp, unsigned int endp_cap)
 {
 	u16 root_scc, endp_scc, lnkctl;
 
@@ -126,7 +174,7 @@ static void pciexp_enable_common_clock(struct device *root, unsigned root_cap,
 	}
 }
 
-static void pciexp_enable_clock_power_pm(struct device *endp, unsigned endp_cap)
+static void pciexp_enable_clock_power_pm(struct device *endp, unsigned int endp_cap)
 {
 	/* check if per port clk req is supported in device */
 	u32 endp_ca;
@@ -141,64 +189,92 @@ static void pciexp_enable_clock_power_pm(struct device *endp, unsigned endp_cap)
 	pci_write_config16(endp, endp_cap + PCI_EXP_LNKCTL, lnkctl);
 }
 
-static void pciexp_config_max_latency(struct device *root, struct device *dev)
+static bool _pciexp_ltr_supported(struct device *dev, unsigned int cap)
 {
-	unsigned int cap;
-	cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_LTR_ID);
-	if ((cap) && (root->ops->ops_pci != NULL) &&
-		(root->ops->ops_pci->set_L1_ss_latency != NULL))
-			root->ops->ops_pci->set_L1_ss_latency(dev, cap + 4);
+	return pci_read_config16(dev, cap + PCI_EXP_DEVCAP2) & PCI_EXP_DEVCAP2_LTR;
 }
 
-static bool pciexp_is_ltr_supported(struct device *dev, unsigned int cap)
+static bool _pciexp_ltr_enabled(struct device *dev, unsigned int cap)
 {
-	unsigned int val;
-
-	val = pci_read_config16(dev, cap + PCI_EXP_DEV_CAP2_OFFSET);
-
-	if (val & LTR_MECHANISM_SUPPORT)
-		return true;
-
-	return false;
+	return pci_read_config16(dev, cap + PCI_EXP_DEVCTL2) & PCI_EXP_DEV2_LTR;
 }
 
-static void pciexp_configure_ltr(struct device *dev)
+static bool _pciexp_enable_ltr(struct device *parent, unsigned int parent_cap,
+			       struct device *dev, unsigned int cap)
 {
-	unsigned int cap;
-
-	cap = pci_find_capability(dev, PCI_CAP_ID_PCIE);
-
-	/*
-	 * Check if capibility pointer is valid and
-	 * device supports LTR mechanism.
-	 */
-	if (!cap || !pciexp_is_ltr_supported(dev, cap)) {
-		printk(BIOS_INFO, "Failed to enable LTR for dev = %s\n",
-				dev_path(dev));
-		return;
+	if (!_pciexp_ltr_supported(dev, cap)) {
+		printk(BIOS_DEBUG, "%s: No LTR support\n", dev_path(dev));
+		return false;
 	}
 
-	cap += PCI_EXP_DEV_CTL_STS2_CAP_OFFSET;
+	if (_pciexp_ltr_enabled(dev, cap))
+		return true;
 
-	/* Enable LTR for device */
-	pci_update_config32(dev, cap, ~LTR_MECHANISM_EN, LTR_MECHANISM_EN);
+	if (parent &&
+	    (parent->path.type != DEVICE_PATH_PCI ||
+	     !_pciexp_ltr_supported(parent, parent_cap) ||
+	     !_pciexp_ltr_enabled(parent, parent_cap)))
+		return false;
 
-	/* Configure Max Snoop Latency */
-	pciexp_config_max_latency(dev->bus->dev, dev);
+	pci_or_config16(dev, cap + PCI_EXP_DEVCTL2, PCI_EXP_DEV2_LTR);
+	printk(BIOS_INFO, "%s: Enabled LTR\n", dev_path(dev));
+	return true;
 }
 
 static void pciexp_enable_ltr(struct device *dev)
 {
-	struct bus *bus;
-	struct device *child;
+	const unsigned int cap = pci_find_capability(dev, PCI_CAP_ID_PCIE);
+	if (!cap)
+		return;
 
-	for (bus = dev->link_list ; bus ; bus = bus->next) {
-		for (child = bus->children; child; child = child->sibling) {
-			pciexp_configure_ltr(child);
-			if (child->ops && child->ops->scan_bus)
-				pciexp_enable_ltr(child);
-		}
+	/*
+	 * If we have get_ltr_max_latencies(), treat `dev` as the root.
+	 * If not, let _pciexp_enable_ltr() query the parent's state.
+	 */
+	struct device *parent = NULL;
+	unsigned int parent_cap = 0;
+	if (!dev->ops->ops_pci || !dev->ops->ops_pci->get_ltr_max_latencies) {
+		parent = dev->bus->dev;
+		parent_cap = pci_find_capability(parent, PCI_CAP_ID_PCIE);
+		if (!parent_cap)
+			return;
 	}
+
+	(void)_pciexp_enable_ltr(parent, parent_cap, dev, cap);
+}
+
+bool pciexp_get_ltr_max_latencies(struct device *dev, u16 *max_snoop, u16 *max_nosnoop)
+{
+	/* Walk the hierarchy up to find get_ltr_max_latencies(). */
+	do {
+		if (dev->ops->ops_pci && dev->ops->ops_pci->get_ltr_max_latencies)
+			break;
+		if (dev->bus->dev == dev || dev->bus->dev->path.type != DEVICE_PATH_PCI)
+			return false;
+		dev = dev->bus->dev;
+	} while (true);
+
+	dev->ops->ops_pci->get_ltr_max_latencies(max_snoop, max_nosnoop);
+	return true;
+}
+
+static void pciexp_configure_ltr(struct device *parent, unsigned int parent_cap,
+				 struct device *dev, unsigned int cap)
+{
+	if (!_pciexp_enable_ltr(parent, parent_cap, dev, cap))
+		return;
+
+	const unsigned int ltr_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_LTR_ID, 0);
+	if (!ltr_cap)
+		return;
+
+	u16 max_snoop, max_nosnoop;
+	if (!pciexp_get_ltr_max_latencies(dev, &max_snoop, &max_nosnoop))
+		return;
+
+	pci_write_config16(dev, ltr_cap + PCI_LTR_MAX_SNOOP, max_snoop);
+	pci_write_config16(dev, ltr_cap + PCI_LTR_MAX_NOSNOOP, max_nosnoop);
+	printk(BIOS_INFO, "%s: Programmed LTR max latencies\n", dev_path(dev));
 }
 
 static unsigned char pciexp_L1_substate_cal(struct device *dev, unsigned int endp_cap,
@@ -313,13 +389,16 @@ static void pciexp_config_L1_sub_state(struct device *root, struct device *dev)
 	if (dev->path.pci.devfn & 0x7)
 		return;
 
-	root_cap = pciexp_find_extended_cap(root, PCIE_EXT_CAP_L1SS_ID);
+	root_cap = pciexp_find_extended_cap(root, PCIE_EXT_CAP_L1SS_ID, 0);
 	if (!root_cap)
 		return;
 
-	end_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_L1SS_ID);
+	end_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_L1SS_ID, 0);
 	if (!end_cap) {
-		end_cap = pciexp_find_extended_cap(dev, 0xcafe);
+		if (dev->vendor != PCI_VID_INTEL)
+			return;
+
+		end_cap = pciexp_find_ext_vendor_cap(dev, 0xcafe, 0);
 		if (!end_cap)
 			return;
 	}
@@ -332,8 +411,8 @@ static void pciexp_config_L1_sub_state(struct device *root, struct device *dev)
  * by checking both root port and endpoint and returning
  * the highest latency value.
  */
-static int pciexp_aspm_latency(struct device *root, unsigned root_cap,
-			       struct device *endp, unsigned endp_cap,
+static int pciexp_aspm_latency(struct device *root, unsigned int root_cap,
+			       struct device *endp, unsigned int endp_cap,
 			       enum aspm_type type)
 {
 	int root_lat = 0, endp_lat = 0;
@@ -368,8 +447,8 @@ static int pciexp_aspm_latency(struct device *root, unsigned root_cap,
 /*
  * Enable ASPM on PCIe root port and endpoint.
  */
-static void pciexp_enable_aspm(struct device *root, unsigned root_cap,
-					 struct device *endp, unsigned endp_cap)
+static void pciexp_enable_aspm(struct device *root, unsigned int root_cap,
+					 struct device *endp, unsigned int endp_cap)
 {
 	const char *aspm_type_str[] = { "None", "L0s", "L1", "L0s and L1" };
 	enum aspm_type apmc = PCIE_ASPM_NONE;
@@ -412,6 +491,46 @@ static void pciexp_enable_aspm(struct device *root, unsigned root_cap,
 	printk(BIOS_INFO, "ASPM: Enabled %s\n", aspm_type_str[apmc]);
 }
 
+/*
+ * Set max payload size of endpoint in accordance with max payload size of root port.
+ */
+static void pciexp_set_max_payload_size(struct device *root, unsigned int root_cap,
+					struct device *endp, unsigned int endp_cap)
+{
+	unsigned int endp_max_payload, root_max_payload, max_payload;
+	u16 endp_devctl, root_devctl;
+	u32 endp_devcap, root_devcap;
+
+	/* Get max payload size supported by endpoint */
+	endp_devcap = pci_read_config32(endp, endp_cap + PCI_EXP_DEVCAP);
+	endp_max_payload = endp_devcap & PCI_EXP_DEVCAP_PAYLOAD;
+
+	/* Get max payload size supported by root port */
+	root_devcap = pci_read_config32(root, root_cap + PCI_EXP_DEVCAP);
+	root_max_payload = root_devcap & PCI_EXP_DEVCAP_PAYLOAD;
+
+	/* Set max payload to smaller of the reported device capability. */
+	max_payload = MIN(endp_max_payload, root_max_payload);
+	if (max_payload > 5) {
+		/* Values 6 and 7 are reserved in PCIe 3.0 specs. */
+		printk(BIOS_ERR, "PCIe: Max_Payload_Size field restricted from %d to 5\n",
+		       max_payload);
+		max_payload = 5;
+	}
+
+	endp_devctl = pci_read_config16(endp, endp_cap + PCI_EXP_DEVCTL);
+	endp_devctl &= ~PCI_EXP_DEVCTL_PAYLOAD;
+	endp_devctl |= max_payload << 5;
+	pci_write_config16(endp, endp_cap + PCI_EXP_DEVCTL, endp_devctl);
+
+	root_devctl = pci_read_config16(root, root_cap + PCI_EXP_DEVCTL);
+	root_devctl &= ~PCI_EXP_DEVCTL_PAYLOAD;
+	root_devctl |= max_payload << 5;
+	pci_write_config16(root, root_cap + PCI_EXP_DEVCTL, root_devctl);
+
+	printk(BIOS_INFO, "PCIe: Max_Payload_Size adjusted to %d\n", (1 << (max_payload + 7)));
+}
+
 static void pciexp_tune_dev(struct device *dev)
 {
 	struct device *root = dev->bus->dev;
@@ -440,15 +559,25 @@ static void pciexp_tune_dev(struct device *dev)
 	/* Check for and enable ASPM */
 	if (CONFIG(PCIEXP_ASPM))
 		pciexp_enable_aspm(root, root_cap, dev, cap);
+
+	/* Adjust Max_Payload_Size of link ends. */
+	pciexp_set_max_payload_size(root, root_cap, dev, cap);
+
+	pciexp_configure_ltr(root, root_cap, dev, cap);
 }
 
 void pciexp_scan_bus(struct bus *bus, unsigned int min_devfn,
 			     unsigned int max_devfn)
 {
 	struct device *child;
+
+	pciexp_enable_ltr(bus->dev);
+
 	pci_scan_bus(bus, min_devfn, max_devfn);
 
 	for (child = bus->children; child; child = child->sibling) {
+		if (child->path.type != DEVICE_PATH_PCI)
+			continue;
 		if ((child->path.pci.devfn < min_devfn) ||
 		    (child->path.pci.devfn > max_devfn)) {
 			continue;
@@ -460,7 +589,6 @@ void pciexp_scan_bus(struct bus *bus, unsigned int min_devfn,
 void pciexp_scan_bridge(struct device *dev)
 {
 	do_pci_scan_bridge(dev, pciexp_scan_bus);
-	pciexp_enable_ltr(dev);
 }
 
 /** Default device operations for PCI Express bridges */
@@ -472,9 +600,68 @@ struct device_operations default_pciexp_ops_bus = {
 	.read_resources   = pci_bus_read_resources,
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_bus_enable_resources,
-	.init             = 0,
 	.scan_bus         = pciexp_scan_bridge,
-	.enable           = 0,
+	.reset_bus        = pci_bus_reset,
+	.ops_pci          = &pciexp_bus_ops_pci,
+};
+
+static void pciexp_hotplug_dummy_read_resources(struct device *dev)
+{
+	struct resource *resource;
+
+	/* Add extra memory space */
+	resource = new_resource(dev, 0x10);
+	resource->size = CONFIG_PCIEXP_HOTPLUG_MEM;
+	resource->align = 12;
+	resource->gran = 12;
+	resource->limit = 0xffffffff;
+	resource->flags |= IORESOURCE_MEM;
+
+	/* Add extra prefetchable memory space */
+	resource = new_resource(dev, 0x14);
+	resource->size = CONFIG_PCIEXP_HOTPLUG_PREFETCH_MEM;
+	resource->align = 12;
+	resource->gran = 12;
+	resource->limit = 0xffffffffffffffff;
+	resource->flags |= IORESOURCE_MEM | IORESOURCE_PREFETCH;
+
+	/* Set resource flag requesting allocation above 4G boundary. */
+	if (CONFIG(PCIEXP_HOTPLUG_PREFETCH_MEM_ABOVE_4G))
+		resource->flags |= IORESOURCE_ABOVE_4G;
+
+	/* Add extra I/O space */
+	resource = new_resource(dev, 0x18);
+	resource->size = CONFIG_PCIEXP_HOTPLUG_IO;
+	resource->align = 12;
+	resource->gran = 12;
+	resource->limit = 0xffff;
+	resource->flags |= IORESOURCE_IO;
+}
+
+static struct device_operations pciexp_hotplug_dummy_ops = {
+	.read_resources   = pciexp_hotplug_dummy_read_resources,
+	.set_resources    = noop_set_resources,
+};
+
+void pciexp_hotplug_scan_bridge(struct device *dev)
+{
+	dev->hotplug_buses = CONFIG_PCIEXP_HOTPLUG_BUSES;
+
+	/* Normal PCIe Scan */
+	pciexp_scan_bridge(dev);
+
+	/* Add dummy slot to preserve resources, must happen after bus scan */
+	struct device *dummy;
+	struct device_path dummy_path = { .type = DEVICE_PATH_NONE };
+	dummy = alloc_dev(dev->link_list, &dummy_path);
+	dummy->ops = &pciexp_hotplug_dummy_ops;
+}
+
+struct device_operations default_pciexp_hotplug_ops_bus = {
+	.read_resources   = pci_bus_read_resources,
+	.set_resources    = pci_dev_set_resources,
+	.enable_resources = pci_bus_enable_resources,
+	.scan_bus         = pciexp_hotplug_scan_bridge,
 	.reset_bus        = pci_bus_reset,
 	.ops_pci          = &pciexp_bus_ops_pci,
 };

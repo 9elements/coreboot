@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 - 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Use simple device model for this file even in ramstage
 #define __SIMPLE_DEVICE__
@@ -20,11 +7,11 @@
 #include <cf9_reset.h>
 #include <reset.h>
 
-#define HT_INIT_CONTROL		0x6C
-#define HTIC_BIOSR_Detect	(1<<5)
+#define HT_INIT_CONTROL		0x6c
+#define HTIC_BIOSR_Detect	(1 << 5)
 
 #define DEV_CDB 0x18
-#define NODE_PCI(x, fn)	(((DEV_CDB+x)<32)?(PCI_DEV(0,(DEV_CDB+x),fn)):(PCI_DEV((0-1),(DEV_CDB+x-32),fn)))
+#define NODE_PCI(x, fn)	(((DEV_CDB + x) < 32) ? (PCI_DEV(0, (DEV_CDB + x), fn)) : (PCI_DEV((0 - 1), (DEV_CDB + x - 32), fn)))
 
 void cf9_reset_prepare(void)
 {

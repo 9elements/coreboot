@@ -1,26 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi_device.h>
-#include <arch/acpigen.h>
+#include <acpi/acpi_device.h>
+#include <acpi/acpigen.h>
 #include <console/console.h>
+#include <device/i2c_bus.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
 #include <device/path.h>
 #include <gpio.h>
-#include <stdint.h>
 #include <string.h>
 #include "chip.h"
 
@@ -55,8 +42,8 @@ static int i2c_generic_write_gpio(struct acpi_gpio *gpio, int *curr_index)
 	return ret;
 }
 
-void i2c_generic_fill_ssdt(struct device *dev,
-			void (*callback)(struct device *dev),
+void i2c_generic_fill_ssdt(const struct device *dev,
+			void (*callback)(const struct device *dev),
 			struct drivers_i2c_generic_config *config)
 {
 	const char *scope = acpi_device_scope(dev);
@@ -71,12 +58,23 @@ void i2c_generic_fill_ssdt(struct device *dev,
 	int reset_gpio_index = -1, enable_gpio_index = -1, irq_gpio_index = -1;
 	const char *path = acpi_device_path(dev);
 
-	if (!dev->enabled || !scope)
+	if (!scope)
 		return;
 
 	if (!config->hid) {
 		printk(BIOS_ERR, "%s: ERROR: HID required\n", dev_path(dev));
 		return;
+	}
+
+	if (config->detect) {
+		struct device *const busdev = i2c_busdev(dev);
+		if (!i2c_dev_detect(busdev, dev->path.i2c.device)) {
+			printk(BIOS_SPEW, "%s: %s at %s -- NOT FOUND, skipping\n",
+				path,
+				config->desc ? : dev->chip_ops->name,
+				dev_path(dev));
+			return;
+		}
 	}
 
 	/* Device */
@@ -86,7 +84,8 @@ void i2c_generic_fill_ssdt(struct device *dev,
 	if (config->cid)
 		acpigen_write_name_string("_CID", config->cid);
 	acpigen_write_name_integer("_UID", config->uid);
-	acpigen_write_name_string("_DDN", config->desc);
+	if (config->desc)
+		acpigen_write_name_string("_DDN", config->desc);
 	acpigen_write_STA(acpi_device_status(dev));
 
 	/* Resources */
@@ -111,30 +110,32 @@ void i2c_generic_fill_ssdt(struct device *dev,
 
 	/* Wake capabilities */
 	if (config->wake) {
-		acpigen_write_name_integer("_S0W", 4);
+		acpigen_write_name_integer("_S0W", ACPI_DEVICE_SLEEP_D3_HOT);
 		acpigen_write_PRW(config->wake, 3);
 	}
 
 	/* DSD */
-	if (config->probed || config->property_count ||
+	if (config->probed || config->property_count || config->compat_string ||
 	    (reset_gpio_index != -1) ||
 	    (enable_gpio_index != -1) || (irq_gpio_index != -1)) {
 		dsd = acpi_dp_new_table("_DSD");
+		if (config->compat_string)
+			acpi_dp_add_string(dsd, "compatible",
+					   config->compat_string);
 		if (config->probed)
 			acpi_dp_add_integer(dsd, "linux,probed", 1);
 		if (irq_gpio_index != -1)
 			acpi_dp_add_gpio(dsd, "irq-gpios", path,
 					 irq_gpio_index, 0,
-					 config->irq_gpio.polarity ==
-					 ACPI_GPIO_ACTIVE_LOW);
+					 config->irq_gpio.active_low);
 		if (reset_gpio_index != -1)
 			acpi_dp_add_gpio(dsd, "reset-gpios", path,
 					reset_gpio_index, 0,
-					config->reset_gpio.polarity);
+					config->reset_gpio.active_low);
 		if (enable_gpio_index != -1)
 			acpi_dp_add_gpio(dsd, "enable-gpios", path,
 					enable_gpio_index, 0,
-					config->enable_gpio.polarity);
+					config->enable_gpio.active_low);
 		/* Add generic property list */
 		acpi_dp_add_property_list(dsd, config->property_list,
 					  config->property_count);
@@ -168,7 +169,7 @@ void i2c_generic_fill_ssdt(struct device *dev,
 	       config->desc ? : dev->chip_ops->name, dev_path(dev));
 }
 
-static void i2c_generic_fill_ssdt_generator(struct device *dev)
+static void i2c_generic_fill_ssdt_generator(const struct device *dev)
 {
 	i2c_generic_fill_ssdt(dev, NULL, dev->chip_info);
 }
@@ -189,12 +190,11 @@ static const char *i2c_generic_acpi_name(const struct device *dev)
 #endif
 
 static struct device_operations i2c_generic_ops = {
-	.read_resources		  = DEVICE_NOOP,
-	.set_resources		  = DEVICE_NOOP,
-	.enable_resources	  = DEVICE_NOOP,
+	.read_resources		= noop_read_resources,
+	.set_resources		= noop_set_resources,
 #if CONFIG(HAVE_ACPI_TABLES)
-	.acpi_name		  = i2c_generic_acpi_name,
-	.acpi_fill_ssdt_generator = i2c_generic_fill_ssdt_generator,
+	.acpi_name		= i2c_generic_acpi_name,
+	.acpi_fill_ssdt		= i2c_generic_fill_ssdt_generator,
 #endif
 };
 

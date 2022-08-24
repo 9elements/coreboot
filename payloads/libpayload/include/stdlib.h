@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  * Copyright 2013 Google Inc.
@@ -34,12 +33,6 @@
 #include <die.h>
 #include <stddef.h>
 #include <string.h>
-
-#define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1UL)
-#define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
-#define ALIGN_UP(x,a)           ALIGN((x),(a))
-#define ALIGN_DOWN(x,a)         ((x) & ~((typeof(x))(a)-1UL))
-#define IS_ALIGNED(x,a)         (((x) & ((typeof(x))(a)-1UL)) == 0)
 
 /**
  * @defgroup malloc Memory allocation functions
@@ -202,6 +195,15 @@ int rand(void);
 void srand(unsigned int seed);
 /** @} */
 
+/**
+ * @defgroup misc Misc functions
+ * @{
+ */
+int abs(int j);
+long int labs(long int j);
+long long int llabs(long long int j);
+/** @} */
+
 /* Enter remote GDB mode. Will initialize connection if not already up. */
 void gdb_enter(void);
 /* Disconnect existing GDB connection if one exists. */
@@ -217,8 +219,6 @@ void exit(int status) __attribute__((noreturn));
 /* Override abort()/halt() to trap into GDB if it is enabled. */
 #define halt() do { gdb_enter(); halt(); } while (0)
 #endif
-
-/** @} */
 
 void qsort(void *aa, size_t n, size_t es, int (*cmp)(const void *, const void *));
 char *getenv(const char*);

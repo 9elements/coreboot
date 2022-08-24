@@ -1,24 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 #ifndef BOOTSTATE_H
 #define BOOTSTATE_H
 
+#include <assert.h>
 #include <string.h>
-#include <stdlib.h>
 #include <stddef.h>
-#include <stdint.h>
 /* Only declare main() when in ramstage. */
 #if ENV_RAMSTAGE
 #include <main_decl.h>
@@ -120,6 +106,15 @@ struct boot_state_callback {
 #endif
 };
 
+static inline const char *bscb_location(const struct boot_state_callback *bscb)
+{
+#if CONFIG(DEBUG_BOOT_STATE)
+	return bscb->location;
+#else
+	return dead_code_t(const char *);
+#endif
+}
+
 #if CONFIG(DEBUG_BOOT_STATE)
 #define BOOT_STATE_CALLBACK_LOC __FILE__ ":" STRINGIFY(__LINE__)
 #define BOOT_STATE_CALLBACK_INIT_DEBUG .location = BOOT_STATE_CALLBACK_LOC,
@@ -168,9 +163,6 @@ void boot_state_sched_entries(struct boot_state_init_entry *entries,
  * success < 0  when the phase of the (state,seq) has already ran. */
 int boot_state_block(boot_state_t state, boot_state_sequence_t seq);
 int boot_state_unblock(boot_state_t state, boot_state_sequence_t seq);
-/* Block/Unblock current state phase from transitioning. */
-void boot_state_current_block(void);
-void boot_state_current_unblock(void);
 
 /* In order to schedule boot state callbacks at compile-time specify the
  * entries in an array using the BOOT_STATE_INIT_ENTRIES and

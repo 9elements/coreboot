@@ -1,25 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017-2019 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/device.h>
-#include <device/pci_ops.h>
+#include <intelblocks/acpi.h>
 #include <intelblocks/pmc.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/rtc.h>
@@ -27,41 +12,6 @@
 #include <soc/pm.h>
 
 #include "chip.h"
-
-/*
- * Set which power state system will be after reapplying
- * the power (from G3 State)
- */
-void pmc_set_afterg3(struct device *dev, int s5pwr)
-{
-	uint8_t reg8;
-	uint8_t *pmcbase = pmc_mmio_regs();
-
-	reg8 = read8(pmcbase + GEN_PMCON_A);
-
-	switch (s5pwr) {
-	case MAINBOARD_POWER_STATE_OFF:
-		reg8 |= 1;
-		break;
-	case MAINBOARD_POWER_STATE_ON:
-		reg8 &= ~1;
-		break;
-	case MAINBOARD_POWER_STATE_PREVIOUS:
-	default:
-		break;
-	}
-
-	write8(pmcbase + GEN_PMCON_A, reg8);
-}
-
-/*
- * Set PMC register to know which state system should be after
- * power reapplied
- */
-void pmc_soc_restore_power_failure(void)
-{
-	pmc_set_afterg3(PCH_DEV_PMC, CONFIG_MAINBOARD_POWER_FAILURE_STATE);
-}
 
 static void pm1_enable_pwrbtn_smi(void *unused)
 {
@@ -119,63 +69,36 @@ static void config_deep_sx(uint32_t deepsx_config)
 	write32(pmcbase + DSX_CFG, reg);
 }
 
-static void pch_power_options(struct device *dev)
+static void soc_pmc_read_resources(struct device *dev)
 {
-	const char *state;
+	struct resource *res;
 
-	const int pwr_on = CONFIG_MAINBOARD_POWER_FAILURE_STATE;
+	/* Add the fixed MMIO resource */
+	mmio_resource_kb(dev, 0, PCH_PWRM_BASE_ADDRESS / KiB, PCH_PWRM_BASE_SIZE / KiB);
 
-	/*
-	 * Which state do we want to goto after g3 (power restored)?
-	 * 0 == S5 Soft Off
-	 * 1 == S0 Full On
-	 * 2 == Keep Previous State
-	 */
-	switch (pwr_on) {
-	case MAINBOARD_POWER_STATE_OFF:
-		state = "off";
-		break;
-	case MAINBOARD_POWER_STATE_ON:
-		state = "on";
-		break;
-	case MAINBOARD_POWER_STATE_PREVIOUS:
-		state = "state keep";
-		break;
-	default:
-		state = "undefined";
-	}
-	pmc_set_afterg3(dev, pwr_on);
-	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
-
-	/* Set up GPE configuration. */
-	pmc_gpe_init();
+	/* Add the fixed I/O resource */
+	res = new_resource(dev, 1);
+	res->base = (resource_t)ACPI_BASE_ADDRESS;
+	res->size = (resource_t)ACPI_BASE_SIZE;
+	res->limit = res->base + res->size - 1;
+	res->flags = IORESOURCE_IO | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 }
 
-static void pmc_init(void *unused)
+static void soc_pmc_enable(struct device *dev)
 {
-	struct device *dev = PCH_DEV_PMC;
-	config_t *config = dev->chip_info;
+	const config_t *config = config_of_soc();
 
 	rtc_init();
 
-	/* Initialize power management */
-	pch_power_options(dev);
+	pmc_set_power_failure_state(true);
+	pmc_gpe_init();
 
 	config_deep_s3(config->deep_s3_enable_ac, config->deep_s3_enable_dc);
 	config_deep_s5(config->deep_s5_enable_ac, config->deep_s5_enable_dc);
 	config_deep_sx(config->deep_sx_config);
 }
 
-/*
-* Initialize PMC controller.
-*
-* PMC controller gets hidden from PCI bus during FSP-Silicon init call.
-* Hence PCI enumeration can't be used to initialize bus device and
-* allocate resources.
-*/
-BOOT_STATE_INIT_ENTRY(BS_DEV_INIT_CHIPS, BS_ON_EXIT, pmc_init, NULL);
-
-static void soc_acpi_mode_init(void *unused)
+static void soc_pmc_init(struct device *dev)
 {
 	/*
 	 * PMC initialization happens earlier for this SoC because FSP-Silicon
@@ -190,11 +113,52 @@ static void soc_acpi_mode_init(void *unused)
 	 * taking different actions based on disabling of ACPI (e.g. flushing of
 	 * all EC hostevent bits).
 	 *
-	 * P.S.: This cannot be done as part of pmc_soc_init as PMC device is
-	 * hidden and hence the PMC driver never gets enumerated and so init is
-	 * not called for it.
+	 * Because the device is set as `hidden` in the devicetree, enumeration
+	 * is skipped, but the device callbacks are still called as if it were
+	 * found.
 	 */
 	pmc_set_acpi_mode();
+
+	/*
+	 * Disable ACPI PM timer based on Kconfig
+	 *
+	 * Disabling ACPI PM timer is necessary for XTAL OSC shutdown.
+	 * Disabling ACPI PM timer also switches off TCO.
+	 */
+	if (!CONFIG(USE_PM_ACPI_TIMER))
+		setbits8(pmc_mmio_regs() + PCH_PWRM_ACPI_TMR_CTL, ACPI_TIM_DIS);
 }
 
-BOOT_STATE_INIT_ENTRY(BS_DEV_INIT, BS_ON_EXIT, soc_acpi_mode_init, NULL);
+static void pmc_fill_ssdt(const struct device *dev)
+{
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_ACPI_PEP))
+		generate_acpi_power_engine();
+}
+
+/*
+ * `pmc_final` function is native implementation of equivalent events performed by
+ * each FSP NotifyPhase() API invocations.
+ *
+ *
+ * Clear PMCON status bits (Global Reset/Power Failure/Host Reset Status bits)
+ *
+ * Perform the PMCON status bit clear operation from `.final`
+ * to cover any such chances where later boot stage requested a global
+ * reset and PMCON status bit remains set.
+ */
+static void pmc_final(struct device *dev)
+{
+	pmc_clear_pmcon_sts();
+}
+
+struct device_operations pmc_ops = {
+	.read_resources	  = soc_pmc_read_resources,
+	.set_resources	  = noop_set_resources,
+	.init		  = soc_pmc_init,
+	.enable		  = soc_pmc_enable,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_fill_ssdt	  = pmc_fill_ssdt,
+#endif
+	.scan_bus	  = scan_static_bus,
+	.final		  = pmc_final,
+};

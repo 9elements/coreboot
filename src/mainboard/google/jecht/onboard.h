@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef ONBOARD_H
 #define ONBOARD_H
@@ -49,5 +36,11 @@ enum {
 #define IT8772F_SERIAL_DEV PNP_DEV(IT8772F_BASE, IT8772F_SP1)
 #define IT8772F_GPIO_DEV PNP_DEV(IT8772F_BASE, IT8772F_GPIO)
 #define IT8772F_SUPERIO_DEV PNP_DEV(IT8772F_BASE, 0)
+
+/* Write Protect: GPIO58 = GPIO_SPI_WP, active high */
+#define GPIO_SPI_WP	58
+
+/* Recovery: GPIO12 = RECOVERY_L, active low */
+#define GPIO_REC_MODE	12
 
 #endif

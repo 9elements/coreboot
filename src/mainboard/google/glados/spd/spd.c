@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 Google Inc.
- * Copyright (C) 2015 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbfs.h>
 #include <console/console.h>
@@ -83,16 +69,17 @@ __weak int is_dual_channel(const int spd_index)
 }
 
 /* Copy SPD data for on-board memory */
-void spd_memory_init_params(MEMORY_INIT_UPD *const memory_params, int spd_index)
+void spd_memory_init_params(FSPM_UPD *mupd, int spd_index)
 {
+	FSP_M_CONFIG *mem_cfg;
+	mem_cfg = &mupd->FspmConfig;
 	uint8_t *spd_file;
 	size_t spd_file_len;
 
 	printk(BIOS_INFO, "SPD index %d\n", spd_index);
 
 	/* Load SPD data from CBFS */
-	spd_file = cbfs_boot_map_with_leak("spd.bin", CBFS_TYPE_SPD,
-		&spd_file_len);
+	spd_file = cbfs_map("spd.bin", &spd_file_len);
 	if (!spd_file)
 		die("SPD data not found.");
 
@@ -112,9 +99,9 @@ void spd_memory_init_params(MEMORY_INIT_UPD *const memory_params, int spd_index)
 		die("Invalid SPD data.");
 
 	/* Assume same memory in both channels */
-	memory_params->MemorySpdPtr00 = (uintptr_t)spd_file + spd_offset;
+	mem_cfg->MemorySpdPtr00 = (uintptr_t)spd_file + spd_offset;
 	if (is_dual_channel(spd_index))
-		memory_params->MemorySpdPtr10 = memory_params->MemorySpdPtr00;
+		mem_cfg->MemorySpdPtr10 = mem_cfg->MemorySpdPtr00;
 
 	mainboard_print_spd_info(spd_file + spd_offset);
 }

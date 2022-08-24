@@ -1,16 +1,16 @@
 # coreboot architecture
 
-## Overwiew
+## Overview
 ![][architecture]
 
-[architecture]: comparision_coreboot_uefi.svg
+[architecture]: comparison_coreboot_uefi.svg
 
 ## Stages
 coreboot consists of multiple stages that are compiled as separate binaries and
 are inserted into the CBFS with custom compression. The bootblock usually doesn't
 have compression while the ramstage and payload are compressed with LZMA.
 
-Each stage loads the next stage a given address (possibly decompressing it).
+Each stage loads the next stage at given address (possibly decompressing it).
 
 Some stages are relocatable and can be placed anywhere in DRAM. Those stages are
 usually cached in CBMEM for faster loading times on ACPI S3 resume.
@@ -41,7 +41,7 @@ The bootblock loads the romstage or the verstage if verified boot is enabled.
 
 ### Cache-As-Ram
 The *Cache-As-Ram*, also called Non-Eviction mode, or *CAR* allows to use the
-CPU cache like regular SRAM. This is particullary usefull for high level
+CPU cache like regular SRAM. This is particullary useful for high level
 languages like `C`, which need RAM for heap and stack.
 
 The CAR needs to be activated using vendor specific CPU instructions.
@@ -85,7 +85,7 @@ The ramstage does the main device init:
 * CPU init (like set up SMM)
 
 After initialization tables are written to inform the payload or operating system
-about the current hardware existance and state. That includes:
+about the current hardware existence and state. That includes:
 
 * ACPI tables (x86 specific)
 * SMBIOS tables (x86 specific)

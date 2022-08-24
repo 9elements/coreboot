@@ -1,28 +1,17 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2008 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef NORTHBRIDGE_INTEL_SANDYBRIDGE_CHIP_H
 #define NORTHBRIDGE_INTEL_SANDYBRIDGE_CHIP_H
 
 #include <drivers/intel/gma/i915.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 /*
  * Digital Port Hotplug Enable:
- *  0x04 = Enabled, 2ms short pulse
+ *  0x04 = Enabled, 2ms   short pulse
  *  0x05 = Enabled, 4.5ms short pulse
- *  0x06 = Enabled, 6ms short pulse
+ *  0x06 = Enabled, 6ms   short pulse
  *  0x07 = Enabled, 100ms short pulse
  */
 struct northbridge_intel_sandybridge_config {
@@ -30,7 +19,13 @@ struct northbridge_intel_sandybridge_config {
 	u8 gpu_dp_c_hotplug; /* Digital Port C Hotplug Config */
 	u8 gpu_dp_d_hotplug; /* Digital Port D Hotplug Config */
 
-	u8 gpu_panel_port_select; /* 0=LVDS 1=DP_B 2=DP_C 3=DP_D */
+	enum {
+		PANEL_PORT_LVDS = 0,
+		PANEL_PORT_DP_A = 1, /* Also known as eDP */
+		PANEL_PORT_DP_C = 2,
+		PANEL_PORT_DP_D = 3,
+	} gpu_panel_port_select;
+
 	u8 gpu_panel_power_cycle_delay;          /* T4 time sequence */
 	u16 gpu_panel_power_up_delay;            /* T1+T2 time sequence */
 	u16 gpu_panel_power_down_delay;          /* T3 time sequence */
@@ -48,11 +43,6 @@ struct northbridge_intel_sandybridge_config {
 
 	struct i915_gpu_controller_info gfx;
 
-	/*
-	 * Maximum PCI mmio size in MiB.
-	 */
-	u16 pci_mmio_size;
-
 	/* Data for RAM init */
 
 	/* DIMM SPD address. Use 8bit notation where BIT0 is always zero. */
@@ -64,7 +54,8 @@ struct northbridge_intel_sandybridge_config {
 	bool ec_present;
 	bool ddr3lv_support;
 
-	/* N mode functionality. Leave this setting at 0.
+	/*
+	 * N mode functionality. Leave this setting at 0.
 	 * 0 Auto
 	 * 1 1N
 	 * 2 2N
@@ -75,12 +66,13 @@ struct northbridge_intel_sandybridge_config {
 		DDR_NMODE_2N,
 	} nmode;
 
-	/* DDR refresh rate config. JEDEC Standard No.21-C Annex K allows
-	 * for DIMM SPD data to specify whether double-rate is required for
-	 * extended operating temperature range.
-	 * 0 Enable double rate based upon temperature thresholds
-	 * 1 Normal rate
-	 * 2 Always enable double rate
+	/*
+	 * DDR refresh rate config. JEDEC Standard No.21-C Annex K allows for DIMM SPD data to
+	 * specify whether double-rate is required for extended operating temperature range.
+	 *
+	 *   0 Enable double rate based upon temperature thresholds
+	 *   1 Normal rate
+	 *   2 Always enable double rate
 	 */
 	enum {
 		DDR_REFRESH_RATE_TEMP_THRES = 0,
@@ -94,7 +86,7 @@ struct northbridge_intel_sandybridge_config {
 	 *  [1] = overcurrent pin
 	 *  [2] = length
 	 *
-	 * Ports 0-7 can be mapped to OC0-OC3
+	 * Ports 0-7  can be mapped to OC0-OC3
 	 * Ports 8-13 can be mapped to OC4-OC7
 	 *
 	 * Port Length

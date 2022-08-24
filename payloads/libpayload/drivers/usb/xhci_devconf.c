@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2013 secunet Security Networks AG
  *
@@ -125,7 +124,7 @@ xhci_make_inputctx(const size_t ctxsize)
 }
 
 usbdev_t *
-xhci_set_address (hci_t *controller, usb_speed speed, int hubport, int hubaddr)
+xhci_set_address(hci_t *controller, usb_speed speed, int hubport, int hubaddr)
 {
 	xhci_t *const xhci = XHCI_INST(controller);
 	const size_t ctxsize = CTXSIZE(xhci);
@@ -163,7 +162,7 @@ xhci_set_address (hci_t *controller, usb_speed speed, int hubport, int hubaddr)
 	for (i = 0; i < NUM_EPS; i++, dma_buffer += ctxsize)
 		di->ctx.ep[i] = dma_buffer;
 
-	*ic->add = (1 << 0) /* Slot Context */ | (1 << 1) /* EP0 Context */ ;
+	*ic->add = (1 << 0) /* Slot Context */ | (1 << 1) /* EP0 Context */;
 
 	SC_SET(ROUTE,	ic->dev.slot, xhci_gen_route(xhci, hubport, hubaddr));
 	SC_SET(SPEED1,	ic->dev.slot, speed + 1);
@@ -227,7 +226,7 @@ xhci_set_address (hci_t *controller, usb_speed speed, int hubport, int hubaddr)
 	}
 
 	dev->endpoints[0].maxpacketsize = usb_decode_mps0(speed, buf[7]);
-	if (dev->endpoints[0].maxpacketsize != 8) {
+	if (dev->endpoints[0].maxpacketsize != speed_to_default_mps(speed)) {
 		memset((void *)ic->dev.ep0, 0x00, ctxsize);
 		*ic->add = (1 << 1); /* EP0 Context */
 		EC_SET(MPS, ic->dev.ep0, dev->endpoints[0].maxpacketsize);
@@ -267,7 +266,7 @@ _free_ic_return:
 static int
 xhci_finish_hub_config(usbdev_t *const dev, inputctx_t *const ic)
 {
-	int type = dev->speed == SUPER_SPEED ? 0x2a : 0x29; /* similar enough */
+	int type = is_usb_speed_ss(dev->speed) ? 0x2a : 0x29; /* similar enough */
 	hub_descriptor_t desc;
 
 	if (get_descriptor(dev, gen_bmRequestType(device_to_host, class_type,
@@ -289,7 +288,7 @@ xhci_finish_hub_config(usbdev_t *const dev, inputctx_t *const ic)
 static size_t
 xhci_bound_interval(const endpoint_t *const ep)
 {
-	if (	(ep->dev->speed == LOW_SPEED &&
+	if ((ep->dev->speed == LOW_SPEED &&
 			(ep->type == ISOCHRONOUS ||
 			 ep->type == INTERRUPT)) ||
 		(ep->dev->speed == FULL_SPEED &&

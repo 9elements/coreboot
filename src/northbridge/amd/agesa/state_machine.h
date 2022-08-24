@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Kyösti Mälkki
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _STATE_MACHINE_H_
 #define _STATE_MACHINE_H_
@@ -19,8 +6,6 @@
 #include <stdint.h>
 #include <AGESA.h>
 #include <AMD.h>
-
-#define HAS_LEGACY_WRAPPER CONFIG(BINARYPI_LEGACY_WRAPPER)
 
 /* eventlog */
 void agesawrapper_trace(AGESA_STATUS ret, AMD_CONFIG_PARAMS *StdHeader, const char *func);
@@ -46,11 +31,7 @@ struct sysinfo
 	int s3resume;
 };
 
-void agesa_main(struct sysinfo *cb);
-void agesa_postcar(struct sysinfo *cb);
-
 void board_BeforeAgesa(struct sysinfo *cb);
-void platform_once(struct sysinfo *cb);
 
 void agesa_set_interface(struct sysinfo *cb);
 
@@ -90,6 +71,8 @@ void platform_AfterInitEnv(struct sysinfo *cb, AMD_ENV_PARAMS *Env);
 void platform_BeforeInitMid(struct sysinfo *cb, AMD_MID_PARAMS *Mid);
 void board_BeforeInitMid(struct sysinfo *cb, AMD_MID_PARAMS *Mid);
 
+void platform_BeforeInitLate(struct sysinfo *cb, AMD_LATE_PARAMS *Late);
+void board_BeforeInitLate(struct sysinfo *cb, AMD_LATE_PARAMS *Late);
 void platform_AfterInitLate(struct sysinfo *cb, AMD_LATE_PARAMS *Late);
 void completion_InitLate(struct sysinfo *cb, AMD_LATE_PARAMS *Late);
 
@@ -100,9 +83,6 @@ void platform_AfterInitResume(struct sysinfo *cb, AMD_RESUME_PARAMS *Resume);
 void platform_BeforeS3LateRestore(struct sysinfo *cb, AMD_S3LATE_PARAMS *S3Late);
 void platform_AfterS3LateRestore(struct sysinfo *cb, AMD_S3LATE_PARAMS *S3Late);
 
-#if CONFIG(CPU_AMD_PI_00660F01)
-typedef void AMD_S3SAVE_PARAMS;
-#endif
 void platform_AfterS3Save(struct sysinfo *cb, AMD_S3SAVE_PARAMS *S3Save);
 
 /* FCH callouts, not used with CIMx. */
@@ -110,7 +90,6 @@ void platform_AfterS3Save(struct sysinfo *cb, AMD_S3SAVE_PARAMS *S3Save);
 	CONFIG(SOUTHBRIDGE_AMD_AGESA_HUDSON) || \
 	CONFIG(SOUTHBRIDGE_AMD_AGESA_YANGTZE) || \
 	CONFIG(SOUTHBRIDGE_AMD_PI_AVALON) || \
-	CONFIG(SOUTHBRIDGE_AMD_PI_BOLTON) || \
 	CONFIG(SOUTHBRIDGE_AMD_PI_KERN)
 
 #if HAS_AGESA_FCH_OEM_CALLOUT

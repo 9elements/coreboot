@@ -1,5 +1,4 @@
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (C) 2008 Advanced Micro Devices, Inc.
 ##
@@ -43,6 +42,7 @@ libc-$(CONFIG_LP_GPL) += string.c
 libgdb-y += gdb.c
 
 libcbfs-$(CONFIG_LP_CBFS) += rom_media.c
+libcbfs-$(CONFIG_LP_CBFS) += boot_media.c
 
 # Multiboot support is configurable
 libc-$(CONFIG_LP_MULTIBOOT) += multiboot.c

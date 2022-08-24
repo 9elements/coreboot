@@ -1,23 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2006 Uwe Hermann <uwe@hermann-uwe.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/device.h>
 #include <device/pnp.h>
 #include <pc80/keyboard.h>
-#include <stdlib.h>
 #include <superio/ite/common/env_ctrl.h>
 #include <superio/conf_mode.h>
 
@@ -39,7 +24,7 @@ static void init(struct device *dev)
 		break;
 	case IT8718F_EC:
 		conf = dev->chip_info;
-		res = find_resource(dev, PNP_IDX_IO0);
+		res = probe_resource(dev, PNP_IDX_IO0);
 		if (!conf || !res)
 			break;
 		ite_ec_init(res->base, &conf->ec);

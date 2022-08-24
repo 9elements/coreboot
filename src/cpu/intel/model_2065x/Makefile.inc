@@ -1,31 +1,19 @@
 ramstage-y += model_2065x_init.c
 subdirs-y += ../../x86/name
-subdirs-y += ../../x86/cache
-subdirs-y += ../../x86/mtrr
-subdirs-y += ../../x86/lapic
-subdirs-y += ../../x86/tsc
 subdirs-y += ../../intel/turbo
 subdirs-y += ../../intel/microcode
-subdirs-y += ../../x86/smm
 subdirs-y += ../smm/gen1
-subdirs-y += ../common
-
-ramstage-y += tsc_freq.c
-romstage-y += tsc_freq.c
-postcar-y += tsc_freq.c
-smm-$(CONFIG_HAVE_SMI_HANDLER) += tsc_freq.c
 
 ramstage-y += acpi.c
 
-smm-$(CONFIG_HAVE_SMI_HANDLER) += finalize.c
-
-romstage-y += stage_cache.c
-ramstage-y += stage_cache.c
-postcar-y += stage_cache.c
+smm-y += finalize.c
 
 cpu_microcode_bins += $(wildcard 3rdparty/intel-microcode/intel-ucode/06-25-*)
 
-cpu_incs-y += $(src)/cpu/intel/car/non-evict/cache_as_ram.S
+bootblock-y += ../car/non-evict/cache_as_ram.S
+bootblock-y += ../car/bootblock.c
+bootblock-y += ../../x86/early_reset.S
+
 postcar-y += ../car/non-evict/exit_car.S
 
 romstage-y += ../car/romstage.c

@@ -1,26 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <AGESA.h>
 #include <amdlib.h>
+#include <amdblocks/acpimmio.h>
 #include <northbridge/amd/agesa/BiosCallOuts.h>
 #include <SB800.h>
-#include <stdlib.h>
 
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr);
-static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINTN Data, VOID *ConfigPtr);
+static AGESA_STATUS board_BeforeDramInit(UINT32 Func, UINTN Data, VOID *ConfigPtr);
+static AGESA_STATUS board_GnbPcieSlotReset(UINT32 Func, UINTN Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
@@ -37,7 +24,7 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
 
 /*	Call the host environment interface to provide a user hook opportunity. */
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr)
+static AGESA_STATUS board_BeforeDramInit(UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	// Unlike e.g. AMD Inagua, Persimmon is unable to vary the RAM voltage.
 	// Make sure the right speed settings are selected.
@@ -46,43 +33,31 @@ static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigP
 }
 
 /* PCIE slot reset control */
-static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINTN Data, VOID *ConfigPtr)
+static AGESA_STATUS board_GnbPcieSlotReset(UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	AGESA_STATUS Status;
-	UINTN					FcnData;
 	PCIe_SLOT_RESET_INFO	*ResetInfo;
 
 	UINT32	GpioMmioAddr;
-	UINT32	AcpiMmioAddr;
 	UINT8	 Data8;
-	UINT16	Data16;
 
-	FcnData = Data;
 	ResetInfo = ConfigPtr;
-	// Get SB800 MMIO Base (AcpiMmioAddr)
-	WriteIo8(0xCD6, 0x27);
-	Data8 = ReadIo8(0xCD7);
-	Data16 = Data8 << 8;
-	WriteIo8(0xCD6, 0x26);
-	Data8 = ReadIo8(0xCD7);
-	Data16 |= Data8;
-	AcpiMmioAddr = (UINT32)Data16 << 16;
 	Status = AGESA_UNSUPPORTED;
-	GpioMmioAddr = AcpiMmioAddr + GPIO_BASE;
+	GpioMmioAddr = (uintptr_t)acpimmio_gpio_100;
 	switch (ResetInfo->ResetId)
 	{
 	case 46:	// GPIO50 = SBGPIO_PCIE_RST# affects LAN0, LAN1, PCIe slot
 		switch (ResetInfo->ResetControl) {
 		case AssertSlotReset:
-			Data8 = Read64Mem8(GpioMmioAddr+SB_GPIO_REG50);
+			Data8 = Read64Mem8(GpioMmioAddr + SB_GPIO_REG50);
 			Data8 &= ~(UINT8)BIT6;
-			Write64Mem8(GpioMmioAddr+SB_GPIO_REG50, Data8);
+			Write64Mem8(GpioMmioAddr + SB_GPIO_REG50, Data8);
 			Status = AGESA_SUCCESS;
 			break;
 		case DeassertSlotReset:
-			Data8 = Read64Mem8(GpioMmioAddr+SB_GPIO_REG50);
+			Data8 = Read64Mem8(GpioMmioAddr + SB_GPIO_REG50);
 			Data8 |= BIT6;
-			Write64Mem8 (GpioMmioAddr+SB_GPIO_REG50, Data8);
+			Write64Mem8(GpioMmioAddr + SB_GPIO_REG50, Data8);
 			Status = AGESA_SUCCESS;
 			break;
 		}

@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _BROADWELL_PEI_WRAPPER_H_
 #define _BROADWELL_PEI_WRAPPER_H_
@@ -39,7 +26,27 @@ static inline void pei_data_usb3_port(struct pei_data *pei_data, int port,
 	pei_data->usb3_ports[port].fixed_eq = fixed_eq;
 }
 
+#define SPD_MEMORY_DOWN	0xff
+
+struct spd_info {
+	uint8_t addresses[4];
+	unsigned int spd_index;
+};
+
+struct lpddr3_dq_dqs_map {
+	uint8_t dq[2][6][2];
+	uint8_t dqs[2][8];
+};
+
+/* Mainboard callback to fill in the SPD addresses */
+void mb_get_spd_map(struct spd_info *spdi);
+
+/* Mainboard callback to retrieve the LPDDR3-specific DQ/DQS mapping */
+const struct lpddr3_dq_dqs_map *mb_get_lpddr3_dq_dqs_map(void);
+
 void broadwell_fill_pei_data(struct pei_data *pei_data);
 void mainboard_fill_pei_data(struct pei_data *pei_data);
+
+void copy_spd(struct pei_data *pei_data, struct spd_info *spdi);
 
 #endif

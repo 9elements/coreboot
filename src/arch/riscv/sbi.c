@@ -1,21 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 HardenedLinux
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <mcall.h>
 #include <stdint.h>
-#include <commonlib/compiler.h>
 #include <arch/exception.h>
 #include <sbi.h>
 #include <vm.h>
@@ -63,7 +49,6 @@ static uintptr_t sbi_clear_ipi(void)
 	return 0;
 }
 
-
 /*
  * sbi is triggered by the s-mode ecall
  * parameter : register a0 a1 a2
@@ -74,7 +59,7 @@ void handle_sbi(trapframe *tf)
 {
 	uintptr_t ret = 0;
 	uintptr_t arg0 = tf->gpr[10];
-	__unused uintptr_t arg1 = tf->gpr[11];
+	__maybe_unused uintptr_t arg1 = tf->gpr[11];
 	uintptr_t which = tf->gpr[17];
 
 	switch (which) {

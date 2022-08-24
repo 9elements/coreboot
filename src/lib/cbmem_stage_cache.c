@@ -1,19 +1,5 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/early_variables.h>
 #include <cbmem.h>
 #include <stage_cache.h>
 #include <string.h>
@@ -27,7 +13,7 @@ void stage_cache_add(int stage_id, const struct prog *stage)
 
 	meta = cbmem_add(CBMEM_ID_STAGEx_META + stage_id, sizeof(*meta));
 	if (meta == NULL) {
-		printk(BIOS_ERR, "Error: Can't add %x metadata to cbmem\n",
+		printk(BIOS_ERR, "Can't add %x metadata to cbmem\n",
 				CBMEM_ID_STAGEx_META + stage_id);
 		return;
 	}
@@ -37,7 +23,7 @@ void stage_cache_add(int stage_id, const struct prog *stage)
 
 	c = cbmem_add(CBMEM_ID_STAGEx_CACHE + stage_id, prog_size(stage));
 	if (c == NULL) {
-		printk(BIOS_ERR, "Error: Can't add stage_cache %x to cbmem\n",
+		printk(BIOS_ERR, "Can't add stage_cache %x to cbmem\n",
 				CBMEM_ID_STAGEx_CACHE + stage_id);
 		return;
 	}
@@ -65,7 +51,7 @@ void stage_cache_get_raw(int stage_id, void **base, size_t *size)
 
 	e = cbmem_entry_find(CBMEM_ID_STAGEx_RAW + stage_id);
 	if (e == NULL) {
-		printk(BIOS_ERR, "Error: Can't find raw %x data in cbmem\n",
+		printk(BIOS_ERR, "Can't find raw %x data in cbmem\n",
 				CBMEM_ID_STAGEx_RAW + stage_id);
 		return;
 	}
@@ -86,7 +72,7 @@ void stage_cache_load_stage(int stage_id, struct prog *stage)
 
 	meta = cbmem_find(CBMEM_ID_STAGEx_META + stage_id);
 	if (meta == NULL) {
-		printk(BIOS_ERR, "Error: Can't find %x metadata in cbmem\n",
+		printk(BIOS_ERR, "Can't find %x metadata in cbmem\n",
 				CBMEM_ID_STAGEx_META + stage_id);
 		return;
 	}
@@ -94,7 +80,7 @@ void stage_cache_load_stage(int stage_id, struct prog *stage)
 	e = cbmem_entry_find(CBMEM_ID_STAGEx_CACHE + stage_id);
 
 	if (e == NULL) {
-		printk(BIOS_ERR, "Error: Can't find stage_cache %x in cbmem\n",
+		printk(BIOS_ERR, "Can't find stage_cache %x in cbmem\n",
 				CBMEM_ID_STAGEx_CACHE + stage_id);
 		return;
 	}

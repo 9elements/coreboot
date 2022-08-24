@@ -1,4 +1,3 @@
-/* Copyright (c) 2018 SiFive, Inc */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* See the file LICENSE for further information */
@@ -48,7 +47,6 @@ static inline void phy_reset(volatile uint32_t *ddrphyreg, const uint32_t *physe
   }
 }
 
-
 static inline void ux00ddr_writeregmap(size_t ahbregaddr, const uint32_t *ctlsettings, const uint32_t *physettings) {
   volatile uint32_t *ddrctlreg = (volatile uint32_t *) ahbregaddr;
   volatile uint32_t *ddrphyreg = ((volatile uint32_t *) ahbregaddr) + (0x2000 / sizeof(uint32_t));
@@ -84,14 +82,14 @@ static inline void ux00ddr_mask_mc_init_complete_interrupt(size_t ahbregaddr) {
 
 static inline void ux00ddr_mask_outofrange_interrupts(size_t ahbregaddr) {
   // Mask off Bit 8, Bit 2 and Bit 1 of Interrupt Status
-  // Bit [2] Multiple accesses outside the defined PHYSICAL memory space have occured
-  // Bit [1] A memory access outside the defined PHYSICAL memory space has occured
+  // Bit [2] Multiple accesses outside the defined PHYSICAL memory space have occurred
+  // Bit [1] A memory access outside the defined PHYSICAL memory space has occurred
   _REG32(136<<2, ahbregaddr) |= ((1<<OUT_OF_RANGE_OFFSET) | (1<<MULTIPLE_OUT_OF_RANGE_OFFSET));
 }
 
 static inline void ux00ddr_mask_port_command_error_interrupt(size_t ahbregaddr) {
   // Mask off Bit 7 of Interrupt Status
-  // Bit [7] An error occured on the port command channel
+  // Bit [7] An error occurred on the port command channel
   _REG32(136<<2, ahbregaddr) |= (1<<PORT_COMMAND_CHANNEL_ERROR_OFFSET);
 }
 

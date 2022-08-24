@@ -1,26 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google Inc.
- * Copyright (c) 2013-2015, NVIDIA CORPORATION.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <boardid.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/i2c_simple.h>
 #include <reset.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 #include "pmic.h"
 
@@ -36,7 +20,7 @@ struct max77620_init_reg {
 	u8 delay;
 };
 
-static void pmic_write_reg(unsigned bus, uint8_t chip, uint8_t reg, uint8_t val,
+static void pmic_write_reg(unsigned int bus, uint8_t chip, uint8_t reg, uint8_t val,
 			   int delay)
 {
 	if (i2c_writeb(bus, chip, reg, val)) {
@@ -50,19 +34,19 @@ static void pmic_write_reg(unsigned bus, uint8_t chip, uint8_t reg, uint8_t val,
 	}
 }
 
-void pmic_write_reg_77620(unsigned bus, uint8_t reg, uint8_t val,
+void pmic_write_reg_77620(unsigned int bus, uint8_t reg, uint8_t val,
 					int delay)
 {
 	pmic_write_reg(bus, MAX77620_I2C_ADDR, reg, val, delay);
 }
 
-static inline void pmic_write_reg_77621(unsigned bus, uint8_t reg, uint8_t val,
+static inline void pmic_write_reg_77621(unsigned int bus, uint8_t reg, uint8_t val,
 					int delay)
 {
 	pmic_write_reg(bus, MAX77621_CPU_I2C_ADDR, reg, val, delay);
 }
 
-void pmic_init(unsigned bus)
+void pmic_init(unsigned int bus)
 {
 	/* MAX77620: Set SD0 to 1.0V - VDD_CORE */
 	pmic_write_reg_77620(bus, MAX77620_SD0_REG, 0x20, 1);

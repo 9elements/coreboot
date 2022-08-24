@@ -1,27 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
-#include <cbmem.h>
-#include <elog.h>
-#include <console/console.h>
-#include <soc/southbridge.h>
+#include <acpi/acpi.h>
+#include <acpi/acpi_pm.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/acpi.h>
+#include <bootmode.h>
+#include <console/console.h>
 #include <halt.h>
 #include <security/vboot/vboot_common.h>
+#include <soc/southbridge.h>
 
 void poweroff(void)
 {
@@ -35,13 +22,6 @@ void poweroff(void)
 	 */
 	if (!ENV_SMM)
 		halt();
-}
-
-static uint16_t reset_pm1_status(void)
-{
-	uint16_t pm1_sts = acpi_read16(MMIO_ACPI_PM1_STS);
-	acpi_write16(MMIO_ACPI_PM1_STS, pm1_sts);
-	return pm1_sts;
 }
 
 static void print_num_status_bits(int num_bits, uint32_t status,
@@ -84,52 +64,33 @@ static uint16_t print_pm1_status(uint16_t pm1_sts)
 	return pm1_sts;
 }
 
-static void log_pm1_status(uint16_t pm1_sts)
+void acpi_fill_pm_gpe_state(struct acpi_pm_gpe_state *state)
 {
-	if (!CONFIG(ELOG))
-		return;
-
-	if (pm1_sts & WAK_STS)
-		elog_add_event_byte(ELOG_TYPE_ACPI_WAKE,
-				    acpi_is_wakeup_s3() ? ACPI_S3 : ACPI_S5);
-
-	if (pm1_sts & PWRBTN_STS)
-		elog_add_event_wake(ELOG_WAKE_SOURCE_PWRBTN, 0);
-
-	if (pm1_sts & RTC_STS)
-		elog_add_event_wake(ELOG_WAKE_SOURCE_RTC, 0);
-
-	if (pm1_sts & PCIEXPWAK_STS)
-		elog_add_event_wake(ELOG_WAKE_SOURCE_PCIE, 0);
+	state->pm1_sts = acpi_read16(MMIO_ACPI_PM1_STS);
+	state->pm1_en = acpi_read16(MMIO_ACPI_PM1_EN);
+	state->gpe0_sts = acpi_read32(MMIO_ACPI_GPE0_STS);
+	state->gpe0_en = acpi_read32(MMIO_ACPI_GPE0_EN);
+	state->previous_sx_state = acpi_get_sleep_type();
+	state->aligning_field = 0;
 }
 
-static void save_sws(uint16_t pm1_status)
+void acpi_pm_gpe_add_events_print_events(void)
 {
-	struct soc_power_reg *sws;
-	uint32_t reg32;
-	uint16_t reg16;
+	const struct chipset_power_state *ps;
+	const struct acpi_pm_gpe_state *state;
 
-	sws = cbmem_add(CBMEM_ID_POWER_STATE, sizeof(struct soc_power_reg));
-	if (sws == NULL)
+	if (acpi_pm_state_for_elog(&ps) < 0)
 		return;
-	sws->pm1_sts = pm1_status;
-	sws->pm1_en = acpi_read16(MMIO_ACPI_PM1_EN);
-	reg32 = acpi_read32(MMIO_ACPI_GPE0_STS);
-	acpi_write32(MMIO_ACPI_GPE0_STS, reg32);
-	sws->gpe0_sts = reg32;
-	sws->gpe0_en = acpi_read32(MMIO_ACPI_GPE0_EN);
-	reg16 = acpi_read16(MMIO_ACPI_PM1_CNT_BLK);
-	reg16 &= SLP_TYP;
-	sws->wake_from = reg16 >> SLP_TYP_SHIFT;
+
+	state = &ps->gpe_state;
+	print_pm1_status(state->pm1_sts);
+	acpi_log_events(ps);
 }
 
-void acpi_clear_pm1_status(void)
+void acpi_clear_pm_gpe_status(void)
 {
-	uint16_t pm1_sts = reset_pm1_status();
-
-	save_sws(pm1_sts);
-	log_pm1_status(pm1_sts);
-	print_pm1_status(pm1_sts);
+	acpi_write16(MMIO_ACPI_PM1_STS, acpi_read16(MMIO_ACPI_PM1_STS));
+	acpi_write32(MMIO_ACPI_GPE0_STS, acpi_read32(MMIO_ACPI_GPE0_STS));
 }
 
 int acpi_get_sleep_type(void)
@@ -137,7 +98,7 @@ int acpi_get_sleep_type(void)
 	return acpi_sleep_from_pm1(acpi_read16(MMIO_ACPI_PM1_CNT_BLK));
 }
 
-int vboot_platform_is_resuming(void)
+int platform_is_resuming(void)
 {
 	if (!(acpi_read16(MMIO_ACPI_PM1_STS) & WAK_STS))
 		return 0;

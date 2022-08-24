@@ -1,17 +1,4 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2014 Google Inc
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+# SPDX-License-Identifier: GPL-2.0-only
 
 # ccache integration
 ifeq ($(CONFIG_CCACHE),y)
@@ -29,7 +16,6 @@ $(foreach arch,$(ARCH_SUPPORTED), \
 
 HOSTCC:=$(CCACHE) $(HOSTCC)
 HOSTCXX:=$(CCACHE) $(HOSTCXX)
-ROMCC=$(CCACHE) $(ROMCC_BIN)
 endif
 
 # scan-build integration
@@ -44,7 +30,6 @@ $(foreach arch,$(ARCH_SUPPORTED), \
 
 HOSTCC:=CCC_CC="$(HOSTCC)" $(CC)
 HOSTCXX:=CCC_CXX="$(HOSTCXX)" $(CXX)
-ROMCC=CCC_CC="$(ROMCC_BIN)" $(CC)
 endif
 
 COREBOOT_STANDARD_STAGES := decompressor bootblock verstage romstage ramstage
@@ -56,23 +41,28 @@ ARCHDIR-x86_64	:= x86
 ARCHDIR-arm	:= arm
 ARCHDIR-arm64	:= arm64
 ARCHDIR-riscv	:= riscv
-ARCHDIR-mips	:= mips
 ARCHDIR-ppc64	:= ppc64
 
 CFLAGS_arm	+=
 CFLAGS_arm64	+= -mgeneral-regs-only
-CFLAGS_mips	+= -mips32r2 -G 0 -mno-abicalls -fno-pic
 CFLAGS_riscv	+=
 CFLAGS_x86_32	+=
 CFLAGS_x86_64	+= -mcmodel=large -mno-red-zone
 CFLAGS_ppc64	+=
+
+GCC_ADAFLAGS_arm	+=
+GCC_ADAFLAGS_arm64	+= -mgeneral-regs-only
+GCC_ADAFLAGS_riscv	+=
+GCC_ADAFLAGS_x86_32	+=
+GCC_ADAFLAGS_x86_64	+= -mcmodel=large -mno-red-zone
+GCC_ADAFLAGS_ppc64	+=
 
 # Some boards only provide 2K stacks, so storing lots of data there leads to
 # problems. Since C rules don't allow us to statically determine the maximum
 # stack use, we use 1.5K as heuristic, assuming that we typically have lots
 # of tiny stack frames and the odd large one.
 #
-# Store larger buffers in BSS, use MAYBE_STATIC to share code with __PRE_RAM__
+# Store larger buffers in BSS, use static to share data in cache-as-ram
 # on x86.
 # Since GCCs detection of dynamic array bounds unfortunately seems to be
 # very basic, you'll sometimes have to use a static upper bound for the
@@ -83,7 +73,6 @@ CFLAGS_ppc64	+=
 ifeq ($(CONFIG_COMPILER_GCC),y)
 CFLAGS_arm	+= -Wstack-usage=1536
 CFLAGS_arm64	+= -Wstack-usage=1536
-CFLAGS_mips	+= -Wstack-usage=1536
 CFLAGS_riscv	+= -Wstack-usage=1536
 CFLAGS_ppc64	+= -Wstack-usage=1536
 endif
@@ -119,7 +108,8 @@ standard-archs = $(sort $(foreach stagearch, \
 # e.g.: smm special class uses i386 as compiler set
 define create_class_compiler
 $(if $(2),,$(warning *** The toolchain architecture for $(1) is unknown.) \
-	$(error Check your .config file for CONFIG_ARCH_$(1)_* settings))
+	$(warning CONFIG_ARCH_$(1)_* settings in $(DOTCONFIG):) \
+	$(error $(shell grep CONFIG_ARCH_$(1)_ $(DOTCONFIG))))
 CC_$(1) := $(CC_$(2))
 GCC_$(1) := $(GCC_CC_$(2))
 LD_$(1) := $(LD_$(2))
@@ -237,23 +227,37 @@ ifneq ($(MAKECMDGOALS),)
 ifneq ($(filter test-toolchain,$(MAKECMDGOALS)),)
 $(foreach arch, $(ARCH_SUPPORTED), \
 	$(if $(shell if [ -n "$(GCC_CC_$(arch))" ]; then \
-		$(GCC_CC_$(arch)) -v 2>&1 | \
-		grep -q "$(shell util/crossgcc/buildgcc -s gcc)" || \
+		$(GCC_CC_$(arch)) --version 2>&1 | head -n1 | rev | \
+		cut -d ' ' -f 1 | rev | \
+		grep -q "$$(util/crossgcc/buildgcc -s gcc)" || \
 		echo not-current; fi), \
 		$(eval COMPILER_OUT_OF_DATE:=1) \
 		$(warning The coreboot toolchain version of gcc for '$(arch)' \
-			architecture is not the current version.)) \
+			architecture is not the current version.) \
+		$(warning $(arch) gcc version from buildgcc: \
+			$(shell util/crossgcc/buildgcc -s gcc)) \
+		$(warning $(arch) version of gcc executable: \
+			$(shell $(GCC_CC_$(arch)) --version | head -n1 | \
+			rev | cut -d ' ' -f 1 | rev))) \
 	$(if $(shell if [ -n "$(CLANG_CC_$(arch))" ]; then \
-		$(CLANG_CC_$(arch)) -v 2>&1 | \
+		$(CLANG_CC_$(arch)) --version  2>&1 | \
+			sed 's/.*clang version/clang version/' | \
+			head -n1 | cut -d ' ' -f 3 | \
 		grep -q "$(shell util/crossgcc/buildgcc -s clang)" || \
 		echo not-current; fi), \
-		$(eval COMPILER_OUT_OF_DATE:=1)\
+		$(eval COMPILER_OUT_OF_DATE:=1) \
 		$(warning The coreboot toolchain version of clang for \
-			'$(arch)' architecture is not the current version.)) \
+			'$(arch)' architecture is not the current version.) \
+		$(warning $(arch) clang version from buildgcc: \
+			$(shell util/crossgcc/buildgcc -s clang)) \
+		$(warning $(arch) version of clang executable: \
+			$(shell $(CLANG_CC_$(arch)) --version 2>&1 | \
+			sed 's/.*clang version/clang version/' | \
+			head -n1 | cut -d ' ' -f 3))) \
 	$(if $(shell if [ "$(OBJDUMP_$(arch))" != "invalidobjdump" ]; then \
-	$(OBJDUMP_$(arch)) -v 2>&1 | \
-	grep -q "$(shell util/crossgcc/buildgcc -s binutils)" || \
-	echo not-current; fi), \
+		$(OBJDUMP_$(arch)) -v 2>&1 | \
+		grep -q "$(shell util/crossgcc/buildgcc -s binutils)" || \
+		echo not-current; fi), \
 		$(eval COMPILER_OUT_OF_DATE:=1)\
 		$(warning The coreboot toolchain version of binutils for \
 			'$(arch)' architecture is not the current version.)) \
@@ -263,6 +267,12 @@ $(if $(shell if [ -n "$(IASL)" ]; then $(IASL) -v 2>&1 | \
 	echo not-coreboot; fi), \
 	$(eval COMPILER_OUT_OF_DATE:=1)\
 	$(warning The coreboot toolchain version of iasl \
-		is not the current version))
+		is not the current version) \
+		$(warning $(arch) iasl version from buildgcc: \
+			$(shell util/crossgcc/buildgcc -s iasl)) \
+		$(warning $(arch) version of iasl executable: \
+			$(shell $(IASL) -v 2>&1 | \
+			grep ASL+ | rev | cut -f 1 -d ' ' | rev)))
+$(eval UPDATED_SUBMODULES:=1)
 endif #($(filter crossgcc_check%,$(MAKECMDGOALS)),)
 endif #($(MAKECMDGOALS),)

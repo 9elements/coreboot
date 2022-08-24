@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corp.
- * (Written by Abhay Kumar <abhay.kumar@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _COMMON_GMA_H_
 #define _COMMON_GMA_H_
@@ -32,7 +17,12 @@
 typedef struct {
 	u8	signature[16];	    /* Offset 0    OpRegion signature */
 	u32	size;		    /* Offset 16   OpRegion size */
-	u32	version;	    /* Offset 20   OpRegion structure version */
+	struct opregion_version {
+		u8 rsvd;
+		u8 revision;
+		u8 minor;
+		u8 major;
+	} opver;		    /* Offset 20   OpRegion version structure */
 	u8	sbios_version[32];  /* Offset 24   System BIOS build version */
 	u8	vbios_version[16];  /* Offset 56   Video BIOS build version */
 	u8	driver_version[16]; /* Offset 72   Graphic drvr build version */
@@ -44,7 +34,6 @@ typedef struct {
 } __packed opregion_header_t;
 
 #define IGD_OPREGION_SIGNATURE "IntelGraphicsMem"
-#define IGD_OPREGION_VERSION  2
 
 #define IGD_MBOX1	(1 << 0)
 #define IGD_MBOX2	(1 << 1)
@@ -158,7 +147,8 @@ typedef struct {
 	u32	fdss;		/* Offset 178 FFS Display Size */
 	u32	stat;		/* Offset 182 State Indicator */
 	u64	rvda;		/* Offset 186 (Igd opregion offset 0x3BAh)
-				 *            Physical address of Raw VBT data
+				 *            Physical(2.0) or relative opregion
+				 *            (2.1+) address of Raw VBT data
 				 */
 	u32	rvds;		/* Offset 194 (Igd opregion offset 0x3C2h)
 				 *            Size of Raw VBT data
@@ -246,11 +236,7 @@ typedef struct {
 	u8	coreblock_biossignon[155];
 } __packed optionrom_vbt_t;
 
-void intel_gma_opregion_register(uintptr_t opregion);
-void intel_gma_restore_opregion(void);
-uintptr_t gma_get_gnvs_aslb(const void *gnvs);
-void gma_set_gnvs_aslb(void *gnvs, uintptr_t aslb);
-enum cb_err intel_gma_init_igd_opregion(igd_opregion_t *opregion);
+enum cb_err intel_gma_init_igd_opregion(void);
 
 /*
  * Returns the CBFS filename of the VBT blob.

@@ -1,26 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2006 Eric Biederman (ebiederm@xmission.com)
- * Copyright (C) 2007 AMD
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stddef.h>
+#include <stdint.h>
 #include <console/console.h>
 #include <console/usb.h>
 #include <arch/io.h>
 #include <device/mmio.h>
 #include <arch/symbols.h>
-#include <arch/early_variables.h>
 #include <string.h>
 #include <cbmem.h>
 
@@ -35,16 +20,15 @@ struct ehci_debug_info {
 	struct dbgp_pipe ep_pipe[DBGP_MAX_ENDPOINTS];
 } __packed;
 
-#if CONFIG(DEBUG_CONSOLE_INIT)
-/* When selected, you can debug the connection of usbdebug dongle.
- * EHCI port register bits and USB packets are dumped on console,
- * assuming some other console already works.
+/* With CONFIG(DEBUG_CONSOLE_INIT), you can debug the connection of
+ * usbdebug dongle. EHCI port register bits and USB packets are dumped
+ * on console, assuming some other console already works.
  */
-# define dprintk(LEVEL, args...) \
-	do { if (!dbgp_enabled()) printk(LEVEL, ##args); } while (0)
-#else
-# define dprintk(LEVEL, args...)   do {} while (0)
-#endif
+#define dprintk(LEVEL, args...)						\
+	do {								\
+		if (CONFIG(DEBUG_CONSOLE_INIT) && !dbgp_enabled())	\
+			printk(LEVEL, ##args);				\
+	} while (0)
 
 #define DBGP_LEN_UPDATE(x, len) (((x) & ~0x0f) | ((len) & 0x0f))
 
@@ -62,24 +46,24 @@ struct ehci_debug_info {
 static int dbgp_enabled(void);
 static void dbgp_print_data(struct ehci_dbg_port *ehci_debug);
 
-static struct ehci_debug_info glob_dbg_info CAR_GLOBAL;
-static struct ehci_debug_info * glob_dbg_info_p CAR_GLOBAL;
+static struct ehci_debug_info glob_dbg_info;
+static struct ehci_debug_info *glob_dbg_info_p;
 
 static inline struct ehci_debug_info *dbgp_ehci_info(void)
 {
-	if (car_get_var(glob_dbg_info_p) == NULL) {
+	if (glob_dbg_info_p == NULL) {
 		struct ehci_debug_info *info;
-		if (ENV_BOOTBLOCK || ENV_VERSTAGE || ENV_ROMSTAGE) {
+		if (ENV_BOOTBLOCK || ENV_SEPARATE_VERSTAGE || ENV_ROMSTAGE) {
 			/* The message likely does not show if we hit this. */
 			if (sizeof(*info) > _car_ehci_dbg_info_size)
 				die("BUG: Increase ehci_dbg_info reserve in CAR");
-			info = (void *)_car_ehci_dbg_info_start;
+			info = (void *)_car_ehci_dbg_info;
 		} else {
 			info = &glob_dbg_info;
 		}
-		car_set_var(glob_dbg_info_p, info);
+		glob_dbg_info_p = info;
 	}
-	return car_get_var(glob_dbg_info_p);
+	return glob_dbg_info_p;
 }
 
 static int dbgp_wait_until_complete(struct ehci_dbg_port *ehci_debug)
@@ -95,7 +79,7 @@ static int dbgp_wait_until_complete(struct ehci_dbg_port *ehci_debug)
 	} while (++loop < DBGP_MICROFRAME_TIMEOUT_LOOPS);
 
 	if (! (ctrl & DBGP_DONE)) {
-		dprintk(BIOS_ERR, "dbgp_wait_until_complete: retry timeout.\n");
+		dprintk(BIOS_ERR, "%s: retry timeout.\n", __func__);
 		return -DBGP_ERR_SIGNAL;
 	}
 
@@ -112,7 +96,7 @@ static void dbgp_breath(void)
 }
 
 static int dbgp_wait_until_done(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pipe,
-	unsigned ctrl, const int timeout)
+	unsigned int ctrl, const int timeout)
 {
 	u32 rd_ctrl, rd_pids;
 	u32 ctrl_prev = 0, pids_prev = 0;
@@ -315,7 +299,7 @@ void dbgp_mdelay(int ms)
 	}
 }
 
-int dbgp_control_msg(struct ehci_dbg_port *ehci_debug, unsigned devnum, int requesttype,
+int dbgp_control_msg(struct ehci_dbg_port *ehci_debug, unsigned int devnum, int requesttype,
 		int request, int value, int index, void *data, int size)
 {
 	struct ehci_debug_info *info = dbgp_ehci_info();
@@ -386,7 +370,7 @@ static int ehci_reset_port(struct ehci_regs *ehci_regs, int port)
 	u32 portsc;
 	int loop;
 
-	/* Reset the usb debug port */
+	/* Reset the USB debug port */
 	portsc = read32(&ehci_regs->port_status[port - 1]);
 	portsc &= ~PORT_PE;
 	portsc |= PORT_RESET;
@@ -436,9 +420,7 @@ static int ehci_wait_for_port(struct ehci_regs *ehci_regs, int port)
 	return -1; //-ENOTCONN;
 }
 
-
-
-static int usbdebug_init_(unsigned ehci_bar, unsigned offset, struct ehci_debug_info *info)
+static int usbdebug_init_(uintptr_t ehci_bar, unsigned int offset, struct ehci_debug_info *info)
 {
 	struct ehci_caps *ehci_caps;
 	struct ehci_regs *ehci_regs;
@@ -451,12 +433,12 @@ static int usbdebug_init_(unsigned ehci_bar, unsigned offset, struct ehci_debug_
 	int playtimes = 3;
 
 	/* Keep all endpoints disabled before any printk() call. */
-	memset(info, 0, sizeof (*info));
+	memset(info, 0, sizeof(*info));
 	info->ehci_base = ehci_bar;
 	info->ehci_debug = ehci_bar + offset;
 	info->ep_pipe[0].status	|= DBGP_EP_NOT_PRESENT;
 
-	dprintk(BIOS_INFO, "ehci_bar: 0x%x debug_offset 0x%x\n", ehci_bar, offset);
+	dprintk(BIOS_INFO, "ehci_bar: 0x%lx debug_offset 0x%x\n", ehci_bar, offset);
 
 	ehci_caps  = (struct ehci_caps *)ehci_bar;
 	ehci_regs  = (struct ehci_regs *)(ehci_bar +
@@ -564,7 +546,6 @@ try_next_port:
 	}
 	dprintk(BIOS_INFO, "EHCI done waiting for port.\n");
 
-
 	/* Enable the debug port */
 	ctrl = read32(&ehci_debug->control);
 	ctrl |= DBGP_CLAIM;
@@ -577,13 +558,6 @@ try_next_port:
 		goto err;
 	}
 	dprintk(BIOS_INFO, "EHCI debug port enabled.\n");
-
-#if 0
-	/* Completely transfer the debug device to the debug controller */
-	portsc = read32(&ehci_regs->port_status[debug_port - 1]);
-	portsc &= ~PORT_PE;
-	write32(&ehci_regs->port_status[debug_port - 1], portsc);
-#endif
 
 	dbgp_mdelay(100);
 
@@ -606,25 +580,23 @@ err:
 	//return ret;
 
 next_debug_port:
-#if CONFIG_USBDEBUG_DEFAULT_PORT == 0
-	port_map_tried |= (1 << (debug_port - 1));
-	new_debug_port = ((debug_port-1 + 1) % n_ports) + 1;
-	if (port_map_tried != ((1 << n_ports) - 1)) {
-		ehci_debug_select_port(new_debug_port);
-		goto try_next_port;
+	if (CONFIG_USBDEBUG_DEFAULT_PORT == 0) {
+		port_map_tried |= (1 << (debug_port - 1));
+		new_debug_port = ((debug_port-1 + 1) % n_ports) + 1;
+		if (port_map_tried != ((1 << n_ports) - 1)) {
+			ehci_debug_select_port(new_debug_port);
+			goto try_next_port;
+		}
+		if (--playtimes) {
+			ehci_debug_select_port(new_debug_port);
+			goto try_next_time;
+		}
+	} else {
+		if (--playtimes)
+			goto try_next_time;
 	}
-	if (--playtimes) {
-		ehci_debug_select_port(new_debug_port);
-		goto try_next_time;
-	}
-#else
-	if (0)
-		goto try_next_port;
-	if (--playtimes)
-		goto try_next_time;
-#endif
 
-	return -10;
+	return ret;
 }
 
 static int dbgp_enabled(void)
@@ -657,7 +629,7 @@ void dbgp_put(struct dbgp_pipe *pipe)
 }
 
 #if ENV_RAMSTAGE
-void usbdebug_re_enable(unsigned ehci_base)
+void usbdebug_re_enable(uintptr_t ehci_base)
 {
 	struct ehci_debug_info *dbg_info = dbgp_ehci_info();
 	u64 diff;
@@ -708,7 +680,7 @@ static void migrate_ehci_debug(int is_recovery)
 	struct ehci_debug_info *dbg_info_cbmem;
 	int rv;
 
-	if (ENV_ROMSTAGE) {
+	if (ENV_CREATES_CBMEM) {
 		/* Move state from CAR to CBMEM. */
 		struct ehci_debug_info *dbg_info = dbgp_ehci_info();
 		dbg_info_cbmem = cbmem_add(CBMEM_ID_EHCI_DEBUG,
@@ -716,7 +688,7 @@ static void migrate_ehci_debug(int is_recovery)
 		if (dbg_info_cbmem == NULL)
 			return;
 		memcpy(dbg_info_cbmem, dbg_info, sizeof(*dbg_info));
-		car_set_var(glob_dbg_info_p, dbg_info_cbmem);
+		glob_dbg_info_p = dbg_info_cbmem;
 		return;
 	}
 
@@ -724,7 +696,7 @@ static void migrate_ehci_debug(int is_recovery)
 		/* Use state in CBMEM. */
 		dbg_info_cbmem = cbmem_find(CBMEM_ID_EHCI_DEBUG);
 		if (dbg_info_cbmem)
-			car_set_var(glob_dbg_info_p, dbg_info_cbmem);
+			glob_dbg_info_p = dbg_info_cbmem;
 	}
 
 	rv = usbdebug_hw_init(false);
@@ -734,9 +706,7 @@ static void migrate_ehci_debug(int is_recovery)
 		printk(BIOS_DEBUG, "usbdebug: " ENV_STRING " starting...\n");
 }
 
-ROMSTAGE_CBMEM_INIT_HOOK(migrate_ehci_debug);
-POSTCAR_CBMEM_INIT_HOOK(migrate_ehci_debug);
-RAMSTAGE_CBMEM_INIT_HOOK(migrate_ehci_debug);
+CBMEM_READY_HOOK(migrate_ehci_debug);
 
 int dbgp_ep_is_active(struct dbgp_pipe *pipe)
 {
@@ -756,7 +726,7 @@ struct dbgp_pipe *dbgp_console_input(void)
 void usbdebug_init(void)
 {
 	/* USB console init is done early in romstage, yet delayed to
-	 * CBMEM_INIT_HOOKs for postcar and ramstage as we recover state
+	 * CBMEM_READY_HOOKs for postcar and ramstage as we recover state
 	 * from CBMEM.
 	 */
 	if (CONFIG(USBDEBUG_IN_PRE_RAM)

@@ -1,23 +1,9 @@
-/*
- * This file is part of coreboot..
- *
- * Based on work by Patrick Georgi <patrick@georgi-clan.de>
- * Copyright 2014 Curt Brune <curt@cumulusnetworks.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * This file contains #define constants used by both the Linux
  * trampoline C-code and assembly language code.  As such it can only
- * contain preprocessor macros.  Do not inlucde C language
+ * contain preprocessor macros.  Do not include C language
  * declarations in this file.
  */
 

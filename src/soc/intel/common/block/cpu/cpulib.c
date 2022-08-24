@@ -1,34 +1,43 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015-2018 Intel Corporation.
- * Copyright (C) 2018 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpigen.h>
+#include <assert.h>
+#include <acpi/acpigen.h>
 #include <console/console.h>
+#include <cpu/intel/common/common.h>
 #include <cpu/intel/turbo.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <arch/cpu.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/fast_spi.h>
-#include <soc/cpu.h>
-#include <soc/iomap.h>
-#include <soc/pm.h>
 #include <intelblocks/msr.h>
-#include <soc/pci_devs.h>
-#include <stdint.h>
+#include <smp/node.h>
+#include <soc/soc_chip.h>
+#include <types.h>
+
+#define CPUID_EXTENDED_CPU_TOPOLOGY 0x0b
+#define LEVEL_TYPE_CORE 2
+#define LEVEL_TYPE_SMT 1
+
+#define CPUID_CPU_TOPOLOGY(x, val) \
+	(((val) >> CPUID_CPU_TOPOLOGY_##x##_SHIFT) & CPUID_CPU_TOPOLOGY_##x##_MASK)
+
+#define CPUID_CPU_TOPOLOGY_LEVEL_TYPE_SHIFT 0x8
+#define CPUID_CPU_TOPOLOGY_LEVEL_TYPE_MASK 0xff
+#define CPUID_CPU_TOPOLOGY_LEVEL(res) CPUID_CPU_TOPOLOGY(LEVEL_TYPE, (res).ecx)
+
+#define CPUID_CPU_TOPOLOGY_LEVEL_BITS_SHIFT 0x0
+#define CPUID_CPU_TOPOLOGY_LEVEL_BITS_MASK 0x1f
+#define CPUID_CPU_TOPOLOGY_THREAD_BITS(res) CPUID_CPU_TOPOLOGY(LEVEL_BITS, (res).eax)
+#define CPUID_CPU_TOPOLOGY_CORE_BITS(res, threadbits) \
+	((CPUID_CPU_TOPOLOGY(LEVEL_BITS, (res).eax)) - threadbits)
+
+#define CPUID_PROCESSOR_FREQUENCY		0X16
+#define CPUID_HYBRID_INFORMATION		0x1a
+
+/* Structured Extended Feature Flags */
+#define CPUID_STRUCT_EXTENDED_FEATURE_FLAGS	0x7
+#define HYBRID_FEATURE				BIT(15)
 
 /*
  * Set PERF_CTL MSR (0x199) P_Req with
@@ -129,11 +138,10 @@ void cpu_set_p_state_to_nominal_tdp_ratio(void)
  */
 void cpu_set_p_state_to_max_non_turbo_ratio(void)
 {
-	msr_t msr, perf_ctl;
+	msr_t perf_ctl;
 
 	/* Platform Info bits 15:8 give max ratio */
-	msr = rdmsr(MSR_PLATFORM_INFO);
-	perf_ctl.lo = msr.lo & 0xff00;
+	perf_ctl.lo = (cpu_get_max_non_turbo_ratio() << 8) & 0xff00;
 	perf_ctl.hi = 0;
 
 	set_perf_control_msr(perf_ctl);
@@ -184,6 +192,40 @@ int cpu_get_burst_mode_state(void)
 	return burst_state;
 }
 
+bool cpu_is_hybrid_supported(void)
+{
+	struct cpuid_result cpuid_regs;
+
+	/* CPUID.(EAX=07H, ECX=00H):EDX[15] indicates CPU is hybrid CPU or not*/
+	cpuid_regs = cpuid_ext(CPUID_STRUCT_EXTENDED_FEATURE_FLAGS, 0);
+	return !!(cpuid_regs.edx & HYBRID_FEATURE);
+}
+
+/*
+ * The function must be called if CPU is hybrid. If CPU is hybrid, the CPU type
+ * information is available in the Hybrid Information Enumeration Leaf(EAX=0x1A, ECX=0).
+ */
+uint8_t cpu_get_cpu_type(void)
+{
+	union cpuid_nat_model_id_and_core_type {
+		struct {
+			u32 native_mode_id:24;
+			u32 core_type:8;
+		} bits;
+		u32 hybrid_info;
+	};
+	union cpuid_nat_model_id_and_core_type eax;
+
+	eax.hybrid_info = cpuid_eax(CPUID_HYBRID_INFORMATION);
+	return (u8)eax.bits.core_type;
+}
+
+/* It gets CPU bus frequency in MHz */
+uint32_t cpu_get_bus_frequency(void)
+{
+	return cpuid_ecx(CPUID_PROCESSOR_FREQUENCY);
+}
+
 /*
  * Program CPU Burst mode
  * true = Enable Burst mode.
@@ -216,19 +258,6 @@ void cpu_set_eist(bool eist_status)
 	else
 		msr.lo &= ~(1 << 16);
 	wrmsr(IA32_MISC_ENABLE, msr);
-}
-
-/*
- * Set Bit 6 (ENABLE_IA_UNTRUSTED_MODE) of MSR 0x120
- * UCODE_PCR_POWER_MISC MSR to enter IA Untrusted Mode.
- */
-void cpu_enable_untrusted_mode(void *unused)
-{
-	msr_t msr;
-
-	msr = rdmsr(MSR_POWER_MISC);
-	msr.lo |= ENABLE_IA_UNTRUSTED;
-	wrmsr(MSR_POWER_MISC, msr);
 }
 
 /*
@@ -274,6 +303,51 @@ uint32_t cpu_get_max_ratio(void)
 	return ratio_max;
 }
 
+uint8_t cpu_get_max_non_turbo_ratio(void)
+{
+	msr_t msr;
+
+	/*
+	 * PLATFORM_INFO(0xCE) MSR Bits[15:8] tells
+	 * MAX_NON_TURBO_LIM_RATIO
+	 */
+	msr = rdmsr(MSR_PLATFORM_INFO);
+	return ((msr.lo >> 8) & 0xff);
+}
+
+void configure_tcc_thermal_target(void)
+{
+	const config_t *conf = config_of_soc();
+	msr_t msr;
+
+	if (!conf->tcc_offset)
+		return;
+
+	/* Set TCC activation offset */
+	msr = rdmsr(MSR_PLATFORM_INFO);
+	if ((msr.lo & BIT(30))) {
+		msr = rdmsr(MSR_TEMPERATURE_TARGET);
+		msr.lo &= ~(0xf << 24);
+		msr.lo |= (conf->tcc_offset & 0xf) << 24;
+		wrmsr(MSR_TEMPERATURE_TARGET, msr);
+	}
+
+	/*
+	 * SoCs prior to Comet Lake/Cannon Lake do not support the time window
+	 * bits, so return early.
+	 */
+	if (CONFIG(SOC_INTEL_APOLLOLAKE) || CONFIG(SOC_INTEL_SKYLAKE) ||
+	    CONFIG(SOC_INTEL_KABYLAKE) || CONFIG(SOC_INTEL_BRASWELL) ||
+	    CONFIG(SOC_INTEL_BROADWELL))
+		return;
+
+	/* Time Window Tau Bits [6:0] */
+	msr = rdmsr(MSR_TEMPERATURE_TARGET);
+	msr.lo &= ~0x7f;
+	msr.lo |= 0xe6; /* setting 100ms thermal time window */
+	wrmsr(MSR_TEMPERATURE_TARGET, msr);
+}
+
 uint32_t cpu_get_bus_clock(void)
 {
 	/* CPU bus clock is set by default here to 100MHz.
@@ -302,21 +376,144 @@ uint32_t cpu_get_max_turbo_ratio(void)
 
 void mca_configure(void)
 {
-	msr_t msr;
 	int i;
-	int num_banks;
+	const unsigned int num_banks = mca_get_bank_count();
 
 	printk(BIOS_DEBUG, "Clearing out pending MCEs\n");
 
-	msr = rdmsr(IA32_MCG_CAP);
-	num_banks = msr.lo & 0xff;
-	msr.lo = msr.hi = 0;
+	mca_clear_status();
 
 	for (i = 0; i < num_banks; i++) {
-		/* Clear the machine check status */
-		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
 		/* Initialize machine checks */
-		wrmsr(IA32_MC0_CTL + i * 4,
+		wrmsr(IA32_MC_CTL(i),
 			(msr_t) {.lo = 0xffffffff, .hi = 0xffffffff});
 	}
+}
+
+void cpu_lt_lock_memory(void)
+{
+	msr_set(MSR_LT_CONTROL, LT_CONTROL_LOCK);
+}
+
+int get_valid_prmrr_size(void)
+{
+	msr_t msr;
+	int i;
+	int valid_size;
+
+	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_SGX_ENABLE))
+		return 0;
+
+	msr = rdmsr(MSR_PRMRR_VALID_CONFIG);
+	if (!msr.lo) {
+		printk(BIOS_WARNING, "PRMRR not supported.\n");
+		return 0;
+	}
+
+	printk(BIOS_DEBUG, "MSR_PRMRR_VALID_CONFIG = 0x%08x\n", msr.lo);
+
+	/* find the first (greatest) value that is lower than or equal to the selected size */
+	for (i = 8; i >= 0; i--) {
+		valid_size = msr.lo & (1 << i);
+
+		if (valid_size && valid_size <= CONFIG_SOC_INTEL_COMMON_BLOCK_SGX_PRMRR_SIZE)
+			break;
+		else if (i == 0)
+			valid_size = 0;
+	}
+
+	if (!valid_size) {
+		printk(BIOS_WARNING, "Unsupported PRMRR size of %i MiB, check your config!\n",
+			CONFIG_SOC_INTEL_COMMON_BLOCK_SGX_PRMRR_SIZE);
+		return 0;
+	}
+
+	printk(BIOS_DEBUG, "PRMRR size set to %i MiB\n", valid_size);
+
+	valid_size *= MiB;
+
+	return valid_size;
+}
+
+/* Get number of bits for core ID and SMT ID */
+static void get_cpu_core_thread_bits(uint32_t *core_bits, uint32_t *thread_bits)
+{
+	struct cpuid_result cpuid_regs;
+	int level_num, cpu_id_op = 0;
+	const uint32_t cpuid_max_func = cpuid_get_max_func();
+
+	/* Assert if extended CPU topology not supported */
+	assert(cpuid_max_func >= CPUID_EXTENDED_CPU_TOPOLOGY);
+
+	cpu_id_op = CPUID_EXTENDED_CPU_TOPOLOGY;
+
+	*core_bits = level_num = 0;
+	cpuid_regs = cpuid_ext(cpu_id_op, level_num);
+
+	/* Sub-leaf index 0 enumerates SMT level, if not assert */
+	assert(CPUID_CPU_TOPOLOGY_LEVEL(cpuid_regs) == LEVEL_TYPE_SMT);
+
+	*thread_bits = CPUID_CPU_TOPOLOGY_THREAD_BITS(cpuid_regs);
+	do {
+		level_num++;
+		cpuid_regs = cpuid_ext(cpu_id_op, level_num);
+		if (CPUID_CPU_TOPOLOGY_LEVEL(cpuid_regs) == LEVEL_TYPE_CORE) {
+			*core_bits = CPUID_CPU_TOPOLOGY_CORE_BITS(cpuid_regs, *thread_bits);
+			break;
+		}
+	/* Stop when level type is invalid i.e 0 */
+	} while (CPUID_CPU_TOPOLOGY_LEVEL(cpuid_regs));
+}
+
+void get_cpu_topology_from_apicid(uint32_t apicid, uint8_t *package,
+		uint8_t *core, uint8_t *thread)
+{
+
+	uint32_t core_bits, thread_bits;
+
+	get_cpu_core_thread_bits(&core_bits, &thread_bits);
+
+	if (package)
+		*package = apicid >> (thread_bits + core_bits);
+	if (core)
+		*core = (apicid  >> thread_bits) & ((1 << core_bits) - 1);
+	if (thread)
+		*thread = apicid  & ((1 << thread_bits) - 1);
+}
+
+static void sync_core_prmrr(void)
+{
+	static msr_t msr_base, msr_mask;
+
+	if (boot_cpu()) {
+		msr_base = rdmsr(MSR_PRMRR_BASE_0);
+		msr_mask = rdmsr(MSR_PRMRR_PHYS_MASK);
+	} else if (!intel_ht_sibling()) {
+		wrmsr(MSR_PRMRR_BASE_0, msr_base);
+		wrmsr(MSR_PRMRR_PHYS_MASK, msr_mask);
+	}
+}
+
+void init_core_prmrr(void)
+{
+	msr_t msr = rdmsr(MTRR_CAP_MSR);
+
+	if (msr.lo & MTRR_CAP_PRMRR)
+		sync_core_prmrr();
+}
+
+bool is_tme_supported(void)
+{
+	struct cpuid_result cpuid_regs;
+
+	cpuid_regs = cpuid_ext(0x7, 0x0); /* ECX[13] is feature capability */
+
+	return (cpuid_regs.ecx & TME_SUPPORTED);
+}
+
+void set_tme_core_activate(void)
+{
+	msr_t msr = { .lo = 0, .hi = 0 };
+
+	wrmsr(MSR_CORE_MKTME_ACTIVATION, msr);
 }

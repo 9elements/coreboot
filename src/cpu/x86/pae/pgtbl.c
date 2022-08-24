@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2005 Yinghai Lu
- * Copyright (C) 2019 9elements Agency GmbH
- * Copyright (C) 2019 Facebook Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbfs.h>
 #include <commonlib/helpers.h>
@@ -119,7 +104,7 @@ void paging_disable_pae(void)
  * Use PAE to map a page and then memset it with the pattern specified.
  * In order to use PAE pagetables for virtual addressing are set up and reloaded
  * on a 2MiB boundary. After the function is done, virtual addressing mode is
- * disabled again. The PAT are set to all cachable, but MTRRs still apply.
+ * disabled again. The PAT are set to all cacheable, but MTRRs still apply.
  *
  * Requires a scratch memory for pagetables and a virtual address for
  * non identity mapped memory.
@@ -139,7 +124,7 @@ void paging_disable_pae(void)
  *                  Content at physical address isn't preserved.
  * @param length    The length of the memory segment to memset
  * @param dest      Physical memory address to memset
- * @param pat       The pattern to write to the pyhsical memory
+ * @param pat       The pattern to write to the physical memory
  * @return 0 on success, 1 on error
  */
 int memset_pae(uint64_t dest, unsigned char pat, uint64_t length, void *pgtbl,
@@ -336,42 +321,17 @@ void paging_set_default_pat(void)
 	paging_set_pat(pat);
 }
 
-static int read_from_cbfs(const char *name, void *buf, size_t size)
-{
-	struct cbfsf fh;
-	struct region_device rdev;
-	size_t rdev_sz;
-
-	if (cbfs_boot_locate(&fh, name, NULL))
-		return -1;
-
-	cbfs_file_data(&rdev, &fh);
-
-	rdev_sz = region_device_sz(&rdev);
-
-	if (size < rdev_sz) {
-		printk(BIOS_ERR, "%s region too small to load: %zx < %zx\n",
-			name, size, rdev_sz);
-		return -1;
-	}
-
-	if (rdev_readat(&rdev, buf, 0, rdev_sz) != rdev_sz)
-		return -1;
-
-	return 0;
-}
-
 int paging_enable_for_car(const char *pdpt_name, const char *pt_name)
 {
-	if (!ENV_CACHE_AS_RAM)
+	if (!preram_symbols_available())
 		return -1;
 
-	if (read_from_cbfs(pdpt_name, _pdpt, REGION_SIZE(pdpt))) {
+	if (!cbfs_load(pdpt_name, _pdpt, REGION_SIZE(pdpt))) {
 		printk(BIOS_ERR, "Couldn't load pdpt\n");
 		return -1;
 	}
 
-	if (read_from_cbfs(pt_name, _pagetables, REGION_SIZE(pagetables))) {
+	if (!cbfs_load(pt_name, _pagetables, REGION_SIZE(pagetables))) {
 		printk(BIOS_ERR, "Couldn't load page tables\n");
 		return -1;
 	}
@@ -383,7 +343,7 @@ int paging_enable_for_car(const char *pdpt_name, const char *pt_name)
 
 static void *get_pdpt_addr(void)
 {
-	if (ENV_CACHE_AS_RAM)
+	if (preram_symbols_available())
 		return _pdpt;
 	return (void *)(uintptr_t)read_cr3();
 }

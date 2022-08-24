@@ -151,7 +151,7 @@ GnbLibPciIndirectWrite (
   IN      UINT32        Address,
   IN      UINT32        IndirectAddress,
   IN      ACCESS_WIDTH  Width,
-  IN      VOID          *Value,
+  CONST IN      VOID          *Value,
   IN      VOID          *Config
   )
 {
@@ -473,7 +473,7 @@ GnbLibDebugDumpBuffer (
       Index += 4;
       break;
     case 4:
-      IDS_HDT_CONSOLE (GNB_TRACE, "%08x%08", *(UINT32 *) ((UINT8 *) Buffer + Index), *(UINT32 *) ((UINT8 *) Buffer + Index + 4));
+      IDS_HDT_CONSOLE (GNB_TRACE, "%016llx", *(UINT64 *) ((UINT8 *) Buffer + Index));
       Index += 8;
       break;
     default:
@@ -501,11 +501,11 @@ AGESA_STATUS
 GnbLibLocateService (
   IN       GNB_SERVICE_ID       ServiceId,
   IN       UINT8                SocketId,
-  IN       VOID                 **ServiceProtocol,
+  CONST IN       VOID                 **ServiceProtocol,
   IN       AMD_CONFIG_PARAMS    *StdHeader
   )
 {
-  GNB_SERVICE     *SeviceEntry;
+  CONST GNB_SERVICE     *SeviceEntry;
   CPU_LOGICAL_ID  LogicalId;
   SeviceEntry = ServiceTable;
   GetLogicalIdOfSocket (SocketId, &LogicalId, StdHeader);
@@ -518,4 +518,3 @@ GnbLibLocateService (
   }
   return AGESA_UNSUPPORTED;
 }
-

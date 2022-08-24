@@ -1,5 +1,8 @@
 if BOARD_ASUS_AM1I_A
 
+config IGNORE_IASL_MISSING_DEPENDENCY
+	def_bool y
+
 config BOARD_SPECIFIC_OPTIONS
 	def_bool y
 	select BOARD_ROMSIZE_KB_8192
@@ -7,23 +10,20 @@ config BOARD_SPECIFIC_OPTIONS
 	select FORCE_AM1_SOCKET_SUPPORT
 	select GFXUMA
 	select HAVE_OPTION_TABLE
-	select USE_OPTION_TABLE
 	select HAVE_CMOS_DEFAULT
 	select HAVE_PIRQ_TABLE
-	select HAVE_MP_TABLE
 	select HAVE_ACPI_RESUME
 	select HAVE_ACPI_TABLES
 	select NORTHBRIDGE_AMD_AGESA_FAMILY16_KB
 	select SOUTHBRIDGE_AMD_AGESA_YANGTZE
+	select DEFAULT_POST_ON_LPC
 	select SUPERIO_ITE_IT8623E
-	select MAINBOARD_HAS_LPC_TPM
+	select MEMORY_MAPPED_TPM
 
 config MAINBOARD_DIR
-	string
-	default asus/am1i-a
+	default "asus/am1i-a"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "AM1I-A"
 
 config HW_MEM_HOLE_SIZEK
@@ -36,15 +36,11 @@ config MAX_CPUS
 
 config IRQ_SLOT_COUNT
 	int
-	default 9
+	default 10
 
 config ONBOARD_VGA_IS_PRIMARY
 	bool
 	default y
-
-config VGA_BIOS_ID
-	string
-	default "1002,9836"
 
 config HUDSON_LEGACY_FREE
 	bool

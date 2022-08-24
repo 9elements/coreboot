@@ -83,7 +83,7 @@ VOID sbUsbPhySetting (IN  UINT32 Value);
  * sbEarlyPostByteInitTable - PCI device registers initial during early POST.
  *
  */
-const static REG8MASK sbEarlyPostByteInitTable[] =
+static const REG8MASK sbEarlyPostByteInitTable[] =
 {
   // SMBUS Device (Bus 0, Dev 20, Func 0)
   {0x00, SMBUS_BUS_DEV_FUN, 0},
@@ -134,7 +134,7 @@ const static REG8MASK sbEarlyPostByteInitTable[] =
  * sbPmioEPostInitTable - Southbridge ACPI MMIO initial during POST.
  *
  */
-const static AcpiRegWrite sbPmioEPostInitTable[] =
+static const AcpiRegWrite sbPmioEPostInitTable[] =
 {
   // HPET workaround
   {PMIO_BASE >> 8,  SB_PMIOA_REG54 + 3, 0xFC, BIT0 + BIT1},
@@ -251,7 +251,7 @@ const static AcpiRegWrite sbPmioEPostInitTable[] =
  * abTblEntry800 - AB-Link Configuration Table for SB800
  *
  */
-const static ABTBLENTRY abTblEntry800[] =
+static const ABTBLENTRY abTblEntry800[] =
 {
   // RPR Enable downstream posted transactions to pass non-posted transactions.
   {ABCFG, SB_ABCFG_REG10090, BIT8 + BIT16, BIT8 + BIT16},
@@ -297,7 +297,7 @@ const static ABTBLENTRY abTblEntry800[] =
  * SbPcieOrderRule - AB-Link Configuration Table for ablink Post Pass Np Downstream/Upstream Feature
  *
  */
-const static ABTBLENTRY SbPcieOrderRule[] =
+static const ABTBLENTRY SbPcieOrderRule[] =
 {
 // abPostPassNpDownStreamTbl
   {ABCFG, SB_ABCFG_REG10060, BIT31, BIT31},
@@ -330,14 +330,11 @@ commonInitEarlyBoot (
   UINT32   abValue;
   UINT16   dwTempVar;
   CPUID_DATA  CpuId;
-  UINT8   cimNativepciesupport;
   UINT8   cimIrConfig;
   UINT8   Data;
 
-  cimNativepciesupport = (UINT8) pConfig->NativePcieSupport;
   cimIrConfig = (UINT8) pConfig->IrConfig;
 #if  SB_CIMx_PARAMETER == 0
-  cimNativepciesupport = cimNativepciesupportDefault;
   cimIrConfig = cimIrConfigDefault;
 #endif
 
@@ -417,9 +414,9 @@ commonInitEarlyBoot (
   abLinkInitBeforePciEnum (pConfig);            // Set ABCFG registers
   // AB MSI
   if ( pConfig->BuildParameters.AbMsi) {
-    abValue = readAlink (SB_ABCFG_REG94 | (UINT32) (ABCFG << 29));
+    abValue = readAlink (SB_ABCFG_REG94 | ((UINT32) ABCFG << 29));
     abValue = abValue | BIT20;
-    writeAlink (SB_ABCFG_REG94 | (UINT32) (ABCFG << 29), abValue);
+    writeAlink (SB_ABCFG_REG94 | ((UINT32) ABCFG << 29), abValue);
   }
 
 
@@ -483,12 +480,12 @@ abSpecialSetBeforePciEnum (
   )
 {
   UINT32   abValue;
-  abValue = readAlink (SB_ABCFG_REGC0 | (UINT32) (ABCFG << 29));
+  abValue = readAlink (SB_ABCFG_REGC0 | ((UINT32) ABCFG << 29));
   abValue &= 0xf0;
   if ( pConfig->SbPcieOrderRule && abValue ) {
-    abValue = readAlink (SB_RCINDXC_REG02 | (UINT32) (RCINDXC << 29));
+    abValue = readAlink (SB_RCINDXC_REG02 | ((UINT32) RCINDXC << 29));
     abValue = abValue | BIT9;
-    writeAlink (SB_RCINDXC_REG02 | (UINT32) (RCINDXC << 29), abValue);
+    writeAlink (SB_RCINDXC_REG02 | ((UINT32) RCINDXC << 29), abValue);
   }
 }
 
@@ -518,8 +515,6 @@ commonInitEarlyPost (
   UINT8  dbPortStatus;
   UINT8  cimSpreadSpectrum;
   UINT32 cimSpreadSpectrumType;
-  AMDSBCFG*   pTmp;
-  pTmp = pConfig;
 
   cimSpreadSpectrum = pConfig->SpreadSpectrum;
   cimSpreadSpectrumType = pConfig->BuildParameters.SpreadSpectrumType;
@@ -606,13 +601,11 @@ abLinkInitBeforePciEnum (
 {
   UINT32  cimResetCpuOnSyncFlood;
   ABTBLENTRY  *pAbTblPtr;
-  AMDSBCFG* Temp;
 
   cimResetCpuOnSyncFlood = pConfig->ResetCpuOnSyncFlood;
 #if  SB_CIMx_PARAMETER == 0
   cimResetCpuOnSyncFlood = cimResetCpuOnSyncFloodDefault;
 #endif
-  Temp = pConfig;
   if ( pConfig->SbPcieOrderRule ) {
     pAbTblPtr = (ABTBLENTRY *) FIXUP_PTR (&SbPcieOrderRule[0]);
     abcfgTbl (pAbTblPtr);
@@ -620,7 +613,7 @@ abLinkInitBeforePciEnum (
   pAbTblPtr = (ABTBLENTRY *) FIXUP_PTR (&abTblEntry800[0]);
   abcfgTbl (pAbTblPtr);
   if ( cimResetCpuOnSyncFlood ) {
-    rwAlink (SB_ABCFG_REG10050 | (UINT32) (ABCFG << 29), ~BIT2, BIT2);
+    rwAlink (SB_ABCFG_REG10050 | ((UINT32) ABCFG << 29), ~BIT2, BIT2);
   }
 }
 
@@ -640,12 +633,12 @@ abcfgTbl (
 
   while ( (pABTbl->regType) != 0xFF ) {
     if ( pABTbl->regType > AXINDC ) {
-      ddValue = pABTbl->regIndex | (pABTbl->regType << 29);
+      ddValue = pABTbl->regIndex | ((UINT32) pABTbl->regType << 29);
       writeAlink (ddValue, ((readAlink (ddValue)) & (0xFFFFFFFF^ (pABTbl->regMask))) | pABTbl->regData);
     } else {
-      ddValue = 0x30 | (pABTbl->regType << 29);
+      ddValue = 0x30 | ((UINT32) pABTbl->regType << 29);
       writeAlink (ddValue, pABTbl->regIndex);
-      ddValue = 0x34 | (pABTbl->regType << 29);
+      ddValue = 0x34 | ((UINT32) pABTbl->regType << 29);
       writeAlink (ddValue, ((readAlink (ddValue)) & (0xFFFFFFFF^ (pABTbl->regMask))) | pABTbl->regData);
     }
     ++pABTbl;
@@ -800,9 +793,7 @@ c3PopupSetting (
   IN       AMDSBCFG* pConfig
   )
 {
-  AMDSBCFG* Temp;
   UINT8  dbValue;
-  Temp = pConfig;
   //RPR C-State and VID/FID Change
   dbValue = getNumberOfCpuCores  ();
   if (dbValue > 1) {

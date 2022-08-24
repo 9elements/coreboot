@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/gpio.h>
 #include <vendorcode/google/chromeos/chromeos.h>
@@ -272,8 +259,4 @@ static const struct cros_gpio cros_gpios[] = {
 	CROS_GPIO_WP_AH(GPP_E15, CROS_GPIO_DEVICE_NAME),
 };
 
-const struct cros_gpio *variant_cros_gpios(size_t *num)
-{
-	*num = ARRAY_SIZE(cros_gpios);
-	return cros_gpios;
-}
+DECLARE_CROS_GPIOS(cros_gpios);

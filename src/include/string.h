@@ -1,28 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef STRING_H
 #define STRING_H
 
+#include <stdarg.h>
 #include <stddef.h>
-#include <stdlib.h>
-
-#if !defined(__ROMCC__)
-#include <console/vtxprintf.h>
-#endif
-
-/* Stringify a token */
-#ifndef STRINGIFY
-#define _STRINGIFY(x)	#x
-#define STRINGIFY(x)	_STRINGIFY(x)
-#endif
+#include <stdio.h>
 
 void *memcpy(void *dest, const void *src, size_t n);
 void *memmove(void *dest, const void *src, size_t n);
 void *memset(void *s, int c, size_t n);
 int memcmp(const void *s1, const void *s2, size_t n);
 void *memchr(const void *s, int c, size_t n);
-#if !defined(__ROMCC__)
-int snprintf(char *buf, size_t size, const char *fmt, ...);
-int vsnprintf(char *buf, size_t size, const char *fmt, va_list args);
-#endif
 char *strdup(const char *s);
 char *strconcat(const char *s1, const char *s2);
 size_t strnlen(const char *src, size_t max);
@@ -32,6 +21,12 @@ char *strncpy(char *to, const char *from, int count);
 char *strcpy(char *dst, const char *src);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, int maxlen);
+int strspn(const char *str, const char *spn);
+int strcspn(const char *str, const char *spn);
+char *strstr(const char *haystack, const char *needle);
+char *strtok_r(char *str, const char *delim, char **ptr);
+char *strtok(char *str, const char *delim);
+long atol(const char *str);
 
 /**
  * Find a character in a string.

@@ -1,22 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <baseboard/gpio.h>
 #include <baseboard/variants.h>
-#include <commonlib/helpers.h>
+#include <types.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 /*
  * Pad configuration in ramstage. The order largely follows the 'GPIO Muxing'
@@ -299,6 +287,24 @@ const struct pad_config *__weak variant_override_gpio_table(size_t *num)
 	return NULL;
 }
 
+const struct pad_config *__weak variant_early_override_gpio_table(size_t *num)
+{
+	*num = 0;
+	return NULL;
+}
+
+static const struct pad_config early_bootblock_gpio_table[] = {
+	PAD_NC(GPIO_154, NONE), /* LPC_CLKRUNB -- NC for eSPI */
+	PAD_CFG_NF_IOSSTATE_IOSTERM(GPIO_64, UP_20K, DEEP, NF1, HIZCRx1, DISPUPD), /* LPSS_UART2_RXD */
+	PAD_CFG_NF_IOSSTATE_IOSTERM(GPIO_65, UP_20K, DEEP, NF1, TxLASTRxE, DISPUPD), /* LPSS_UART2_TXD */
+};
+
+const struct pad_config *mainboard_early_bootblock_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(early_bootblock_gpio_table);
+	return early_bootblock_gpio_table;
+}
+
 /* GPIOs needed prior to ramstage. */
 static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPI(GPIO_190, NONE, DEEP), /* PCH_WP_OD */
@@ -319,12 +325,27 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPO(GPIO_164, 0, DEEP), /* WLAN_PE_RST */
 
 	/*
-	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requies a weak
+	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requires a weak
 	 * pull-up for proper operation. Since there is no external pull present
 	 * on this platform, configure an internal weak pull-up.
 	 */
 	PAD_CFG_NF_IOSSTATE_IOSTERM(GPIO_151, UP_20K, DEEP, NF2, HIZCRx1,
 				    ENPU), /* ESPI_IO1 */
+
+	/* GPIO_67 and GPIO_117 are in early_gpio_table and gpio_table. For variants
+	 * having LTE SKUs, these two GPIOs would be overridden to output high first
+	 * in the bootblock then be set to default state in gpio_table for non-LTE
+	 * SKUs and keep to output high for LTE SKUs in ramstage.
+	 */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_67, 0, DEEP, NONE, TxLASTRxE, DISPUPD), /* UART2-CTS_B -- EN_PP3300_DX_LTE_SOC */
+	PAD_CFG_GPI_SCI_LOW(GPIO_117, NONE, DEEP, EDGE_SINGLE),/* PCIE_WAKE1_B -- LTE_WAKE_L */
+	/* GPIO_161 is in early_gpio_table and gpio_table because LTE SKU needs
+	 * to override this pin to output low then high respectively in two
+	 * stages.
+	 */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_161, 1, DEEP, UP_20K, Tx1RxDCRx0, DISPUPD), /* AVS_I2S1_MCLK -- LTE_OFF_ODL */
+
+	PAD_CFG_GPI(GPIO_189, NONE, DEEP), /* EC_IN_RW */
 };
 
 const struct pad_config *__weak
@@ -342,8 +363,6 @@ static const struct pad_config sleep_gpio_table[] = {
 static const struct pad_config sleep_s5_gpio_table[] = {
 	/* BT_DISABLE_L */
 	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_109, 0, DEEP, NONE, Tx0RxDCRx1, SAME),
-	/* WLAN_DISABLE_L */
-	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_116, 0, DEEP, NONE, Tx0RxDCRx1, SAME),
 };
 
 const struct pad_config *__weak
@@ -363,8 +382,4 @@ static const struct cros_gpio cros_gpios[] = {
 	CROS_GPIO_WP_AH(PAD_SCC(GPIO_PCH_WP), GPIO_COMM_SCC_NAME),
 };
 
-const struct cros_gpio *__weak variant_cros_gpios(size_t *num)
-{
-	*num = ARRAY_SIZE(cros_gpios);
-	return cros_gpios;
-}
+DECLARE_WEAK_CROS_GPIOS(cros_gpios);

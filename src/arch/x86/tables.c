@@ -1,28 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2003 Eric Biederman
- * Copyright (C) 2005 Steve Magnani
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <bootmem.h>
-#include <bootstate.h>
 #include <boot/tables.h>
 #include <boot/coreboot_tables.h>
 #include <arch/pirq_routing.h>
 #include <arch/smp/mpspec.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <commonlib/helpers.h>
 #include <string.h>
 #include <cbmem.h>
@@ -52,7 +36,7 @@ static unsigned long write_pirq_table(unsigned long rom_table_end)
 		// much space it's going to need.
 		if (new_high_table_pointer > (high_table_pointer
 			+ MAX_PIRQ_TABLE_SIZE))
-			printk(BIOS_ERR, "ERROR: Increase PIRQ size.\n");
+			printk(BIOS_ERR, "Increase PIRQ size.\n");
 		printk(BIOS_DEBUG, "PIRQ table: %ld bytes.\n",
 				new_high_table_pointer - high_table_pointer);
 	}
@@ -80,7 +64,7 @@ static unsigned long write_mptable(unsigned long rom_table_end)
 		// much space it's going to need.
 		if (new_high_table_pointer > (high_table_pointer
 			+ MAX_MP_TABLE_SIZE))
-			printk(BIOS_ERR, "ERROR: Increase MP table size.\n");
+			printk(BIOS_ERR, "Increase MP table size.\n");
 
 		printk(BIOS_DEBUG, "MP table: %ld bytes.\n",
 				new_high_table_pointer - high_table_pointer);
@@ -92,8 +76,7 @@ static unsigned long write_mptable(unsigned long rom_table_end)
 static unsigned long write_acpi_table(unsigned long rom_table_end)
 {
 	unsigned long high_table_pointer;
-
-#define MAX_ACPI_SIZE (144 * 1024)
+	const size_t max_acpi_size = CONFIG_MAX_ACPI_TABLE_SIZE_KB * KiB;
 
 	post_code(0x9c);
 
@@ -110,7 +93,7 @@ static unsigned long write_acpi_table(unsigned long rom_table_end)
 	 * how far we get.
 	 */
 	high_table_pointer = (unsigned long)cbmem_add(CBMEM_ID_ACPI,
-		MAX_ACPI_SIZE);
+		max_acpi_size);
 	if (high_table_pointer) {
 		unsigned long acpi_start = high_table_pointer;
 		unsigned long new_high_table_pointer;
@@ -118,8 +101,8 @@ static unsigned long write_acpi_table(unsigned long rom_table_end)
 		rom_table_end = ALIGN_UP(rom_table_end, 16);
 		new_high_table_pointer = write_acpi_tables(high_table_pointer);
 		if (new_high_table_pointer > (high_table_pointer
-			+ MAX_ACPI_SIZE))
-			printk(BIOS_ERR, "ERROR: Increase ACPI size\n");
+			+ max_acpi_size))
+			printk(BIOS_ERR, "Increase ACPI size\n");
 		printk(BIOS_DEBUG, "ACPI tables: %ld bytes.\n",
 				new_high_table_pointer - high_table_pointer);
 
@@ -144,8 +127,7 @@ static unsigned long write_acpi_table(unsigned long rom_table_end)
 			   writes longest size available.  */
 			memcpy(low_rsdp, high_rsdp, sizeof(acpi_rsdp_t));
 		} else {
-			printk(BIOS_ERR,
-				"ERROR: Didn't find RSDP in high table.\n");
+			printk(BIOS_ERR, "Didn't find RSDP in high table.\n");
 		}
 		rom_table_end = ALIGN_UP(rom_table_end + sizeof(acpi_rsdp_t), 16);
 	} else {
@@ -160,7 +142,7 @@ static unsigned long write_smbios_table(unsigned long rom_table_end)
 {
 	unsigned long high_table_pointer;
 
-#define MAX_SMBIOS_SIZE 2048
+#define MAX_SMBIOS_SIZE (32 * KiB)
 
 	high_table_pointer = (unsigned long)cbmem_add(CBMEM_ID_SMBIOS,
 		MAX_SMBIOS_SIZE);
@@ -176,7 +158,7 @@ static unsigned long write_smbios_table(unsigned long rom_table_end)
 
 		if (new_high_table_pointer > (high_table_pointer
 			+ MAX_SMBIOS_SIZE))
-			printk(BIOS_ERR, "ERROR: Increase SMBIOS size\n");
+			printk(BIOS_ERR, "Increase SMBIOS size\n");
 		printk(BIOS_DEBUG, "SMBIOS tables: %ld bytes.\n",
 				new_high_table_pointer - high_table_pointer);
 	} else {
@@ -198,41 +180,6 @@ static unsigned long write_smbios_table(unsigned long rom_table_end)
 #define FORWARDING_TABLE_ADDR ((uintptr_t)0x500)
 static uintptr_t forwarding_table = FORWARDING_TABLE_ADDR;
 
-/*
- * For EARLY_EBDA_INIT the BDA area will be wiped on the resume path which
- * has the forwarding table entry. Therefore, when tables are written an
- * entry is placed in cbmem that can be restored on OS resume to the proper
- * location.
- */
-static void stash_forwarding_table(uintptr_t addr, size_t sz)
-{
-	void *cbmem_addr = cbmem_add(CBMEM_ID_CBTABLE_FWD, sz);
-
-	if (cbmem_addr == NULL) {
-		printk(BIOS_ERR, "Unable to allocate CBMEM forwarding entry.\n");
-		return;
-	}
-
-	memcpy(cbmem_addr, (void *)addr, sz);
-}
-
-static void restore_forwarding_table(void *dest)
-{
-	const struct cbmem_entry *fwd_entry;
-
-	fwd_entry = cbmem_entry_find(CBMEM_ID_CBTABLE_FWD);
-
-	if (fwd_entry == NULL) {
-		printk(BIOS_ERR, "Unable to restore CBMEM forwarding entry.\n");
-		return;
-	}
-
-	memcpy(dest, cbmem_entry_start(fwd_entry), cbmem_entry_size(fwd_entry));
-}
-
-BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY,
-	restore_forwarding_table, (void *)FORWARDING_TABLE_ADDR);
-
 void arch_write_tables(uintptr_t coreboot_table)
 {
 	size_t sz;
@@ -253,8 +200,6 @@ void arch_write_tables(uintptr_t coreboot_table)
 		rom_table_end = write_smbios_table(rom_table_end);
 
 	sz = write_coreboot_forwarding_table(forwarding_table, coreboot_table);
-
-	stash_forwarding_table(forwarding_table, sz);
 
 	forwarding_table += sz;
 	/* Align up to page boundary for historical consistency. */

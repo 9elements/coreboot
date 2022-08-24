@@ -1,29 +1,18 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010-2017 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <stdint.h>
 #include <device/device.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
+#include <amdblocks/acpimmio.h>
 #include <amdblocks/lpc.h>
 #include <soc/iomap.h>
+#include <soc/lpc.h>
 #include <soc/southbridge.h>
 
 /* The LPC-ISA bridge is always at D14F3 */
 #if !defined(__SIMPLE_DEVICE__)
-#include <device/device.h>
 #define _LPCB_DEV pcidev_on_root(0x14, 0x3)
 #else
 #define _LPCB_DEV PCI_DEV(0, 0x14, 0x3)
@@ -149,20 +138,23 @@ int lpc_set_wideio_range(uint16_t start, uint16_t size)
 
 void lpc_enable_port80(void)
 {
-	u8 byte;
+	uint32_t tmp;
 
-	byte = pci_read_config8(_LPCB_DEV, LPC_IO_OR_MEM_DEC_EN_HIGH);
-	byte |= DECODE_IO_PORT_ENABLE4_H;
-	pci_write_config8(_LPCB_DEV, LPC_IO_OR_MEM_DEC_EN_HIGH, byte);
+	tmp = pci_read_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE);
+	tmp |= DECODE_IO_PORT_ENABLE4;
+	pci_write_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE, tmp);
 }
 
-void lpc_enable_pci_port80(void)
+void lpc_enable_sio_decode(const bool addr)
 {
-	u8 byte;
+	uint32_t decodes;
+	uint32_t enable;
 
-	byte = pci_read_config8(_LPCB_DEV, LPC_IO_OR_MEM_DEC_EN_HIGH);
-	byte &= ~DECODE_IO_PORT_ENABLE4_H; /* disable lpc port 80 */
-	pci_write_config8(_LPCB_DEV, LPC_IO_OR_MEM_DEC_EN_HIGH, byte);
+	decodes = pci_read_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE);
+	enable = addr == LPC_SELECT_SIO_2E2F ?
+			DECODE_SIO_ENABLE : DECODE_ALTERNATE_SIO_ENABLE;
+	decodes |= enable;
+	pci_write_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE, decodes);
 }
 
 void lpc_enable_decode(uint32_t decodes)
@@ -170,18 +162,38 @@ void lpc_enable_decode(uint32_t decodes)
 	pci_write_config32(_LPCB_DEV, LPC_IO_PORT_DECODE_ENABLE, decodes);
 }
 
+/*
+ * Clear all decoding to the LPC bus and erase any range registers associated
+ * with the enable bits.
+ */
+void lpc_disable_decodes(void)
+{
+	uint32_t reg;
+
+	lpc_enable_decode(0);
+	reg = pci_read_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE);
+	reg &= LPC_SYNC_TIMEOUT_COUNT_MASK | LPC_SYNC_TIMEOUT_COUNT_ENABLE;
+	pci_write_config32(_LPCB_DEV, LPC_IO_OR_MEM_DECODE_ENABLE, reg);
+	pci_write_config32(_LPCB_DEV, LPC_IO_PORT_DECODE_ENABLE, 0);
+
+	/* D14F3x48 enables ranges configured in additional registers */
+	pci_write_config32(_LPCB_DEV, LPC_MEM_PORT1, 0);
+	pci_write_config32(_LPCB_DEV, LPC_MEM_PORT0, 0);
+	pci_write_config32(_LPCB_DEV, LPC_WIDEIO2_GENERIC_PORT, 0);
+}
+
 uintptr_t lpc_spibase(void)
 {
 	u32 base, enables;
 
 	/* Make sure the base address is predictable */
-	base = pci_read_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER);
+	base = pci_read_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER);
 	enables = base & SPI_PRESERVE_BITS;
 	base &= ~(SPI_PRESERVE_BITS | SPI_BASE_RESERVED);
 
 	if (!base) {
 		base = SPI_BASE_ADDRESS;
-		pci_write_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER,
+		pci_write_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER,
 					base | enables | SPI_ROM_ENABLE);
 		/* PCI_COMMAND_MEMORY is read-only and enabled. */
 	}
@@ -221,8 +233,8 @@ void lpc_tpm_decode_spi(void)
 
 	/* Route TPM accesses to SPI */
 	u32 spibase = pci_read_config32(_LPCB_DEV,
-					SPIROM_BASE_ADDRESS_REGISTER);
-	pci_write_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER, spibase
+					SPI_BASE_ADDRESS_REGISTER);
+	pci_write_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER, spibase
 					| ROUTE_TPM_2_SPI);
 }
 
@@ -281,28 +293,68 @@ void lpc_enable_spi_prefetch(void)
 	pci_write_config32(_LPCB_DEV, LPC_ROM_DMA_EC_HOST_CONTROL, dword);
 }
 
+void lpc_disable_spi_rom_sharing(void)
+{
+	u8 byte;
+
+	if (!CONFIG(PROVIDES_ROM_SHARING))
+		dead_code();
+
+	byte = pci_read_config8(_LPCB_DEV, LPC_PCI_CONTROL);
+	byte &= ~VW_ROM_SHARING_EN;
+	byte &= ~EXT_ROM_SHARING_EN;
+	pci_write_config8(_LPCB_DEV, LPC_PCI_CONTROL, byte);
+}
+
 uintptr_t lpc_get_spibase(void)
 {
 	u32 base;
 
-	base = pci_read_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER);
+	base = pci_read_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER);
 	base = ALIGN_DOWN(base, SPI_BASE_ALIGNMENT);
 	return (uintptr_t)base;
 }
 
-void lpc_set_spibase(u32 base, u32 enable)
+void lpc_set_spibase(uint32_t base)
 {
-	u32 reg32;
+	uint32_t reg32;
+
+	reg32 = pci_read_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER);
+
+	reg32 &= SPI_BASE_ALIGNMENT - 1; /* preserve only reserved, enables */
+	reg32 |= ALIGN_DOWN(base, SPI_BASE_ALIGNMENT);
+
+	pci_write_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER, reg32);
+}
+
+void lpc_enable_spi_rom(uint32_t enable)
+{
+	uint32_t reg32;
 
 	/* only two types of CS# enables are allowed */
 	enable &= SPI_ROM_ENABLE | SPI_ROM_ALT_ENABLE;
 
-	reg32 = pci_read_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER);
+	reg32 = pci_read_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER);
 
-	reg32 &= SPI_BASE_ALIGNMENT - 1; /* preserve only reserved, enables */
 	reg32 &= ~(SPI_ROM_ENABLE | SPI_ROM_ALT_ENABLE);
 	reg32 |= enable;
-	reg32 |= ALIGN_DOWN(base, SPI_BASE_ALIGNMENT);
 
-	pci_write_config32(_LPCB_DEV, SPIROM_BASE_ADDRESS_REGISTER, reg32);
+	pci_write_config32(_LPCB_DEV, SPI_BASE_ADDRESS_REGISTER, reg32);
+}
+
+static void lpc_enable_controller(void)
+{
+	u8 byte;
+
+	/* Enable LPC controller */
+	byte = pm_io_read8(PM_LPC_GATING);
+	byte |= PM_LPC_ENABLE;
+	pm_io_write8(PM_LPC_GATING, byte);
+}
+
+void lpc_early_init(void)
+{
+	lpc_enable_controller();
+	lpc_disable_decodes();
+	lpc_set_spibase(SPI_BASE_ADDRESS);
 }

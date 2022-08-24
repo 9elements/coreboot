@@ -1,4 +1,3 @@
-verstage-$(CONFIG_LPC_TPM) += tis.c
-romstage-$(CONFIG_LPC_TPM) += tis.c
-ramstage-$(CONFIG_LPC_TPM) += tis.c
-postcar-$(CONFIG_LPC_TPM) += tis.c
+ifeq ($(CONFIG_MEMORY_MAPPED_TPM),y)
+all-y += tis.c
+endif

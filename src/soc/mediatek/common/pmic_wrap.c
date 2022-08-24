@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
 #include <soc/pmic_wrap.h>
@@ -116,12 +103,17 @@ s32 pwrap_wacs2(u32 write, u16 addr, u16 wdata, u16 *rdata, u32 init_check)
 	u32 wacs_addr = 0;
 	u32 wacs_cmd = 0;
 	u32 wait_result = 0;
+	u32 shift;
 
 	if (init_check) {
 		reg_rdata = read32(&mtk_pwrap->wacs2_rdata);
 		/* Prevent someone to use pwrap before pwrap init */
-		if (((reg_rdata >> RDATA_INIT_DONE_SHIFT) &
-		    RDATA_INIT_DONE_MASK) != WACS_INIT_DONE) {
+		if (CONFIG(SOC_MEDIATEK_MT8186))
+			shift = RDATA_INIT_DONE_V2_SHIFT;
+		else
+			shift = RDATA_INIT_DONE_V1_SHIFT;
+
+		if (((reg_rdata >> shift) & RDATA_INIT_DONE_MASK) != WACS_INIT_DONE) {
 			pwrap_err("Pwrap initialization isn't finished\n");
 			return E_PWR_NOT_INIT_DONE;
 		}

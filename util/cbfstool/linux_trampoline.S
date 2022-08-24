@@ -1,17 +1,5 @@
-/*
- * linux_trampoline
- *
- * Copyright (C) 2013 Patrick Georgi <patrick@georgi-clan.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* linux_trampoline */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* NOTE: THIS CODE MUST REMAIN POSITION INDEPENDENT
  *       IT SHOULDN'T USE THE STACK
@@ -25,7 +13,9 @@
 #define CB_TAG_FORWARD 0x11
 #define CB_TAG_MEMORY 0x1
 #define CB_TAG_FRAMEBUFFER 0x12
+#define CB_TAG_ACPI_RSDP 0x43
 
+#define ACPI_RSDP_ADDR 0x70
 #define E820_NR_OFFSET 0x1e8
 #define LINUX_ENTRY_OFFSET 0x214
 #define E820_OFFSET 0x2d0
@@ -64,7 +54,7 @@ jmp .headerSearch
 
 .testMemory:
 cmp $CB_TAG_MEMORY, (%ebx)
-jne .testFramebuffer
+jne .testAcpiRsdp
 
 /* memory tag: copy e820 map and entry count. also determine alt_mem_k */
 mov 4(%ebx), %eax
@@ -84,6 +74,29 @@ lea 8(%ebx), %esi /* e820 data source */
 mov $(LINUX_PARAM_LOC + E820_OFFSET), %edi
 rep movsl
 xchg %eax, %ecx
+/* e820 and LB_TAG_MEMORY type don't fully match: remap unknown type to 2, reserved memory */
+mov (LINUX_PARAM_LOC + E820_NR_OFFSET), %eax
+mov $(LINUX_PARAM_LOC + E820_OFFSET), %edi
+.test_e820_entry:
+cmp $0, %eax
+je .endScan
+cmp $12, 16(%edi) /* type */
+jng .next_e820_entry
+/* Fixup the type to 2, reserved memory */
+mov $2, 16(%edi)
+.next_e820_entry:
+dec %eax
+add $20, %edi
+jmp .test_e820_entry
+
+.testAcpiRsdp:
+cmp $CB_TAG_ACPI_RSDP, (%ebx)
+jne .testFramebuffer
+
+mov 8(%ebx), %eax
+mov %eax, (LINUX_PARAM_LOC + ACPI_RSDP_ADDR)
+mov 12(%ebx), %eax
+mov %eax, (LINUX_PARAM_LOC + ACPI_RSDP_ADDR + 4)
 jmp .endScan
 
 .testFramebuffer:

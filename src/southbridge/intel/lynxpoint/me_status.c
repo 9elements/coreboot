@@ -1,24 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stdlib.h>
 #include <console/console.h>
 #include "me.h"
 
-#if (CONFIG_DEFAULT_CONSOLE_LOGLEVEL >= BIOS_DEBUG)
 /* HFS1[3:0] Current Working State Values */
 static const char *me_cws_values[] = {
 	[ME_HFS_CWS_RESET]	= "Reset",
@@ -27,7 +11,7 @@ static const char *me_cws_values[] = {
 	[ME_HFS_CWS_NORMAL]	= "Normal",
 	[ME_HFS_CWS_WAIT]	= "Platform Disable Wait",
 	[ME_HFS_CWS_TRANS]	= "OP State Transition",
-	[ME_HFS_CWS_INVALID]	= "Invalid CPU Plugged In"
+	[ME_HFS_CWS_INVALID]	= "Invalid CPU Plugged In",
 };
 
 /* HFS1[8:6] Current Operation State Values */
@@ -122,7 +106,7 @@ static const char *me_progress_bup_values[] = {
 
 /* Progress Code 3 states */
 static const char *me_progress_policy_values[] = {
-	[ME_HFS2_STATE_POLICY_ENTRY] = "Entery into Policy Module",
+	[ME_HFS2_STATE_POLICY_ENTRY] = "Entry into Policy Module",
 	[ME_HFS2_STATE_POLICY_RCVD_S3] = "Received S3 entry",
 	[ME_HFS2_STATE_POLICY_RCVD_S4] = "Received S4 entry",
 	[ME_HFS2_STATE_POLICY_RCVD_S5] = "Received S5 entry",
@@ -138,73 +122,73 @@ static const char *me_progress_policy_values[] = {
 	[ME_HFS2_STATE_POLICY_DESCRIPTOR_ERR] = "ME cannot access the chipset descriptor region",
 	[ME_HFS2_STATE_POLICY_VSCC_NO_MATCH] = "Required VSCC values for flash parts do not match",
 };
-#endif
 
-void intel_me_status(struct me_hfs *hfs, struct me_hfs2 *hfs2)
+void intel_me_status(union me_hfs hfs, union me_hfs2 hfs2)
 {
-#if (CONFIG_DEFAULT_CONSOLE_LOGLEVEL >= BIOS_DEBUG)
+	if (CONFIG_DEFAULT_CONSOLE_LOGLEVEL < BIOS_DEBUG)
+		return;
+
 	/* Check Current States */
 	printk(BIOS_DEBUG, "ME: FW Partition Table      : %s\n",
-	       hfs->fpt_bad ? "BAD" : "OK");
+	       hfs.fpt_bad ? "BAD" : "OK");
 	printk(BIOS_DEBUG, "ME: Bringup Loader Failure  : %s\n",
-	       hfs->ft_bup_ld_flr ? "YES" : "NO");
+	       hfs.ft_bup_ld_flr ? "YES" : "NO");
 	printk(BIOS_DEBUG, "ME: Firmware Init Complete  : %s\n",
-	       hfs->fw_init_complete ? "YES" : "NO");
+	       hfs.fw_init_complete ? "YES" : "NO");
 	printk(BIOS_DEBUG, "ME: Manufacturing Mode      : %s\n",
-	       hfs->mfg_mode ? "YES" : "NO");
+	       hfs.mfg_mode ? "YES" : "NO");
 	printk(BIOS_DEBUG, "ME: Boot Options Present    : %s\n",
-	       hfs->boot_options_present ? "YES" : "NO");
+	       hfs.boot_options_present ? "YES" : "NO");
 	printk(BIOS_DEBUG, "ME: Update In Progress      : %s\n",
-	       hfs->update_in_progress ? "YES" : "NO");
+	       hfs.update_in_progress ? "YES" : "NO");
 	printk(BIOS_DEBUG, "ME: Current Working State   : %s\n",
-	       me_cws_values[hfs->working_state]);
+	       me_cws_values[hfs.working_state]);
 	printk(BIOS_DEBUG, "ME: Current Operation State : %s\n",
-	       me_opstate_values[hfs->operation_state]);
+	       me_opstate_values[hfs.operation_state]);
 	printk(BIOS_DEBUG, "ME: Current Operation Mode  : %s\n",
-	       me_opmode_values[hfs->operation_mode]);
+	       me_opmode_values[hfs.operation_mode]);
 	printk(BIOS_DEBUG, "ME: Error Code              : %s\n",
-	       me_error_values[hfs->error_code]);
+	       me_error_values[hfs.error_code]);
 	printk(BIOS_DEBUG, "ME: Progress Phase          : %s\n",
-	       me_progress_values[hfs2->progress_code]);
+	       me_progress_values[hfs2.progress_code]);
 	printk(BIOS_DEBUG, "ME: Power Management Event  : %s\n",
-	       me_pmevent_values[hfs2->current_pmevent]);
+	       me_pmevent_values[hfs2.current_pmevent]);
 
 	printk(BIOS_DEBUG, "ME: Progress Phase State    : ");
-	switch (hfs2->progress_code) {
+	switch (hfs2.progress_code) {
 	case ME_HFS2_PHASE_ROM:		/* ROM Phase */
 		printk(BIOS_DEBUG, "%s",
-		       me_progress_rom_values[hfs2->current_state]);
+		       me_progress_rom_values[hfs2.current_state]);
 		break;
 
 	case ME_HFS2_PHASE_BUP:		/* Bringup Phase */
-		if (hfs2->current_state < ARRAY_SIZE(me_progress_bup_values)
-		    && me_progress_bup_values[hfs2->current_state])
+		if (hfs2.current_state < ARRAY_SIZE(me_progress_bup_values)
+		    && me_progress_bup_values[hfs2.current_state])
 			printk(BIOS_DEBUG, "%s",
-			       me_progress_bup_values[hfs2->current_state]);
+			       me_progress_bup_values[hfs2.current_state]);
 		else
-			printk(BIOS_DEBUG, "0x%02x", hfs2->current_state);
+			printk(BIOS_DEBUG, "0x%02x", hfs2.current_state);
 		break;
 
 	case ME_HFS2_PHASE_POLICY:	/* Policy Module Phase */
-		if (hfs2->current_state < ARRAY_SIZE(me_progress_policy_values)
-		    && me_progress_policy_values[hfs2->current_state])
+		if (hfs2.current_state < ARRAY_SIZE(me_progress_policy_values)
+		    && me_progress_policy_values[hfs2.current_state])
 			printk(BIOS_DEBUG, "%s",
-			       me_progress_policy_values[hfs2->current_state]);
+			       me_progress_policy_values[hfs2.current_state]);
 		else
-			printk(BIOS_DEBUG, "0x%02x", hfs2->current_state);
+			printk(BIOS_DEBUG, "0x%02x", hfs2.current_state);
 		break;
 
 	case ME_HFS2_PHASE_HOST_COMM:	/* Host Communication Phase */
-		if (!hfs2->current_state)
+		if (!hfs2.current_state)
 			printk(BIOS_DEBUG, "Host communication established");
 		else
-			printk(BIOS_DEBUG, "0x%02x", hfs2->current_state);
+			printk(BIOS_DEBUG, "0x%02x", hfs2.current_state);
 		break;
 
 	default:
-		printk(BIOS_DEBUG, "Unknown phase: 0x%02x sate: 0x%02x",
-		       hfs2->progress_code, hfs2->current_state);
+		printk(BIOS_DEBUG, "Unknown phase: 0x%02x state: 0x%02x",
+		       hfs2.progress_code, hfs2.current_state);
 	}
 	printk(BIOS_DEBUG, "\n");
-#endif
 }

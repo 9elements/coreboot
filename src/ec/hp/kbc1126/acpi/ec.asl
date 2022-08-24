@@ -1,23 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Iru Cai <mytbk920423@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (EC0)
 {
 	Name (_HID, EISAID("PNP0C09"))
 	Name (_UID, 0)
-	Name (_GPE, 0x16)
+	Name (_GPE, CONFIG_EC_HP_KBC1126_GPE)
 
 	Name (_CRS, ResourceTemplate ()
 	{
@@ -215,27 +202,27 @@ Device (EC0)
 
 	Method (_Q04, 0, NotSerialized)
 	{
-		Store ("EC: _Q04", Debug)
+		Printf ("EC: _Q04")
 		PNOT()
 	}
 
 	Method (_Q05, 0, NotSerialized)
 	{
-		Store ("EC: _Q05", Debug)
+		Printf ("EC: _Q05")
 	}
 
 	Method (_Q0B, 0, NotSerialized)
 	{
-		Store ("EC: _Q0B", Debug)
+		Printf ("EC: _Q0B")
 	}
 
 	Method (_Q0C, 0, NotSerialized)
 	{
-		Store ("EC: _Q0C", Debug)
+		Printf ("EC: _Q0C")
 	}
 
 	Method (_Q0D, 0, NotSerialized)
 	{
-		Store ("EC: _Q0D", Debug)
+		Printf ("EC: _Q0D")
 	}
 }

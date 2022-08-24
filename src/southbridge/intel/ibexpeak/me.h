@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _INTEL_ME_H
 #define _INTEL_ME_H
+
+#include <types.h>
 
 #define ME_RETRY		100000	/* 1 second */
 #define ME_DELAY		10	/* 10 us */
@@ -212,7 +200,6 @@ struct me_fw_version {
 	u16 recovery_hot_fix;
 } __packed;
 
-
 #define HECI_EOP_STATUS_SUCCESS       0x0
 #define HECI_EOP_PERFORM_GLOBAL_RESET 0x1
 
@@ -239,17 +226,13 @@ typedef enum {
 /* Defined in me_status.c for both romstage and ramstage */
 void intel_me_status(struct me_hfs *hfs, struct me_gmes *gmes);
 
-#ifdef __PRE_RAM__
 void intel_early_me_status(void);
 int intel_early_me_init(void);
 int intel_early_me_uma_size(void);
 int intel_early_me_init_done(u8 status);
-#endif
 
-#ifdef __SMM__
-void intel_me_finalize_smm(void);
-void intel_me8_finalize_smm(void);
-#endif
+void setup_heci_uma(u64 heci_uma_addr, unsigned int heci_uma_size);
+
 typedef struct {
 	u32       major_version  : 16;
 	u32       minor_version  : 16;

@@ -17,11 +17,9 @@ config BOARD_SPECIFIC_OPTIONS
 	select MAINBOARD_USES_IFD_GBE_REGION
 
 config MAINBOARD_DIR
-	string
-	default compulab/intense_pc
+	default "compulab/intense_pc"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "Intense-PC"
 
 config VGA_BIOS_ID
@@ -31,10 +29,6 @@ config VGA_BIOS_ID
 config DRAM_RESET_GATE_GPIO # FIXME: check this
 	int
 	default 60
-
-config MAX_CPUS
-	int
-	default 8
 
 config USBDEBUG_HCD_INDEX # FIXME: check this
 	int

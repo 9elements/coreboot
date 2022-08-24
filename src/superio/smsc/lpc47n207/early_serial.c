@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
 #include <device/pnp.h>
 #include <stdint.h>
-#include <stdlib.h>
+
 #include "lpc47n207.h"
 
 /*
@@ -70,7 +57,7 @@ void try_enabling_LPC47N207_uart(void)
 			outb(0x12, lpc_port);
 			reg_value = inb(lpc_port + 1);
 			if (reg_value != (lpc_port & 0xff))
-			    break;
+				break;
 
 			outb(0x13, lpc_port);
 			reg_value = inb(lpc_port + 1);

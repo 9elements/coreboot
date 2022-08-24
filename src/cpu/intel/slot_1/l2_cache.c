@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2000 Denis Dowling <dpd@alphalink.com.au>
- * Copyright (C) 2010 Keith Hui <buurin@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /*
  * Intel Pentium L2 Cache initialization.
@@ -39,6 +24,7 @@
  */
 
 #include <stdint.h>
+#include <arch/cpu.h>
 #include <console/console.h>
 #include <cpu/intel/l2_cache.h>
 #include <cpu/x86/cache.h>
@@ -204,7 +190,6 @@ int calculate_l2_latency(void)
 	return 0;
 }
 
-
 /* Setup address, data_high:data_low into the L2
  * control registers and then issue command with correct cache way
  */
@@ -259,7 +244,6 @@ int read_l2(u32 address)
 	/* If OK then get the result from BBL_CR_ADDR */
 	msr = rdmsr(BBL_CR_ADDR);
 	return (msr.lo >> 0x15);
-
 }
 
 /* Write data into the L2 controller register at address */
@@ -285,7 +269,6 @@ int write_l2(u32 address, u32 data)
 	 */
 
 	for (i = 0; i < v2; i++) {
-
 		u32 data1, data2;
 		// Bits legend
 		// data1   = ffffffff
@@ -367,7 +350,6 @@ int calculate_l2_cache_size(void)
 		 */
 		for (cache_setting = BBLCR3_L2_SIZE_256K;
 		     cache_setting <= BBLCR3_L2_SIZE_4M; cache_setting <<= 1) {
-
 			eax = bblcr3 | cache_setting;
 			msr.lo = eax;
 			wrmsr(BBL_CR_CTL3, msr);
@@ -741,7 +723,6 @@ int p6_configure_l2_cache(void)
 	/* Write to all cache lines to initialize */
 
 	while (cache_size > 0) {
-
 		/* Each cache line is 32 bytes. */
 		cache_size -= 32;
 

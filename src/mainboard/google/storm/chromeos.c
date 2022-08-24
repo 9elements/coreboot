@@ -1,19 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <boardid.h>
+#include <bootmode.h>
 #include <boot/coreboot_tables.h>
 #include <console/console.h>
 #include <delay.h>
@@ -22,7 +10,6 @@
 #include <soc/cdp.h>
 #include <soc/gsbi.h>
 #include <timer.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 
 #define DEV_SW 15
 #define REC_SW 16
@@ -40,8 +27,6 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 {
 	struct lb_gpio chromeos_gpios[] = {
 		{DEV_SW, ACTIVE_LOW, read_gpio(REC_SW), "presence"},
-		{WP_SW, ACTIVE_LOW, !get_write_protect_state(),
-		 "write protect"},
 		{-1, ACTIVE_LOW, 1, "power"},
 		{-1, ACTIVE_LOW, 0, "lid"},
 	};
@@ -142,4 +127,11 @@ int get_wipeout_mode_switch(void)
 int get_write_protect_state(void)
 {
 	return !read_gpio(WP_SW);
+}
+
+int get_ec_is_trusted(void)
+{
+	/* Do not have a Chrome EC involved in entering recovery mode;
+	   Always return trusted. */
+	return 1;
 }

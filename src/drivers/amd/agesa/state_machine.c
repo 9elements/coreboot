@@ -1,26 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011-2012 Advanced Micro Devices, Inc.
- * Copyright (C) 2016 Kyösti Mälkki
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
 #include <string.h>
-#include <arch/acpi.h>
-#include <arch/cpu.h>
+#include <acpi/acpi.h>
 #include <bootstate.h>
 #include <cbfs.h>
-#include <cbmem.h>
 #include <timestamp.h>
 
 #include <northbridge/amd/agesa/state_machine.h>
@@ -34,7 +18,7 @@
 #include "Dispatcher.h"
 #endif
 
-#if ENV_ROMSTAGE
+#if ENV_RAMINIT
 #include <PlatformMemoryConfiguration.h>
 CONST PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {PSO_END};
 #endif
@@ -46,14 +30,13 @@ static void agesa_locate_image(AMD_CONFIG_PARAMS *StdHeader)
 	const void *agesa, *image;
 	size_t file_size;
 
-	agesa = cbfs_boot_map_with_leak((const char *)CONFIG_AGESA_CBFS_NAME,
-			CBFS_TYPE_RAW, &file_size);
+	agesa = cbfs_map((const char *)CONFIG_AGESA_CBFS_NAME, &file_size);
 	if (agesa == NULL)
 		return;
 
 	image = LibAmdLocateImage(agesa, agesa + file_size, 4096,
 		ModuleIdentifier);
-	StdHeader->ImageBasePtr = (void *) image;
+	StdHeader->ImageBasePtr = (void *)image;
 #endif
 }
 
@@ -176,7 +159,6 @@ static AGESA_STATUS romstage_dispatch(struct sysinfo *cb,
 		{
 			break;
 		}
-
 	}
 	return status;
 }
@@ -227,6 +209,8 @@ static AGESA_STATUS ramstage_dispatch(struct sysinfo *cb,
 		case AMD_INIT_LATE:
 		{
 			AMD_LATE_PARAMS *param = (void *)StdHeader;
+			platform_BeforeInitLate(cb, param);
+			board_BeforeInitLate(cb, param);
 			status = module_dispatch(func, StdHeader);
 			platform_AfterInitLate(cb, param);
 			completion_InitLate(cb, param);
@@ -237,7 +221,6 @@ static AGESA_STATUS ramstage_dispatch(struct sysinfo *cb,
 		{
 			break;
 		}
-
 	}
 	return status;
 }
@@ -262,7 +245,7 @@ int agesa_execute_state(struct sysinfo *cb, AGESA_STRUCT_NAME func)
 
 	/* For these calls, heap is not available. */
 	if (func == AMD_INIT_RESET || func == AMD_S3LATE_RESTORE) {
-		buf = (void *) &agesa_params;
+		buf = (void *)&agesa_params;
 		len = sizeof(agesa_params);
 		memcpy(buf, &cb->StdHeader, sizeof(cb->StdHeader));
 	}
@@ -277,7 +260,7 @@ int agesa_execute_state(struct sysinfo *cb, AGESA_STRUCT_NAME func)
 	if (CONFIG(AGESA_EXTRA_TIMESTAMPS) && task.ts_entry_id)
 		timestamp_add_now(task.ts_entry_id);
 
-	if (ENV_ROMSTAGE)
+	if (ENV_RAMINIT)
 		final = romstage_dispatch(cb, func, StdHeader);
 
 	if (ENV_RAMSTAGE)
@@ -368,6 +351,8 @@ void __weak
 board_BeforeInitEnv(struct sysinfo *cb, AMD_ENV_PARAMS *Env) { }
 void __weak
 board_BeforeInitMid(struct sysinfo *cb, AMD_MID_PARAMS *Mid) { }
+void __weak
+board_BeforeInitLate(struct sysinfo *cb, AMD_LATE_PARAMS *Late) { }
 
 AGESA_STATUS __weak
 fchs3earlyrestore(AMD_CONFIG_PARAMS *StdHeader)

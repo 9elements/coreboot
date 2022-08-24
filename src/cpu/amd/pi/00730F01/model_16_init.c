@@ -1,94 +1,43 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/smm.h>
+#include <commonlib/helpers.h>
 #include <console/console.h>
 #include <cpu/amd/microcode.h>
-#include <cpu/x86/msr.h>
 #include <cpu/amd/msr.h>
-#include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
-#include <device/device.h>
-#include <device/pci.h>
-#include <cpu/x86/pae.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/cache.h>
+#include <cpu/x86/msr.h>
+#include <cpu/x86/mtrr.h>
+#include <device/device.h>
+#include <device/pci.h>
+#include <smp/node.h>
 
 static void model_16_init(struct device *dev)
 {
 	printk(BIOS_DEBUG, "Model 16 Init.\n");
 
-	u8 i;
 	msr_t msr;
-	int num_banks;
-	int msrno;
-#if CONFIG(LOGICAL_CPUS)
 	u32 siblings;
-#endif
-
-	disable_cache();
-	/* Enable access to AMD RdDram and WrDram extension bits */
-	msr = rdmsr(SYSCFG_MSR);
-	msr.lo |= SYSCFG_MSR_MtrrFixDramModEn;
-	msr.lo &= ~SYSCFG_MSR_MtrrFixDramEn;
-	wrmsr(SYSCFG_MSR, msr);
-
-	/* BSP: make a0000-bffff UC, c0000-fffff WB,
-	 * same as OntarioApMtrrSettingsList for APs
-	 */
-	msr.lo = msr.hi = 0;
-	wrmsr(MTRR_FIX_16K_A0000, msr);
-	msr.lo = msr.hi = 0x1e1e1e1e;
-	wrmsr(MTRR_FIX_64K_00000, msr);
-	wrmsr(MTRR_FIX_16K_80000, msr);
-	for (msrno = MTRR_FIX_4K_C0000; msrno <= MTRR_FIX_4K_F8000; msrno++)
-		wrmsr(msrno, msr);
-
-	msr = rdmsr(SYSCFG_MSR);
-	msr.lo &= ~SYSCFG_MSR_MtrrFixDramModEn;
-	msr.lo |= SYSCFG_MSR_MtrrFixDramEn;
-	wrmsr(SYSCFG_MSR, msr);
-
-	x86_mtrr_check();
-	x86_enable_cache();
 
 	/* zero the machine check error status registers */
-	msr = rdmsr(IA32_MCG_CAP);
-	num_banks = msr.lo & MCA_BANKS_MASK;
-	msr.lo = 0;
-	msr.hi = 0;
-	for (i = 0; i < num_banks; i++)
-		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
+	mca_clear_status();
 
-	/* Enable the local CPU APICs */
-	setup_lapic();
+	if (CONFIG(LOGICAL_CPUS)) {
+		siblings = cpuid_ecx(0x80000008) & 0xff;
 
-#if CONFIG(LOGICAL_CPUS)
-	siblings = cpuid_ecx(0x80000008) & 0xff;
+		if (siblings > 0) {
+			msr = rdmsr_amd(CPU_ID_FEATURES_MSR);
+			msr.lo |= 1 << 28;
+			wrmsr_amd(CPU_ID_FEATURES_MSR, msr);
 
-	if (siblings > 0) {
-		msr = rdmsr_amd(CPU_ID_FEATURES_MSR);
-		msr.lo |= 1 << 28;
-		wrmsr_amd(CPU_ID_FEATURES_MSR, msr);
-
-		msr = rdmsr_amd(CPU_ID_EXT_FEATURES_MSR);
-		msr.hi |= 1 << (33 - 32);
-		wrmsr_amd(CPU_ID_EXT_FEATURES_MSR, msr);
+			msr = rdmsr_amd(CPU_ID_EXT_FEATURES_MSR);
+			msr.hi |= 1 << (33 - 32);
+			wrmsr_amd(CPU_ID_EXT_FEATURES_MSR, msr);
+		}
+		printk(BIOS_DEBUG, "siblings = %02d, ", siblings);
 	}
-	printk(BIOS_DEBUG, "siblings = %02d, ", siblings);
-#endif
 
 	/* DisableCf8ExtCfg */
 	msr = rdmsr(NB_CFG_MSR);
@@ -96,11 +45,11 @@ static void model_16_init(struct device *dev)
 	wrmsr(NB_CFG_MSR, msr);
 
 	/* Write protect SMM space with SMMLOCK. */
-	msr = rdmsr(HWCR_MSR);
-	msr.lo |= (1 << 0);
-	wrmsr(HWCR_MSR, msr);
+	lock_smm();
 
-	update_microcode(cpuid_eax(1));
+	amd_update_microcode_from_cbfs();
+
+	display_mtrrs();
 }
 
 static struct device_operations cpu_dev_ops = {

@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2011 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef TIS_H_
 #define TIS_H_
 
 #include <stddef.h>
 #include <stdint.h>
+#include <types.h>
 
 enum tis_access {
 	TPM_ACCESS_VALID = (1 << 7),
@@ -66,7 +54,7 @@ int tis_open(void);
 /*
  * tis_close()
  *
- * terminate the currect session with the TPM by releasing the locked
+ * terminate the current session with the TPM by releasing the locked
  * locality. Returns 0 on success of -1 on failure (in case lock
  * removal did not succeed).
  */
@@ -88,6 +76,8 @@ int tis_close(void);
 int tis_sendrecv(const u8 *sendbuf, size_t send_size, u8 *recvbuf,
 			size_t *recv_len);
 
+/* TODO: This is supposed to be used only for Google TPM.
+   Consider moving this to drivers/tpm/cr50.h. */
 /*
  * tis_plat_irq_status()
  *
@@ -96,5 +86,36 @@ int tis_sendrecv(const u8 *sendbuf, size_t send_size, u8 *recvbuf,
  * Returns 1 when irq pending or 0 when not.
  */
 int tis_plat_irq_status(void);
+
+/*
+ * tis_vendor_write()
+ *
+ * Vendor-specific function to send the requested data to the TPM.
+ *
+ * @addr - address of the register to write to
+ * @sendbuf - buffer of the data to send
+ * @send_size - size of the data to send
+ *
+ * Returns CB_SUCCESS 0 on success, CB_ERR on failure.
+ */
+enum cb_err tis_vendor_write(unsigned int addr, const void *sendbuf, size_t send_size);
+
+/*
+ * tis_vendor_read()
+ *
+ * Vendor-specific function to read the requested data from the TPM.
+ *
+ * @addr - address of the register to read from
+ * @recvbuf - buffer of the data to read
+ * @recv_size - size of the output buffer
+ *
+ * Returns CB_SUCCESS on success or -1 on failure.
+ */
+enum cb_err tis_vendor_read(unsigned int addr, void *recvbuf, size_t recv_size);
+
+static inline bool tpm_first_access_this_boot(void)
+{
+	return ENV_SEPARATE_VERSTAGE || ENV_BOOTBLOCK || !CONFIG(VBOOT);
+}
 
 #endif /* TIS_H_ */

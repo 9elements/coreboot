@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifdef IT8516E_FIRST_DATA
 Device (PM1) {
@@ -48,8 +35,8 @@ Device (PM1) {
 		If (And (Local0, EC_ERROR_MASK)) {
 			Return (0)
 		}
-		Multiply (Local0, 10, Local0)	/* Convert to 10th °C */
-		Return (Add (Local0, 2732))	/* Return as 10th Kelvin */
+		Local0 *= 10
+		Return (Local0 + 2732)	/* Return as 10th Kelvin */
 	}
 }
 #endif
@@ -104,8 +91,8 @@ Device (PM2) {
 		Release (EC_MUTEX)
 
 		Or (ShiftLeft (Local1, 8), Local0, Local0)
-		Store (Divide (Multiply (Local0, 10), 64), Local0)	/* Convert to 10th °C */
-		Return (Add (Local0, 2732))				/* Return as 10th Kelvin */
+		Store (Local0 * 10 / 64, Local0)		/* Convert to 10th °C */
+		Return (Local0 + 2732)				/* Return as 10th Kelvin */
 	}
 }
 #endif

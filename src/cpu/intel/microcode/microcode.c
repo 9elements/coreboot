@@ -1,37 +1,17 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 The ChromiumOS Authors.  All rights reserved.
- * Copyright (C) 2000 Ronald G. Minnich
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* Microcode update for Intel PIII and later CPUs */
 
 #include <stdint.h>
 #include <stddef.h>
-#if !defined(__ROMCC__)
 #include <cbfs.h>
-#include <console/console.h>
-#else
-#include <arch/cbfs.h>
-#endif
 #include <arch/cpu.h>
+#include <console/console.h>
 #include <cpu/x86/msr.h>
 #include <cpu/intel/microcode.h>
-
-#if !defined(__PRE_RAM__)
 #include <smp/spinlock.h>
+
 DECLARE_SPIN_LOCK(microcode_lock)
-#endif
 
 struct microcode {
 	u32 hdrver;	/* Header Version */
@@ -47,6 +27,18 @@ struct microcode {
 	u32 total_size;	/* Total Size */
 
 	u32 reserved[3];
+};
+
+struct ext_sig_table {
+	u32 ext_sig_cnt;
+	u32 ext_tbl_chksm;
+	u32 res[3];
+};
+
+struct ext_sig_entry {
+	u32 sig;
+	u32 pf;
+	u32 chksm;
 };
 
 static inline u32 read_microcode_rev(void)
@@ -76,22 +68,42 @@ static inline u32 read_microcode_rev(void)
 
 #define MICROCODE_CBFS_FILE "cpu_microcode_blob.bin"
 
-void intel_microcode_load_unlocked(const void *microcode_patch)
+static int load_microcode(const struct microcode *ucode_patch)
 {
 	u32 current_rev;
 	msr_t msr;
+
+	msr.lo = (unsigned long)ucode_patch + sizeof(struct microcode);
+	msr.hi = 0;
+	wrmsr(IA32_BIOS_UPDT_TRIG, msr);
+
+	current_rev = read_microcode_rev();
+	if (current_rev == ucode_patch->rev) {
+		printk(BIOS_INFO, "microcode: updated to revision "
+		    "0x%x date=%04x-%02x-%02x\n", read_microcode_rev(),
+		    ucode_patch->date & 0xffff, (ucode_patch->date >> 24) & 0xff,
+		    (ucode_patch->date >> 16) & 0xff);
+		return 0;
+	}
+
+	return -1;
+}
+
+void intel_microcode_load_unlocked(const void *microcode_patch)
+{
+	u32 current_rev;
 	const struct microcode *m = microcode_patch;
 
-	if (!m)
+	if (!m) {
+		printk(BIOS_WARNING, "microcode: failed because no ucode was found\n");
 		return;
+	}
 
 	current_rev = read_microcode_rev();
 
 	/* No use loading the same revision. */
 	if (current_rev == m->rev) {
-#if !defined(__ROMCC__)
 		printk(BIOS_INFO, "microcode: Update skipped, already up-to-date\n");
-#endif
 		return;
 	}
 
@@ -103,24 +115,9 @@ void intel_microcode_load_unlocked(const void *microcode_patch)
 	}
 #endif
 
-	msr.lo = (unsigned long)m + sizeof(struct microcode);
-	msr.hi = 0;
-	wrmsr(IA32_BIOS_UPDT_TRIG, msr);
-
-	current_rev = read_microcode_rev();
-	if (current_rev == m->rev) {
-#if !defined(__ROMCC__)
-		printk(BIOS_INFO, "microcode: updated to revision "
-		    "0x%x date=%04x-%02x-%02x\n", read_microcode_rev(),
-		    m->date & 0xffff, (m->date >> 24) & 0xff,
-		    (m->date >> 16) & 0xff);
-#endif
-		return;
-	}
-
-#if !defined(__ROMCC__)
-	printk(BIOS_INFO, "microcode: Update failed\n");
-#endif
+	printk(BIOS_INFO, "microcode: load microcode patch\n");
+	if (load_microcode(m) < 0)
+		printk(BIOS_ERR, "microcode: Update failed\n");
 }
 
 uint32_t get_current_microcode_rev(void)
@@ -143,55 +140,54 @@ uint32_t get_microcode_checksum(const void *microcode)
 	return ((struct microcode *)microcode)->cksum;
 }
 
-const void *intel_microcode_find(void)
+
+static struct ext_sig_table *ucode_get_ext_sig_table(const struct microcode *ucode)
+{
+	struct ext_sig_table *ext_tbl;
+	/* header + ucode data blob size */
+	u32 size = ucode->data_size + sizeof(struct microcode);
+
+	ssize_t ext_tbl_len = ucode->total_size - size;
+
+	if (ext_tbl_len < (ssize_t)sizeof(struct ext_sig_table))
+		return NULL;
+
+	ext_tbl = (struct ext_sig_table *)((uintptr_t)ucode + size);
+
+	if (ext_tbl_len < (sizeof(struct ext_sig_table) +
+				ext_tbl->ext_sig_cnt * sizeof(struct ext_sig_entry)))
+		return NULL;
+
+	return ext_tbl;
+}
+
+static const void *find_cbfs_microcode(void)
 {
 	const struct microcode *ucode_updates;
+	struct ext_sig_table *ext_tbl;
 	size_t microcode_len;
 	u32 eax;
 	u32 pf, rev, sig, update_size;
-	unsigned int x86_model, x86_family;
 	msr_t msr;
+	struct cpuinfo_x86 c;
 
-#ifdef __ROMCC__
-	struct cbfs_file *microcode_file;
-
-	microcode_file = walkcbfs_head((char *) MICROCODE_CBFS_FILE);
-	if (!microcode_file)
-		return NULL;
-
-	ucode_updates = CBFS_SUBHEADER(microcode_file);
-	microcode_len = ntohl(microcode_file->len);
-#else
-	ucode_updates = cbfs_boot_map_with_leak(MICROCODE_CBFS_FILE,
-						CBFS_TYPE_MICROCODE,
-						&microcode_len);
+	ucode_updates = cbfs_map(MICROCODE_CBFS_FILE, &microcode_len);
 	if (ucode_updates == NULL)
 		return NULL;
-#endif
 
-	/* CPUID sets MSR 0x8B if a microcode update has been loaded. */
-	msr.lo = 0;
-	msr.hi = 0;
-	wrmsr(IA32_BIOS_SIGN_ID, msr);
+	rev = read_microcode_rev();
 	eax = cpuid_eax(1);
-	msr = rdmsr(IA32_BIOS_SIGN_ID);
-	rev = msr.hi;
-	x86_model = (eax >> 4) & 0x0f;
-	x86_family = (eax >> 8) & 0x0f;
+	get_fms(&c, eax);
 	sig = eax;
 
 	pf = 0;
-	if ((x86_model >= 5) || (x86_family > 6)) {
+	if ((c.x86_model >= 5) || (c.x86 > 6)) {
 		msr = rdmsr(IA32_PLATFORM_ID);
 		pf = 1 << ((msr.hi >> 18) & 7);
 	}
-#if !defined(__ROMCC__)
-	/* If this code is compiled with ROMCC we're probably in
-	 * the bootblock and don't have console output yet.
-	 */
+
 	printk(BIOS_DEBUG, "microcode: sig=0x%x pf=0x%x revision=0x%x\n",
 			sig, pf, rev);
-#endif
 
 	while (microcode_len >= sizeof(*ucode_updates)) {
 		/* Newer microcode updates include a size field, whereas older
@@ -199,48 +195,91 @@ const void *intel_microcode_find(void)
 		if (ucode_updates->total_size) {
 			update_size = ucode_updates->total_size;
 		} else {
-			#if !defined(__ROMCC__)
 			printk(BIOS_SPEW, "Microcode size field is 0\n");
-			#endif
 			update_size = 2048;
 		}
 
 		/* Checkpoint 1: The microcode update falls within CBFS */
 		if (update_size > microcode_len) {
-#if !defined(__ROMCC__)
 			printk(BIOS_WARNING, "Microcode header corrupted!\n");
-#endif
 			break;
 		}
 
 		if ((ucode_updates->sig == sig) && (ucode_updates->pf & pf))
 			return ucode_updates;
 
+
+		/* Check if there is extended signature table */
+		ext_tbl = ucode_get_ext_sig_table(ucode_updates);
+
+		if (ext_tbl != NULL) {
+			int i;
+			struct ext_sig_entry *entry = (struct ext_sig_entry *)(ext_tbl + 1);
+
+			for (i = 0; i < ext_tbl->ext_sig_cnt; i++, entry++) {
+				if ((sig == entry->sig) && (pf & entry->pf)) {
+					return ucode_updates;
+				}
+			}
+		}
+
 		ucode_updates = (void *)((char *)ucode_updates + update_size);
 		microcode_len -= update_size;
 	}
 
-	/* ROMCC doesn't like NULL. */
-	return (void *)0;
+	return NULL;
+}
+
+const void *intel_microcode_find(void)
+{
+	static bool microcode_checked;
+	static const void *ucode_update;
+
+	if (microcode_checked)
+		return ucode_update;
+
+	/*
+	 * Since this function caches the found microcode (NULL or a valid
+	 * microcode pointer), it is expected to be run from BSP before starting
+	 * any other APs. This sequence is not multithread safe otherwise.
+	 */
+	ucode_update = find_cbfs_microcode();
+	microcode_checked = true;
+
+	return ucode_update;
 }
 
 void intel_update_microcode_from_cbfs(void)
 {
 	const void *patch = intel_microcode_find();
 
-#if !defined(__ROMCC__) && !defined(__PRE_RAM__)
 	spin_lock(&microcode_lock);
-#endif
 
 	intel_microcode_load_unlocked(patch);
 
-#if !defined(__ROMCC__) && !defined(__PRE_RAM__)
 	spin_unlock(&microcode_lock);
-#endif
+}
+
+void intel_reload_microcode(void)
+{
+	if (!CONFIG(RELOAD_MICROCODE_PATCH))
+		return;
+
+	const struct microcode *m = intel_microcode_find();
+
+	if (!m) {
+		printk(BIOS_WARNING, "microcode: failed because no ucode was found\n");
+		return;
+	}
+
+	printk(BIOS_INFO, "microcode: Re-load microcode patch\n");
+
+	if (load_microcode(m) < 0)
+		printk(BIOS_ERR, "microcode: Re-load failed\n");
 }
 
 #if ENV_RAMSTAGE
-__weak int soc_skip_ucode_update(u32 currrent_patch_id,
+__weak int soc_skip_ucode_update(u32 current_patch_id,
 	u32 new_patch_id)
 {
 	return 0;

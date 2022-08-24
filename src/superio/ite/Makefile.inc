@@ -1,18 +1,4 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2009 Ronald G. Minnich
-## Copyright (C) 2018 Libretrend LDA
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+# SPDX-License-Identifier: GPL-2.0-only
 
 ## include generic ite pre-ram stage driver
 bootblock-$(CONFIG_SUPERIO_ITE_COMMON_PRE_RAM) += common/early_serial.c
@@ -22,10 +8,9 @@ romstage-$(CONFIG_SUPERIO_ITE_COMMON_PRE_RAM) += common/early_serial.c
 ramstage-$(CONFIG_SUPERIO_ITE_ENV_CTRL) += common/env_ctrl.c
 
 subdirs-y += it8528e
+subdirs-y += it8613e
 subdirs-y += it8623e
-subdirs-y += it8671f
 subdirs-y += it8712f
-subdirs-y += it8716f
 subdirs-y += it8718f
 subdirs-y += it8720f
 subdirs-y += it8721f

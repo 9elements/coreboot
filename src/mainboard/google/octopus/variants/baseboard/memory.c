@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/variants.h>
 #include <boardid.h>
@@ -178,15 +165,12 @@ static const struct lpddr4_sku cbi_skus[] = {
 		.ch0_rank_density = LP4_8Gb_DENSITY,
 		.ch0_dual_rank = 1,
 	},
-	/* Single Channel Configs 4GiB System Capacity Ch1 populated. */
+	/* Dual Channel / Dual Rank Config 4GiB System Capacity */
 	[5] = {
 		.speed = LP4_SPEED_2400,
-		.ch1_rank_density = LP4_16Gb_DENSITY,
-	},
-	/* Single Channel Configs 4GiB System Capacity Ch1 populated. */
-	[6] = {
-		.speed = LP4_SPEED_2400,
-		.ch1_rank_density = LP4_8Gb_DENSITY,
+		.ch0_rank_density = LP4_4Gb_DENSITY,
+		.ch1_rank_density = LP4_4Gb_DENSITY,
+		.ch0_dual_rank = 1,
 		.ch1_dual_rank = 1,
 	},
 	/* Dual Channel Config 6GiB System Capacity */

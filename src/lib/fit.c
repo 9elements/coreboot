@@ -1,34 +1,18 @@
-/*
- * Copyright 2013 Google Inc.
- * Copyright 2018-present Facebook, Inc.
- *
- * Taken from depthcharge: src/boot/fit.c
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* Taken from depthcharge: src/boot/fit.c */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <assert.h>
 #include <console/console.h>
 #include <ctype.h>
 #include <endian.h>
-#include <stdint.h>
 #include <bootmem.h>
-#include <stdlib.h>
 #include <string.h>
 #include <program_loading.h>
 #include <memrange.h>
 #include <fit.h>
 #include <boardid.h>
-#include <commonlib/cbfs_serialized.h>
 #include <commonlib/stdlib.h>
+#include <types.h>
 
 static struct list_node image_nodes;
 static struct list_node config_nodes;
@@ -64,18 +48,18 @@ static void fit_add_default_compat_strings(void)
 		fit_add_compat_string(compat_string);
 	}
 
-	if (sku_id() != UNDEFINED_STRAPPING_ID) {
-		snprintf(compat_string, sizeof(compat_string), "%s,%s-sku%u",
-			 CONFIG_MAINBOARD_VENDOR, CONFIG_MAINBOARD_PART_NUMBER,
-			 sku_id());
-
-		fit_add_compat_string(compat_string);
-	}
-
 	if (board_id() != UNDEFINED_STRAPPING_ID) {
 		snprintf(compat_string, sizeof(compat_string), "%s,%s-rev%u",
 			 CONFIG_MAINBOARD_VENDOR, CONFIG_MAINBOARD_PART_NUMBER,
 			 board_id());
+
+		fit_add_compat_string(compat_string);
+	}
+
+	if (sku_id() != UNDEFINED_STRAPPING_ID) {
+		snprintf(compat_string, sizeof(compat_string), "%s,%s-sku%u",
+			 CONFIG_MAINBOARD_VENDOR, CONFIG_MAINBOARD_PART_NUMBER,
+			 sku_id());
 
 		fit_add_compat_string(compat_string);
 	}
@@ -93,7 +77,7 @@ static struct fit_image_node *find_image(const char *name)
 		if (!strcmp(image->name, name))
 			return image;
 	}
-	printk(BIOS_ERR, "ERROR: Cannot find image node %s!\n", name);
+	printk(BIOS_ERR, "Cannot find image node %s!\n", name);
 	return NULL;
 }
 
@@ -261,12 +245,12 @@ static void update_reserve_map(uint64_t start, uint64_t end,
 }
 
 struct entry_params {
-	unsigned addr_cells;
-	unsigned size_cells;
+	unsigned int addr_cells;
+	unsigned int size_cells;
 	void *data;
 };
 
-static uint64_t max_range(unsigned size_cells)
+static uint64_t max_range(unsigned int size_cells)
 {
 	/*
 	 * Split up ranges who's sizes are too large to fit in #size-cells.
@@ -303,35 +287,12 @@ struct mem_map {
 static bool walk_memory_table(const struct range_entry *r, void *arg)
 {
 	struct mem_map *arg_map = arg;
+	struct memranges *ranges;
+	enum bootmem_type tag;
 
-	/*
-	 * Kernel likes its available memory areas at least 1MB
-	 * aligned, let's trim the regions such that unaligned padding
-	 * is added to reserved memory.
-	 */
-	if (range_entry_tag(r) == BM_MEM_RAM) {
-		uint64_t new_start = ALIGN_UP(range_entry_base(r), 1 * MiB);
-		uint64_t new_end = ALIGN_DOWN(range_entry_end(r), 1 * MiB);
-
-		if (new_start != range_entry_base(r))
-			memranges_insert(&arg_map->reserved,
-					 range_entry_base(r),
-					 new_start - range_entry_base(r),
-					 BM_MEM_RESERVED);
-
-		if (new_start != new_end)
-			memranges_insert(&arg_map->mem, new_start,
-					 new_end - new_start, BM_MEM_RAM);
-
-		if (new_end != range_entry_end(r))
-			memranges_insert(&arg_map->reserved, new_end,
-					 range_entry_end(r) - new_end,
-					 BM_MEM_RESERVED);
-	} else
-		memranges_insert(&arg_map->reserved, range_entry_base(r),
-				 range_entry_size(r),
-				 BM_MEM_RESERVED);
-
+	ranges = range_entry_tag(r) == BM_MEM_RAM ? &arg_map->mem : &arg_map->reserved;
+	tag = range_entry_tag(r) == BM_MEM_RAM ? BM_MEM_RAM : BM_MEM_RESERVED;
+	memranges_insert(ranges, range_entry_base(r), range_entry_size(r), tag);
 	return true;
 }
 
@@ -428,8 +389,7 @@ static int fit_update_compat(struct fit_config_node *config)
 		uint32_t fdt_offset = be32_to_cpu(fdt_header->structure_offset);
 
 		if (config->fdt->compression != CBFS_COMPRESS_NONE) {
-			printk(BIOS_ERR,
-			       "ERROR: config %s has a compressed FDT without "
+			printk(BIOS_ERR, "config %s has a compressed FDT without "
 			       "external compatible property, skipping.\n",
 			       config->name);
 			return -1;
@@ -437,15 +397,13 @@ static int fit_update_compat(struct fit_config_node *config)
 
 		/* FDT overlays are not supported in legacy FIT images. */
 		if (config->overlays.next) {
-			printk(BIOS_ERR,
-			       "ERROR: config %s has overlay but no compat!\n",
+			printk(BIOS_ERR, "config %s has overlay but no compat!\n",
 			       config->name);
 			return -1;
 		}
 
 		if (fdt_find_compat(fdt_blob, fdt_offset, &config->compat)) {
-			printk(BIOS_ERR,
-			       "ERROR: Can't find compat string in FDT %s "
+			printk(BIOS_ERR, "Can't find compat string in FDT %s "
 			       "for config %s, skipping.\n",
 			       config->fdt->name, config->name);
 			return -1;
@@ -482,7 +440,7 @@ struct fit_config_node *fit_load(void *fit)
 
 	struct device_tree *tree = fdt_unflatten(fit);
 	if (!tree) {
-		printk(BIOS_ERR, "ERROR: Failed to unflatten FIT image!\n");
+		printk(BIOS_ERR, "Failed to unflatten FIT image!\n");
 		return NULL;
 	}
 
@@ -509,21 +467,19 @@ struct fit_config_node *fit_load(void *fit)
 	/* Process and list the configs. */
 	list_for_each(config, config_nodes, list_node) {
 		if (!config->kernel) {
-			printk(BIOS_ERR,
-			       "ERROR: config %s has no kernel, skipping.\n",
+			printk(BIOS_ERR, "config %s has no kernel, skipping.\n",
 			       config->name);
 			continue;
 		}
 		if (!config->fdt) {
-			printk(BIOS_ERR,
-			       "ERROR: config %s has no FDT, skipping.\n",
+			printk(BIOS_ERR, "config %s has no FDT, skipping.\n",
 			       config->name);
 			continue;
 		}
 
 		if (config->ramdisk &&
 		    config->ramdisk->compression < 0) {
-			printk(BIOS_WARNING, "WARN: Ramdisk is compressed with "
+			printk(BIOS_WARNING, "Ramdisk is compressed with "
 			       "an unsupported algorithm, discarding config %s."
 			       "\n", config->name);
 			continue;

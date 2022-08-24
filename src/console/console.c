@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2003 Eric Biederman
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/cbmem_console.h>
 #include <console/ne2k.h>
@@ -22,7 +9,10 @@
 #include <console/usb.h>
 #include <console/spi.h>
 #include <console/flash.h>
+#include <console/system76_ec.h>
 
+/* Note: when adding a new console, make sure you update the definition of
+   HAS_ONLY_FAST_CONSOLES in <console.h>! */
 void console_hw_init(void)
 {
 	__cbmemc_init();
@@ -34,27 +24,36 @@ void console_hw_init(void)
 	__usbdebug_init();
 	__spiconsole_init();
 	__flashconsole_init();
+	__system76_ec_init();
 }
 
-void console_tx_byte(unsigned char byte)
+void console_interactive_tx_byte(unsigned char byte, void *data_unused)
 {
-	__cbmemc_tx_byte(byte);
-	__spkmodem_tx_byte(byte);
-	__qemu_debugcon_tx_byte(byte);
-
-	/* Some consoles want newline conversion
-	 * to keep terminals happy.
-	 */
 	if (byte == '\n') {
+		/* Some consoles want newline conversion to keep terminals happy. */
 		__uart_tx_byte('\r');
 		__usb_tx_byte('\r');
 	}
 
+	__spkmodem_tx_byte(byte);
+	__qemu_debugcon_tx_byte(byte);
 	__uart_tx_byte(byte);
 	__ne2k_tx_byte(byte);
 	__usb_tx_byte(byte);
 	__spiconsole_tx_byte(byte);
+	__system76_ec_tx_byte(byte);
+}
+
+void console_stored_tx_byte(unsigned char byte, void *data_unused)
+{
 	__flashconsole_tx_byte(byte);
+	__cbmemc_tx_byte(byte);
+}
+
+void console_tx_byte(unsigned char byte)
+{
+	console_interactive_tx_byte(byte, NULL);
+	console_stored_tx_byte(byte, NULL);
 }
 
 void console_tx_flush(void)
@@ -63,6 +62,7 @@ void console_tx_flush(void)
 	__ne2k_tx_flush();
 	__usb_tx_flush();
 	__flashconsole_tx_flush();
+	__system76_ec_tx_flush();
 }
 
 void console_write_line(uint8_t *buffer, size_t number_of_bytes)
@@ -77,7 +77,6 @@ void console_write_line(uint8_t *buffer, size_t number_of_bytes)
 	while (number_of_bytes--)
 		console_tx_byte(*buffer++);
 }
-
 
 #if CONFIG(GDB_STUB) && (ENV_ROMSTAGE || ENV_RAMSTAGE)
 void gdb_hw_init(void)

@@ -49,7 +49,7 @@
 /**
  * sbPorInitPciTable - PCI device registers initial during the power on stage.
  */
-const static REG8MASK sbPorInitPciTable[] =
+static const REG8MASK sbPorInitPciTable[] =
 {
   // SATA device
   {0x00, SATA_BUS_DEV_FUN, 0},
@@ -82,7 +82,7 @@ const static REG8MASK sbPorInitPciTable[] =
 /**
  * sbPmioPorInitTable - Southbridge ACPI MMIO initial during the power on stage.
  */
-const static AcpiRegWrite sbPmioPorInitTable[] =
+static const AcpiRegWrite sbPmioPorInitTable[] =
 {
   {PMIO_BASE >> 8,  SB_PMIOA_REG5D, 0x00, BIT0},
   {PMIO_BASE >> 8,  SB_PMIOA_REGD2, 0xCF, BIT4 + BIT5},
@@ -141,14 +141,12 @@ sbPowerOnInit (
   UINT8   dbCg2WR;
   UINT8   dbCg1Pll;
   UINT8  cimNbSbGen2;
-  UINT8  cimSataMode;
   UINT8  cimSpiFastReadEnable;
   UINT8  cimSpiFastReadSpeed;
   UINT8  cimSioHwmPortEnable;
   UINT8  SataPortNum;
 
   cimNbSbGen2 = pConfig->NbSbGen2;
-  cimSataMode = pConfig->SATAMODE.SataModeReg;
 // Adding Fast Read Function support
   if (pConfig->BuildParameters.SpiFastReadEnable != 0 ) {
     cimSpiFastReadEnable = (UINT8) pConfig->BuildParameters.SpiFastReadEnable;

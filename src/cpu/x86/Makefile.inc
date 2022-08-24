@@ -1,14 +1,23 @@
-ifeq ($(CONFIG_ARCH_ROMSTAGE_X86_32)$(CONFIG_ARCH_ROMSTAGE_X86_64),y)
-ifneq ($(CONFIG_NO_CAR_GLOBAL_MIGRATION),y)
-romstage-$(CONFIG_CACHE_AS_RAM) += car.c
-endif
-endif
-
+subdirs-y += lapic
+subdirs-y += mtrr
 subdirs-y += pae
+subdirs-$(CONFIG_HAVE_SMI_HANDLER) += smm
+subdirs-$(CONFIG_UDELAY_TSC) += tsc
+# Use ARCH_BOOTBLOCK_X86_64 as a proxy for knowing if 64bit is going to be used
+subdirs-$(CONFIG_ARCH_BOOTBLOCK_X86_64) += 64bit
+
 subdirs-$(CONFIG_PARALLEL_MP) += name
 ramstage-$(CONFIG_PARALLEL_MP) += mp_init.c
-ramstage-$(CONFIG_MIRROR_PAYLOAD_TO_RAM_BEFORE_LOADING) += mirror_payload.c
+
 ramstage-y += backup_default_smm.c
+ramstage-y += smi_trigger.c
+smm-y += smi_trigger.c
+
+subdirs-$(CONFIG_CPU_INTEL_COMMON_SMM) += ../intel/smm
+
+bootblock-y += entry32.S
+bootblock-y += entry16.S
+bootblock-y += reset16.S
 
 additional-dirs += $(obj)/cpu/x86
 
@@ -31,7 +40,7 @@ endif
 rmodules_$(ARCH-$(TARGET_STAGE)-y)-$(CONFIG_PARALLEL_MP) += sipi_vector.S
 
 $(SIPI_DOTO): $(call src-to-obj,rmodules_$(ARCH-$(TARGET_STAGE)-y),src/cpu/x86/sipi_vector.S)
-	$(CC_rmodules_$(ARCH-$(TARGET_STAGE)-y)) $(CFLAGS_rmodules_$(ARCH-$(TARGET_STAGE)-y)) -nostdlib -r -o $@ $^
+	$(LD_rmodules_$(ARCH-$(TARGET_STAGE)-y)) -nostdlib -r -o $@ $^
 
 $(eval $(call rmodule_link,$(SIPI_ELF), $(SIPI_DOTO), 0,$(ARCH-$(TARGET_STAGE)-y)))
 

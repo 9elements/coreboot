@@ -1,19 +1,5 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cache.h>
 #include <arch/exception.h>
 #include <armv7.h>
 #include <boot_device.h>
@@ -23,6 +9,7 @@
 #include <device/i2c_simple.h>
 #include <drivers/maxim/max77802/max77802.h>
 #include <program_loading.h>
+#include <romstage_common.h>
 #include <soc/clk.h>
 #include <soc/cpu.h>
 #include <soc/dmc.h>
@@ -33,7 +20,6 @@
 #include <soc/setup.h>
 #include <soc/trustzone.h>
 #include <soc/wakeup.h>
-#include <stdlib.h>
 #include <timestamp.h>
 #include <types.h>
 
@@ -144,13 +130,13 @@ static unsigned long primitive_mem_test(void)
 	unsigned long *l = (void *)0x40000000;
 	int bad = 0;
 	unsigned long i;
-	for(i = 0; i < 256*1048576; i++){
+	for (i = 0; i < 256*1048576; i++){
 		if (! (i%1048576))
 			printk(BIOS_SPEW, "%lu ...", i);
 		l[i] = 0xffffffff - i;
 	}
 
-	for(i = 0; i < 256*1048576; i++){
+	for (i = 0; i < 256*1048576; i++){
 		if (! (i%1048576))
 			printk(BIOS_SPEW, "%lu ...", i);
 		if (l[i] != (0xffffffff - i)){
@@ -191,8 +177,7 @@ static void simple_spi_test(void)
 		return;
 	}
 
-
-	for(i = 0; i < amt; i += 4){
+	for (i = 0; i < amt; i += 4){
 		if (rdev_readat(boot_dev, &in, i, 4) < 4) {
 			printk(BIOS_SPEW, "simple_spi_test fails at %d\n", i);
 			return;
@@ -219,6 +204,19 @@ static void simple_spi_test(void)
 
 void main(void)
 {
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_ROMSTAGE_START);
+
+	/*
+	 * From the clocks comment below it looks like serial console won't
+	 * work in the bootblock so keep in the romstage_main flow even with
+	 * !CONFIG SEPARATE_ROMSTAGE.
+	 */
+	romstage_main();
+}
+
+void __noreturn romstage_main(void)
+{
 
 	extern struct mem_timings mem_timings;
 	int is_resume = (get_wakeup_state() != IS_NOT_WAKEUP);
@@ -226,9 +224,6 @@ void main(void)
 
 	exynos5420_config_smp();
 	power_init_failed = setup_power(is_resume);
-
-	timestamp_init(timestamp_get());
-	timestamp_add_now(TS_START_ROMSTAGE);
 
 	/* Clock must be initialized before console_init, otherwise you may need
 	 * to re-initialize serial console drivers again. */
@@ -244,11 +239,11 @@ void main(void)
 	/* re-initialize PMIC I2C channel after (re-)setting system clocks */
 	i2c_init(PMIC_I2C_BUS, 1000000, 0x00); /* 1MHz */
 
-	timestamp_add_now(TS_BEFORE_INITRAM);
+	timestamp_add_now(TS_INITRAM_START);
 
 	setup_memory(&mem_timings, is_resume);
 
-	timestamp_add_now(TS_AFTER_INITRAM);
+	timestamp_add_now(TS_INITRAM_END);
 
 	primitive_mem_test();
 

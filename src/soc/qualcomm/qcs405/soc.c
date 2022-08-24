@@ -1,29 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018, The Linux Foundation.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <symbols.h>
 #include <device/device.h>
-#include <timestamp.h>
 #include <soc/mmu.h>
 #include <soc/symbols.h>
 
 static void soc_read_resources(struct device *dev)
 {
-	ram_resource(dev, 0, (uintptr_t)_dram / KiB, (1 * GiB) / KiB);
-	reserved_ram_resource(dev, 1, (uintptr_t)_dram_reserved / KiB,
-			      REGION_SIZE(dram_reserved) / KiB);
+	ram_range(dev, 0, (uintptr_t)_dram, 1 * GiB);
+	reserved_ram_range(dev, 1, (uintptr_t)_dram_reserved, REGION_SIZE(dram_reserved));
 }
 
 static void soc_init(struct device *dev)

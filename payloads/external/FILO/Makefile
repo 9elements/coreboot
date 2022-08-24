@@ -1,6 +1,6 @@
 TAG-$(CONFIG_FILO_MASTER)=origin/master
 NAME-$(CONFIG_FILO_MASTER)=MASTER
-TAG-$(CONFIG_FILO_STABLE)=22baa6bde9339029edfafa421b3d4a7be159edad
+TAG-$(CONFIG_FILO_STABLE)=c2fa1ea6125c63e84cdf7779c37d76da8c5bc412
 NAME-$(CONFIG_FILO_STABLE)=STABLE
 
 project_git_repo=https://review.coreboot.org/filo.git
@@ -33,6 +33,13 @@ config: libpayload
 	#echo "CONFIG_VGAHOOKS=y" >> filo/.config
 	# This shows how to force a previously set .config option *off*
 	#echo "# CONFIG_SMBIOS is not set" >> filo/.config
+ifeq ($(CONFIG_FILO_USE_AUTOBOOT),y)
+	echo "# CONFIG_USE_GRUB is not set" >> filo/.config
+	echo "CONFIG_USE_AUTOBOOT=y" >> filo/.config
+	echo 'CONFIG_AUTOBOOT_FILE="$(CONFIG_FILO_AUTOBOOT_FILE)"' >> filo/.config
+	echo "CONFIG_AUTOBOOT_DELAY=$(CONFIG_FILO_AUTOBOOT_DELAY)" >> filo/.config
+endif
+
 	$(MAKE) -C filo oldconfig LIBCONFIG_PATH=../../../libpayload
 
 filo: config
@@ -44,7 +51,7 @@ libpayload: checkout
 		$(MAKE) && $(MAKE) DESTDIR=../external/FILO/filo/build install
 
 clean:
-	test -d filo && $(MAKE) -C filo clean || exit 0
+	test -d filo && $(MAKE) -C filo clean LIBCONFIG_PATH=../../../libpayload || exit 0
 
 distclean:
 	rm -rf filo

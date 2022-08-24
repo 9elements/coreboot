@@ -1,30 +1,12 @@
-/*
- *****************************************************************************
- *
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * ***************************************************************************
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _AMD_SB_LIB_H_
 #define _AMD_SB_LIB_H_
 
 #include <console/vtxprintf.h>
 
-#pragma pack (push, 1)
+#pragma pack(push, 1)
 
-#define IMAGE_ALIGN          32*1024
 #define NUM_IMAGE_LOCATION   32
 
 //Entry Point Call
@@ -121,7 +103,7 @@ typedef struct _CIMFILEHEADER
 #ifndef BIT23
   #define BIT23 (1 << 23)
 #endif
-#ifndef  BIT24
+#ifndef BIT24
   #define BIT24 (1 << 24)
 #endif
 #ifndef BIT25
@@ -146,7 +128,7 @@ typedef struct _CIMFILEHEADER
   #define BIT31 (1 << 31)
 #endif
 
-#pragma pack (pop)
+#pragma pack(pop)
 
 typedef enum
 {

@@ -1,12 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef STDDEF_H
 #define STDDEF_H
 
 #include <commonlib/helpers.h>
 
-typedef long ptrdiff_t;
-#ifndef __SIZE_TYPE__
-#define __SIZE_TYPE__ unsigned long
-#endif
+typedef __PTRDIFF_TYPE__ ptrdiff_t;
 typedef __SIZE_TYPE__ size_t;
 /* There is a GCC macro for a size_t type, but not
  * for a ssize_t type. Below construct tricks GCC
@@ -16,8 +15,8 @@ typedef __SIZE_TYPE__ size_t;
 typedef __SIZE_TYPE__ ssize_t;
 #undef unsigned
 
-typedef int wchar_t;
-typedef unsigned int wint_t;
+typedef __WCHAR_TYPE__ wchar_t;
+typedef __WINT_TYPE__ wint_t;
 
 #define NULL ((void *)0)
 
@@ -35,19 +34,16 @@ typedef unsigned int wint_t;
 #define DEVTREE_CONST
 #endif
 
-/* Work around non-writable data segment in execute-in-place romstage on x86. */
-#if defined(__PRE_RAM__) && CONFIG(ARCH_X86)
-#define MAYBE_STATIC
+#if ENV_HAS_DATA_SECTION
+#define MAYBE_STATIC_NONZERO static
 #else
-#define MAYBE_STATIC static
+#define MAYBE_STATIC_NONZERO
 #endif
 
-#ifndef __ROMCC__
 /* Provide a pointer to address 0 that thwarts any "accessing this is
  * undefined behaviour and do whatever" trickery in compilers.
  * Use when you _really_ need to read32(zeroptr) (ie. read address 0).
  */
 extern char zeroptr[];
-#endif
 
 #endif /* STDDEF_H */

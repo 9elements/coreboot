@@ -1,24 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 secunet Security Networks AG
- * Copyright (C) 2017 Samuel Holland <samuel@sholland.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/device.h>
 #include <device/pnp.h>
 #include <pc80/keyboard.h>
-#include <pc80/mc146818rtc.h>
+#include <option.h>
 #include <superio/ite/common/env_ctrl.h>
 #include <superio/conf_mode.h>
 #include <types.h>
@@ -32,10 +17,8 @@
 
 static void power_control_init(struct device *dev)
 {
-	int power_on = MAINBOARD_POWER_OFF;
+	unsigned int power_on = get_uint_option("power_on_after_fail", MAINBOARD_POWER_OFF);
 	u8 value;
-
-	get_option(&power_on, "power_on_after_fail");
 
 	pnp_enter_conf_mode(dev);
 	pnp_set_logical_device(dev);
@@ -68,7 +51,7 @@ static void it8720f_init(struct device *dev)
 	switch (dev->path.pnp.device) {
 	case IT8720F_EC:
 		conf = dev->chip_info;
-		res = find_resource(dev, PNP_IDX_IO0);
+		res = probe_resource(dev, PNP_IDX_IO0);
 		if (!conf || !res)
 			break;
 		ite_ec_init(res->base, &conf->ec);

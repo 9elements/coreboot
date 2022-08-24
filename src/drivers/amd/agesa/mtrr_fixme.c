@@ -1,38 +1,26 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
+#include <arch/romstage.h>
 #include <cbmem.h>
 #include <console/console.h>
 #include <commonlib/helpers.h>
 #include <cpu/amd/mtrr.h>
 #include <cpu/cpu.h>
-#include <cpu/x86/cache.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
+#include <romstage_handoff.h>
 
 static void set_range_uc(u32 base, u32 size)
 {
 	int i, max_var_mtrrs;
 	msr_t msr;
-	msr = rdmsr(MTRR_CAP_MSR);
-	max_var_mtrrs = msr.lo & MTRR_CAP_VCNT;
+	max_var_mtrrs = get_var_mtrr_count();
 
 	for (i = 0; i < max_var_mtrrs; i++) {
 		msr = rdmsr(MTRR_PHYS_MASK(i));
 		if (!(msr.lo & MTRR_PHYS_MASK_VALID))
-				break;
+			break;
 	}
 	if (i == max_var_mtrrs)
 		die("Run out of unused MTRRs\n");
@@ -57,21 +45,22 @@ void fixup_cbmem_to_UC(int s3resume)
 	 * writeback possible.
 	 */
 
-	uintptr_t top_of_ram = (uintptr_t) cbmem_top();
+	uintptr_t top_of_ram = (uintptr_t)cbmem_top();
 	top_of_ram = ALIGN_UP(top_of_ram, 4 * MiB);
 
 	set_range_uc(top_of_ram - 4 * MiB, 4 * MiB);
 	set_range_uc(top_of_ram - 8 * MiB, 4 * MiB);
 }
 
-void recover_postcar_frame(struct postcar_frame *pcf, int s3resume)
+static void recover_postcar_frame(struct postcar_frame *pcf)
 {
 	msr_t base, mask;
 	int i;
+	int s3resume = romstage_handoff_is_resume();
 
 	/* Replicate non-UC MTRRs as left behind by AGESA.
 	 */
-	for (i = 0; i < pcf->max_var_mtrrs; i++) {
+	for (i = 0; i < pcf->mtrr->max_var_mtrrs; i++) {
 		mask = rdmsr(MTRR_PHYS_MASK(i));
 		base = rdmsr(MTRR_PHYS_BASE(i));
 		u32 size = ~(mask.lo & ~0xfff) + 1;
@@ -90,12 +79,18 @@ void recover_postcar_frame(struct postcar_frame *pcf, int s3resume)
 	 * speed make them WB after CAR teardown.
 	 */
 	if (s3resume) {
-		uintptr_t top_of_ram = (uintptr_t) cbmem_top();
-		top_of_ram = ALIGN_DOWN(top_of_ram, 4*MiB);
+		uintptr_t top_of_ram = (uintptr_t)cbmem_top();
+		top_of_ram = ALIGN_DOWN(top_of_ram, 4 * MiB);
 
-		postcar_frame_add_mtrr(pcf, top_of_ram - 4*MiB, 4*MiB,
+		postcar_frame_add_mtrr(pcf, top_of_ram - 4 * MiB, 4 * MiB,
 			MTRR_TYPE_WRBACK);
-		postcar_frame_add_mtrr(pcf, top_of_ram - 8*MiB, 4*MiB,
+		postcar_frame_add_mtrr(pcf, top_of_ram - 8 * MiB, 4 * MiB,
 			MTRR_TYPE_WRBACK);
 	}
+}
+
+void fill_postcar_frame(struct postcar_frame *pcf)
+{
+	pcf->skip_common_mtrr = 1;
+	recover_postcar_frame(pcf);
 }

@@ -1,27 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Advanced Micro Devices, Inc.
- * Copyright (C) 2014 Alexandru Gagniuc <mr.nuke.me@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#ifndef __SOUTHBRIDGE_AMD_PI_STONEYRIDGE_SMI_H__
-#define __SOUTHBRIDGE_AMD_PI_STONEYRIDGE_SMI_H__
-
+#ifndef AMD_STONEYRIDGE_SMI_H
+#define AMD_STONEYRIDGE_SMI_H
 
 #define SMI_GEVENTS			24
-#define SCIMAPS				58
+#define SCIMAPS				59 /* 0..58 */
 #define SCI_GPES			32
+#define NUMBER_SMITYPES			160
 
 #define SMI_EVENT_STATUS		0x0
 #define SMI_EVENT_ENABLE		0x04
@@ -154,7 +139,7 @@
 /* 153-155 Reserved */
 #define SMITYPE_CFGTRAP0			156
 /* 157-159 Reserved */
-#define NUMBER_SMITYPES				160
+
 #define TYPE_TO_MASK(X)				(1 << (X) % 32)
 
 #define SMI_REG_SMISTS0			0x80
@@ -191,52 +176,4 @@
 #define SMI_REG_CONTROL8		0xc0
 #define SMI_REG_CONTROL9		0xc4
 
-enum smi_mode {
-	SMI_MODE_DISABLE = 0,
-	SMI_MODE_SMI = 1,
-	SMI_MODE_NMI = 2,
-	SMI_MODE_IRQ13 = 3,
-};
-
-enum smi_sci_type {
-	INTERRUPT_NONE,
-	INTERRUPT_SCI,
-	INTERRUPT_SMI,
-	INTERRUPT_BOTH,
-};
-
-enum smi_sci_lvl {
-	SMI_SCI_LVL_LOW,
-	SMI_SCI_LVL_HIGH,
-};
-
-enum smi_sci_dir {
-	SMI_SCI_EDG,
-	SMI_SCI_LVL,
-};
-
-struct smi_sources_t {
-	int type;
-	void (*handler)(void);
-};
-
-struct sci_source {
-	uint8_t scimap;		/* SCIMAP 0-57 */
-	uint8_t gpe;		/* 32 GPEs */
-	uint8_t direction;	/* Active High or Low,  smi_sci_lvl */
-	uint8_t level;		/* Edge or Level,  smi_sci_dir */
-};
-
-uint16_t pm_acpi_smi_cmd_port(void);
-void configure_smi(uint8_t smi_num, uint8_t mode);
-void configure_gevent_smi(uint8_t gevent, uint8_t mode, uint8_t level);
-void configure_scimap(const struct sci_source *sci);
-void disable_gevent_smi(uint8_t gevent);
-void gpe_configure_sci(const struct sci_source *scis, size_t num_gpes);
-void soc_route_sci(uint8_t event);
-
-#ifndef __SMM__
-void enable_smi_generation(void);
-#endif
-
-#endif /* __SOUTHBRIDGE_AMD_PI_STONEYRIDGE_SMI_H__ */
+#endif /* AMD_STONEYRIDGE_SMI_H */

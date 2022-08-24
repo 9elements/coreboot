@@ -1,24 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __BASEBOARD_VARIANTS_H__
 #define __BASEBOARD_VARIANTS_H__
 
 #include <soc/gpio.h>
 #include <stdint.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 
 /*
  * The next set of functions return the gpio table and fill in the number of
@@ -33,7 +19,6 @@ const struct pad_config *variant_early_gpio_table(size_t *num);
  */
 const struct pad_config *variant_romstage_gpio_table(size_t *num);
 
-const struct cros_gpio *variant_cros_gpios(size_t *num);
 /* Config gpio by different sku id */
 const struct pad_config *variant_sku_gpio_table(size_t *num);
 

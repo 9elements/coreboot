@@ -1,15 +1,4 @@
-/*
- * Copyright (C) 2014 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdio.h>
 #include <sys/mman.h>
@@ -747,7 +736,7 @@ static void parse_vbt(const struct fileobject *fo,
 	*vbt = NULL;
 
 	if (fo->size < sizeof(struct vbt_header)) {
-		printerr("image is to small\n");
+		printerr("image is too small\n");
 		return;
 	}
 
@@ -821,12 +810,12 @@ static u8 checksum_vbios(const optionrom_header_t *oh)
 static int is_valid_vbios(const struct fileobject *fo)
 {
 	if (fo->size > 64 * 2 * KiB) {
-		printerr("VBIOS is to big\n");
+		printerr("VBIOS is too big\n");
 		return 0;
 	}
 
 	if (fo->size < sizeof(optionrom_header_t)) {
-		printerr("VBIOS is to small\n");
+		printerr("VBIOS is too small\n");
 		return 0;
 	}
 

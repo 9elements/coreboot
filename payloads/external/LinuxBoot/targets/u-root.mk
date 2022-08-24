@@ -1,17 +1,4 @@
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2017 Facebook Inc.
-## Copyright (C) 2018 9elements Cyber Security
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 project_dir=$(shell pwd)/linuxboot
 go_path_dir=$(project_dir)/go
@@ -28,6 +15,7 @@ go_version_minor=$(shell echo $(go_version) |  sed -nr 's/^([0-9]+)\.([0-9]+)\.?
 
 uroot_args+=-build=$(CONFIG_LINUXBOOT_UROOT_FORMAT)
 uroot_args+=-initcmd $(CONFIG_LINUXBOOT_UROOT_INITCMD)
+uroot_args+=-uinitcmd=$(CONFIG_LINUXBOOT_UROOT_UINITCMD)
 uroot_args+=-defaultsh $(CONFIG_LINUXBOOT_UROOT_SHELL)
 ifneq (CONFIG_LINUXBOOT_UROOT_FILES,)
 uroot_args+=$(foreach file,$(CONFIG_LINUXBOOT_UROOT_FILES),-files $(PWD)/$(file))
@@ -52,12 +40,12 @@ endif
 
 get: version
 	if [ -d "$(go_path_dir)/src/$(uroot_package)" ]; then \
-	git -C $(go_path_dir)/src/$(uroot_package) checkout --quiet master; \
-	GOPATH=$(go_path_dir) go get -d -u -v $(uroot_package) || \
-	echo -e "\n<<u-root package update failed>>\n"; \
+	git -C $(go_path_dir)/src/$(uroot_package) checkout --quiet main; \
+	git -C $(go_path_dir)/src/$(uroot_package) pull || \
+	echo -e "\n<<Pulling u-root package from GitHub failed>>\n"; \
 	else \
-	GOPATH=$(go_path_dir) go get -d -u -v $(uroot_package) || \
-	(echo -e "\n<<failed to get u-root package. Please check your internet access>>\n" && \
+	git clone https://${uroot_package} ${go_path_dir}/src/${uroot_package} || \
+	(echo -e "\n<<Failed to clone u-root package. Please check your internet access>>\n" && \
 	exit 1); \
 	fi
 
@@ -65,10 +53,12 @@ checkout: get
 	git -C $(go_path_dir)/src/$(uroot_package) checkout --quiet $(CONFIG_LINUXBOOT_UROOT_VERSION)
 
 build: checkout
-	GOPATH=$(go_path_dir) go build -o $(uroot_bin) $(uroot_package)
+	cd ${go_path_dir}/src/${uroot_package}; \
+	go build -o ${uroot_bin} .
 
 u-root: build
-	GOARCH=$(ARCH-y) GOPATH=$(go_path_dir) $(uroot_bin) \
+	GOARCH=$(ARCH-y) $(uroot_bin) \
+	-uroot-source ${go_path_dir}/src/${uroot_package} \
 	$(uroot_args) -o $(project_dir)/initramfs_u-root.cpio $(uroot_cmds)
 
 .PHONY: all u-root build checkout get version

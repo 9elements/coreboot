@@ -1,38 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
-	#include <arch/acpi.h>
-	DefinitionBlock (
-		"DSDT.AML",
-		"DSDT",
-		0x01,
-		OEM_ID,
-		ACPI_TABLE_CREATOR,
-		0x00010001
-		)
-	{
-		#include "debug.asl"
-	}
-*/
-
-/*
-* 0x80: POST_BASE
 * 0x3F8: DEBCOM_BASE
-* X80: POST_REGION
-* P80: PORT80
 *
 * CREG: DEBCOM_REGION
 * CUAR: DEBCOM_UART
@@ -44,12 +13,6 @@
 *
 * DEBUG_INIT	DINI
 */
-
-OperationRegion(X80, SystemIO, 0x80, 1)
-	Field(X80, ByteAcc, NoLock, Preserve)
-{
-	P80, 8
-}
 
 OperationRegion(CREG, SystemIO, 0x3F8, 8)
 	Field(CREG, ByteAcc, NoLock, Preserve)
@@ -64,12 +27,12 @@ OperationRegion(CREG, SystemIO, 0x3F8, 8)
 */
 Method(DINI)
 {
-	store(0x83, DLCR)
-	store(0x01, CDAT)	/* 115200 baud (low) */
-	store(0x00, CDLM)	/* 115200 baud (high) */
-	store(0x03, DLCR)	/* word=8 stop=1 parity=none */
-	store(0x03, CMCR)	/* DTR=1 RTS=1 Out2=Off Loop=Off */
-	store(0x00, CDLM)	/* turn off interrupts */
+	DLCR = 0x83
+	CDAT = 1	/* 115200 baud (low) */
+	CDLM = 0	/* 115200 baud (high) */
+	DLCR = 3	/* word=8 stop=1 parity=none */
+	CMCR = 3	/* DTR=1 RTS=1 Out2=Off Loop=Off */
+	CDLM = 0	/* turn off interrupts */
 }
 
 /*
@@ -78,9 +41,9 @@ Method(DINI)
 */
 Method(THRE)
 {
-	and(CLSR, 0x20, local0)
-	while (Lequal(local0, Zero)) {
-		and(CLSR, 0x20, local0)
+	local0 = CLSR & 0x20
+	while (local0 == 0) {
+		local0 = CLSR & 0x20
 	}
 }
 
@@ -91,7 +54,7 @@ Method(THRE)
 Method(OUTX, 1)
 {
 	THRE()
-	store(Arg0, CDAT)
+	CDAT = Arg0
 }
 
 /*
@@ -100,7 +63,7 @@ Method(OUTX, 1)
 */
 Method(OUTC, 1)
 {
-	if (LEqual(Arg0, 0x0a)) {
+	if (Arg0 == 0x0a) {
 		OUTX(0x0d)
 	}
 	OUTX(Arg0)
@@ -112,11 +75,11 @@ Method(OUTC, 1)
 */
 Method(DBGN, 1)
 {
-	and(Arg0, 0x0f, Local0)
-	if (LLess(Local0, 10)) {
-		add(Local0, 0x30, Local0)
+	Local0 = Arg0 & 0x0f
+	if (Local0 < 10) {
+		Local0 += 0x30
 	} else {
-		add(Local0, 0x37, Local0)
+		Local0 += 0x37
 	}
 	OUTC(Local0)
 }
@@ -127,7 +90,7 @@ Method(DBGN, 1)
 */
 Method(DBGB, 1)
 {
-	ShiftRight(Arg0, 4, Local0)
+	Local0 = Arg0 >> 4
 	DBGN(Local0)
 	DBGN(Arg0)
 }
@@ -138,7 +101,7 @@ Method(DBGB, 1)
 */
 Method(DBGW, 1)
 {
-	ShiftRight(Arg0, 8, Local0)
+	Local0 = Arg0 >> 8
 	DBGB(Local0)
 	DBGB(Arg0)
 }
@@ -149,7 +112,7 @@ Method(DBGW, 1)
 */
 Method(DBGD, 1)
 {
-	ShiftRight(Arg0, 16, Local0)
+	Local0 = Arg0 >> 16
 	DBGW(Local0)
 	DBGW(Arg0)
 }
@@ -161,11 +124,11 @@ Method(DBGD, 1)
 Method(DBGO, 1)
 {
 	/* DINI() */
-	if (LEqual(ObjectType(Arg0), 1)) {
-		if (LGreater(Arg0, 0xffff)) {
+	if (ObjectType(Arg0) == 1) {
+		if (Arg0 > 0xffff) {
 			DBGD(Arg0)
 		} else {
-			if (LGreater(Arg0, 0xff)) {
+			if (Arg0 > 0xff) {
 				DBGW(Arg0)
 			} else {
 				DBGB(Arg0)
@@ -173,15 +136,15 @@ Method(DBGO, 1)
 		}
 	} else {
 		Name(BDBG, Buffer(80) {})
-		store(Arg0, BDBG)
-		store(0, Local1)
+		BDBG = Arg0
+		Local1 = 0
 		while (One) {
-			store(GETC(BDBG, Local1), Local0)
-			if (LEqual(Local0, 0)) {
+			Local0 = GETC(BDBG, Local1)
+			if (Local0 == 0) {
 				return (0)
 			}
 			OUTC(Local0)
-			Increment(Local1)
+			Local1++
 		}
 	}
 	return (0)

@@ -52,13 +52,9 @@ command line.
   not have an answer yet, it stops and queries the user for the desired value.
 - olddefconfig - Generates a config, using the default value for any symbols not
   listed in the .config file.
-- savedefconfig - Creates a ‘mini-config’ file, stripping out all of the symbols
+- savedefconfig - Creates a ‘defconfig’ file, stripping out all of the symbols
   that were left as default values.  This is very useful for debugging, and is
   how config files should be saved.
-- silentoldconfig - This evaluates the .config file the same way that the
-  oldconfig target does, but does not print out each question as it is
-  evaluated.  It still stops to query the user if an option with no answer in
-  the .config file is found.
 
 
 ### Targets not typically used in coreboot
@@ -72,9 +68,6 @@ These variables are typically set in the makefiles or on the make command line.
 #### Variables added to the coreboot Kconfig source
 These variables were added to Kconfig specifically for coreboot and are not
 included in the Linux version.
-
-- COREBOOT_BUILD_DIR=path for temporary files.   This is used by coreboot’s
-  abuild tool.
 
 - KCONFIG_STRICT=value. Define to enable warnings as errors.   This is enabled
   in coreboot, and should not be changed.
@@ -401,6 +394,8 @@ default &lt;expr&gt; \[if &lt;expr&gt;\]
 - If there is no 'default' entry for a symbol, it gets set to 'n', 0, 0x0, or
   “” depending on the type, however the 'bool' type is the only type that
   should be left without a default value.
+- If possible, the declaration should happen before all default entries to make
+  it visible in Kconfig tools like menuconfig.
 
 --------------------------------------------------------------------------------
 
@@ -608,7 +603,7 @@ int &lt;expr&gt; \[if &lt;expr&gt;\]
 
 
 ##### Example:
-    config PRE_GRAPHICS_DELAY
+    config PRE_GRAPHICS_DELAY_MS
         int "Graphics initialization delay in ms"
         default 0
         help
@@ -791,7 +786,7 @@ select &lt;symbol&gt; \[if &lt;expr&gt;\]
     config TPM
         bool
         default n
-        select LPC_TPM if ARCH_X86
+        select MEMORY_MAPPED_TPM if ARCH_X86
         select I2C_TPM if ARCH_ARM
         select I2C_TPM if ARCH_ARM64
         help
@@ -1193,7 +1188,7 @@ https://github.com/martinlroth/language-kconfig
 ## Syntax Checking:
 
 The Kconfig utility does some basic syntax checking on the Kconfig tree.
-Running "make silentoldconfig" will show any errors that the Kconfig utility
+Running "make oldconfig" will show any errors that the Kconfig utility
 sees.
 
 ### util/kconfig_lint

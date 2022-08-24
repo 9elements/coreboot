@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define strings in the root scope to
@@ -77,7 +63,7 @@ Device (BAT0)
 		ShiftLeft (Arg0, 8, Local1)
 		And (Local1, 0xFF00, Local1)
 		Or (Local0, Local1, Local0)
-		If (LEqual (Local0, 0xFFFF)) {
+		If (Local0 == 0xFFFF) {
 			Store (0xFFFFFFFF, Local0)
 		}
 		Return (Local0)
@@ -95,15 +81,15 @@ Device (BAT0)
 	Method (_BIF, 0, Serialized)
 	{
 		// Update fields from EC
-		Store (SWAB (BTDA), Index (PBIF, 1))
-		Store (SWAB (BTDF), Index (PBIF, 2))
-		Store (SWAB (BTDV), Index (PBIF, 4))
-		Store (SWAB (BTDL), Index (PBIF, 6))
+		Store (SWAB (BTDA), PBIF[1])
+		Store (SWAB (BTDF), PBIF[2])
+		Store (SWAB (BTDV), PBIF[4])
+		Store (SWAB (BTDL), PBIF[6])
 
 		// Get battery info from mainboard
-		Store (\BATM, Index (PBIF, 9))
-		Store (\BATS, Index (PBIF, 10))
-		Store (\BATV, Index (PBIF, 12))
+		Store (\BATM, PBIF[9])
+		Store (\BATS, PBIF[10])
+		Store (\BATV, PBIF[12])
 
 		Return (PBIF)
 	}
@@ -134,10 +120,10 @@ Device (BAT0)
 		// Flag if the battery level is critical
 		And (Local0, 0x04, Local4)
 		Or (Local1, Local4, Local1)
-		Store (Local1, Index (PBST, 0))
+		Store (Local1, PBST[0])
 
 		// Notify if battery state has changed since last time
-		If (LNotEqual (Local1, BSTP)) {
+		If (Local1 != BSTP) {
 			Store (Local1, BSTP)
 			Notify (BAT0, 0x80)
 		}
@@ -147,24 +133,22 @@ Device (BAT0)
 		//
 
 		Store (SWAB (BTPR), Local1)
-		If (LAnd (LNotEqual (Local1, 0xFFFFFFFF),
-		          LGreaterEqual (Local1, 0x8000))) {
+		If (Local1 != 0xFFFFFFFF && Local1 >= 0x8000) {
 			Xor (Local1, 0xFFFF, Local1)
-			Increment (Local1)
+			Local1++
 		}
-		Store (Local1, Index (PBST, 1))
+		Store (Local1, PBST[1])
 
 		//
 		// 2: BATTERY REMAINING CAPACITY
 		//
 		Store (SWAB (BTRA), Local1)
-		If (LAnd (LNotEqual (Local1, 0xFFFFFFFF),
-		          LGreaterEqual (Local1, 0x8000))) {
+		If (Local1 != 0xFFFFFFFF && Local1 >= 0x8000) {
 			Xor (Local1, 0xFFFF, Local1)
-			Increment (Local1)
+			Local1++
 		}
 
-		If (LAnd (BFWK, LAnd (ACEX, LNot (Local0)))) {
+		If (BFWK && ACEX && !Local0) {
 			// On AC power and battery is neither charging
 			// nor discharging.  Linux expects a full battery
 			// to report same capacity as last full charge.
@@ -173,18 +157,17 @@ Device (BAT0)
 
 			// See if within ~3% of full
 			ShiftRight (Local2, 5, Local3)
-			If (LAnd (LGreater (Local1, Subtract (Local2, Local3)),
-			          LLess (Local1, Add (Local2, Local3))))
+			If (Local1 > Local2 - Local3 && Local1 < Local2 + Local3)
 			{
 				Store (Local2, Local1)
 			}
 		}
-		Store (Local1, Index (PBST, 2))
+		Store (Local1, PBST[2])
 
 		//
 		// 3: BATTERY PRESENT VOLTAGE
 		//
-		Store (SWAB (BTVO), Index (PBST, 3))
+		Store (SWAB (BTVO), PBST[3])
 
 		Return (PBST)
 	}

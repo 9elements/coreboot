@@ -1,25 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _DENVERTON_NS_PM_H_
 #define _DENVERTON_NS_PM_H_
 
 #include <soc/pmc.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 
 #define GPE_MAX 127
 
@@ -42,6 +27,9 @@ struct chipset_power_state {
 	uint32_t gblrst_cause[2];
 	uint32_t prev_sleep_state;
 } __attribute__((packed));
+
+/* Get base address PMC memory mapped registers. */
+uint8_t *pmc_mmio_regs(void);
 
 struct chipset_power_state *fill_power_state(void);
 

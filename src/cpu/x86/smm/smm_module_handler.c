@@ -1,20 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
+#include <console/cbmem_console.h>
 #include <console/console.h>
+#include <commonlib/region.h>
 #include <cpu/x86/smm.h>
 #include <rmodule.h>
 
@@ -29,6 +18,9 @@ typedef enum { SMI_LOCKED, SMI_UNLOCKED } smi_semaphore;
 /* SMI multiprocessing semaphore */
 static volatile
 __attribute__((aligned(4))) smi_semaphore smi_handler_status = SMI_UNLOCKED;
+
+static const volatile
+__attribute((aligned(4), __section__(".module_parameters"))) struct smm_runtime smm_runtime;
 
 static int smi_obtain_lock(void)
 {
@@ -57,6 +49,12 @@ static void smi_release_lock(void)
 	);
 }
 
+void smm_get_cbmemc_buffer(void **buffer_out, size_t *size_out)
+{
+	*buffer_out = smm_runtime.cbmemc;
+	*size_out = smm_runtime.cbmemc_size;
+}
+
 void io_trap_handler(int smif)
 {
 	/* If a handler function handled a given IO trap, it
@@ -81,7 +79,6 @@ static void smi_set_eos(void)
 	southbridge_smi_set_eos();
 }
 
-
 static u32 pci_orig;
 
 /**
@@ -100,44 +97,49 @@ static void smi_restore_pci_address(void)
 	outl(pci_orig, 0xcf8);
 }
 
-
-static const struct smm_runtime *smm_runtime;
+struct global_nvs *gnvs;
 
 void *smm_get_save_state(int cpu)
 {
-	char *base;
+	if (cpu > smm_runtime.num_cpus)
+		return NULL;
 
-	/* This function assumes all save states start at top of default
-	 * SMRAM size space and are staggered down by save state size. */
-	base = (void *)smm_runtime->smbase;
-	base += SMM_DEFAULT_SIZE;
-	base -= (cpu + 1) * smm_runtime->save_state_size;
+	return (void *)(smm_runtime.save_state_top[cpu] - smm_runtime.save_state_size);
+}
 
-	return base;
+uint32_t smm_revision(void)
+{
+	const uintptr_t save_state = (uintptr_t)(smm_get_save_state(0));
+
+	return *(uint32_t *)(save_state + smm_runtime.save_state_size
+			     - SMM_REVISION_OFFSET_FROM_TOP);
+}
+
+bool smm_region_overlaps_handler(const struct region *r)
+{
+	const struct region r_smm = {smm_runtime.smbase, smm_runtime.smm_size};
+	const struct region r_aseg = {SMM_BASE, SMM_DEFAULT_SIZE};
+
+	return region_overlap(&r_smm, r) || region_overlap(&r_aseg, r);
 }
 
 asmlinkage void smm_handler_start(void *arg)
 {
 	const struct smm_module_params *p;
-	const struct smm_runtime *runtime;
 	int cpu;
 	uintptr_t actual_canary;
 	uintptr_t expected_canary;
 
 	p = arg;
-	runtime = p->runtime;
 	cpu = p->cpu;
 	expected_canary = (uintptr_t)p->canary;
 
 	/* Make sure to set the global runtime. It's OK to race as the value
 	 * will be the same across CPUs as well as multiple SMIs. */
-	if (smm_runtime == NULL)
-		smm_runtime = runtime;
+	gnvs = (void *)(uintptr_t)smm_runtime.gnvs_ptr;
 
 	if (cpu >= CONFIG_MAX_CPUS) {
-		console_init();
-		printk(BIOS_CRIT,
-		       "Invalid CPU number assigned in SMM stub: %d\n", cpu);
+		/* Do not log messages to console here, it is not thread safe */
 		return;
 	}
 
@@ -154,6 +156,8 @@ asmlinkage void smm_handler_start(void *arg)
 	}
 
 	smi_backup_pci_address();
+
+	smm_soc_early_init();
 
 	console_init();
 
@@ -184,6 +188,8 @@ asmlinkage void smm_handler_start(void *arg)
 			die("SMM Handler caused a stack overflow\n");
 	}
 
+	smm_soc_exit();
+
 	smi_release_lock();
 
 	/* De-assert SMI# signal to allow another SMI */
@@ -198,8 +204,12 @@ RMODULE_ENTRY(smm_handler_start);
  * are linked at. */
 int __weak mainboard_io_trap_handler(int smif) { return 0; }
 void __weak cpu_smi_handler(void) {}
-void __weak northbridge_smi_handler() {}
-void __weak southbridge_smi_handler() {}
+void __weak northbridge_smi_handler(void) {}
+void __weak southbridge_smi_handler(void) {}
 void __weak mainboard_smi_gpi(u32 gpi_sts) {}
 int __weak mainboard_smi_apmc(u8 data) { return 0; }
 void __weak mainboard_smi_sleep(u8 slp_typ) {}
+void __weak mainboard_smi_finalize(void) {}
+
+void __weak smm_soc_early_init(void) {}
+void __weak smm_soc_exit(void) {}

@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
 #include <console/console.h>
@@ -20,8 +7,10 @@
 #include <halt.h>
 #include <security/tpm/tss.h>
 #include <vb2_api.h>
+#include <security/vboot/misc.h>
 #include <security/vboot/vboot_common.h>
 #include <vendorcode/google/chromeos/chromeos.h>
+#include <timestamp.h>
 
 #define CR50_RESET_DELAY_MS 1000
 
@@ -55,8 +44,7 @@ static int cr50_is_reset_needed(void)
 		return 1;
 	} else if (ret != TPM_SUCCESS)	{
 		/* TPM command failed, continue booting. */
-		printk(BIOS_ERR,
-		       "ERROR: Attempt to get CR50 TPM mode failed: %x\n", ret);
+		printk(BIOS_ERR, "Attempt to get CR50 TPM mode failed: %x\n", ret);
 		return 0;
 	}
 
@@ -85,26 +73,30 @@ static void enable_update(void *unused)
 	int cr50_reset_reqd = 0;
 	uint8_t num_restored_headers;
 
-	/* Nothing to do on recovery mode. */
-	if (vboot_recovery_mode_enabled())
+	/**
+	 * Never update during manually-triggered recovery to ensure update
+	 * cannot interfere. Non-manual VB2_RECOVERY_TRAIN_AND_REBOOT
+	 * sometimes used to update in factory.
+	 */
+	if (vboot_get_context()->flags & VB2_CONTEXT_FORCE_RECOVERY_MODE)
 		return;
 
 	ret = tlcl_lib_init();
 
 	if (ret != VB2_SUCCESS) {
-		printk(BIOS_ERR,
-		       "ERROR: tlcl_lib_init() failed for CR50 update: %x\n",
+		printk(BIOS_ERR, "tlcl_lib_init() failed for CR50 update: %x\n",
 		       ret);
 		return;
 	}
+
+	timestamp_add_now(TS_TPM_ENABLE_UPDATE_START);
 
 	/* Reboot in 1000 ms if necessary. */
 	ret = tlcl_cr50_enable_update(CR50_RESET_DELAY_MS,
 				      &num_restored_headers);
 
 	if (ret != TPM_SUCCESS) {
-		printk(BIOS_ERR,
-		       "ERROR: Attempt to enable CR50 update failed: %x\n",
+		printk(BIOS_ERR, "Attempt to enable CR50 update failed: %x\n",
 		       ret);
 		return;
 	}
@@ -124,8 +116,10 @@ static void enable_update(void *unused)
 		 * If the Cr50 doesn't requires a reset, continue booting.
 		 */
 		cr50_reset_reqd = cr50_is_reset_needed();
-		if (!cr50_reset_reqd)
+		if (!cr50_reset_reqd) {
+			timestamp_add_now(TS_TPM_ENABLE_UPDATE_END);
 			return;
+		}
 
 		printk(BIOS_INFO, "Waiting for CR50 reset to enable TPM.\n");
 		elog_add_event(ELOG_TYPE_CR50_NEED_RESET);
@@ -155,8 +149,7 @@ static void enable_update(void *unused)
 			 * booting but the current boot will likely end up at
 			 * the recovery screen.
 			 */
-			printk(BIOS_ERR,
-			       "ERROR: Attempt to reset CR50 failed: %x\n",
+			printk(BIOS_ERR, "Attempt to reset CR50 failed: %x\n",
 			       ret);
 			return;
 		}

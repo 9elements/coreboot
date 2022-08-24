@@ -1,19 +1,5 @@
-/*
- * Copyright 2013 Google Inc.
- * Copyright 2018-present Facebook, Inc.
- *
- * Taken from depthcharge: src/base/device_tree.c
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* Taken from depthcharge: src/base/device_tree.c */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <assert.h>
 #include <commonlib/stdlib.h>
@@ -568,7 +554,7 @@ struct device_tree_node *dt_find_node(struct device_tree_node *parent,
 		if (!create)
 			return NULL;
 
-		found = malloc(sizeof(*found));
+		found = calloc(1, sizeof(*found));
 		if (!found)
 			return NULL;
 		found->name = strdup(*path);
@@ -772,7 +758,7 @@ struct device_tree_node *dt_find_compat(struct device_tree_node *parent,
 }
 
 /*
- * Find the next compatible child of a given parent. All children upto the
+ * Find the next compatible child of a given parent. All children up to the
  * child passed in by caller are ignored. If child is NULL, it considers all the
  * children to find the first child which is compatible.
  *
@@ -1360,7 +1346,7 @@ static int dt_fixup_all_externals(struct device_tree *tree,
 		if (!path)
 			return -1;
 
-		/* Find node the label pointed to to figure out its phandle. */
+		/* Find node the label pointed to figure out its phandle. */
 		struct device_tree_node *node = dt_find_node_by_path(tree, path,
 			NULL, NULL, 0);
 		if (!node)
@@ -1515,7 +1501,7 @@ int dt_apply_overlay(struct device_tree *tree, struct device_tree *overlay)
 	uint32_t phandle_base = tree->max_phandle;
 	uint32_t new_max = dt_adjust_all_phandles(overlay->root, phandle_base);
 	if (!new_max) {
-		printk(BIOS_DEBUG, "ERROR: invalid phandles in overlay\n");
+		printk(BIOS_ERR, "invalid phandles in overlay\n");
 		return -1;
 	}
 	tree->max_phandle = new_max;
@@ -1526,7 +1512,7 @@ int dt_apply_overlay(struct device_tree *tree, struct device_tree *overlay)
 					"/__local_fixups__", NULL, NULL, 0);
 	if (local_fixups && dt_fixup_locals(overlay->root, local_fixups,
 					    phandle_base) < 0) {
-		printk(BIOS_DEBUG, "ERROR: invalid local fixups in overlay\n");
+		printk(BIOS_ERR, "invalid local fixups in overlay\n");
 		return -1;
 	}
 
@@ -1550,8 +1536,7 @@ int dt_apply_overlay(struct device_tree *tree, struct device_tree *overlay)
 		"/__symbols__", NULL, NULL, 0);
 	if (fixups && dt_fixup_all_externals(tree, symbols, overlay,
 					     fixups, overlay_symbols) < 0) {
-		printk(BIOS_DEBUG,
-		       "ERROR: cannot match external fixups from overlay\n");
+		printk(BIOS_ERR, "cannot match external fixups from overlay\n");
 		return -1;
 	}
 
@@ -1560,7 +1545,7 @@ int dt_apply_overlay(struct device_tree *tree, struct device_tree *overlay)
 	struct device_tree_node *fragment;
 	list_for_each(fragment, overlay->root->children, list_node)
 		if (dt_import_fragment(tree, fragment, overlay_symbols) < 0) {
-			printk(BIOS_DEBUG, "ERROR: bad DT fragment '%s'\n",
+			printk(BIOS_ERR, "bad DT fragment '%s'\n",
 			       fragment->name);
 			return -1;
 		}

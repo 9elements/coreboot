@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef COMMONLIB_IOBUF_H
 #define COMMONLIB_IOBUF_H
@@ -94,7 +81,7 @@ int ibuf_split(const struct ibuf *src, struct ibuf *a, struct ibuf *b,
 /* Out-of-band drain of ibuf by returning pointer to data of specified size. */
 const void *ibuf_oob_drain(struct ibuf *ib, size_t sz);
 
-/* Read arbitray data from input buffer. */
+/* Read arbitrary data from input buffer. */
 int ibuf_read(struct ibuf *ib, void *data, size_t sz);
 
 /* Read big endian fixed size values. */
@@ -138,7 +125,7 @@ int obuf_split(const struct obuf *src, struct obuf *a, struct obuf *b,
 /* Fill the buffer out-of-band. The size is accounted for. */
 void *obuf_oob_fill(struct obuf *ob, size_t sz);
 
-/* Write arbitray data to output buffer. */
+/* Write arbitrary data to output buffer. */
 int obuf_write(struct obuf *ob, const void *data, size_t sz);
 
 /* Write big endian fixed size values. */

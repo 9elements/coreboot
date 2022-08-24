@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
 Scope(\_SB) {
@@ -22,7 +9,7 @@ Scope(\_SB) {
 /* string compare functions */
 Method(MIN, 2)
 {
-	if (LLess(Arg0, Arg1)) {
+	if (Arg0 < Arg1) {
 		Return(Arg0)
 	} else {
 		Return(Arg1)
@@ -31,44 +18,44 @@ Method(MIN, 2)
 
 Method(SLEN, 1)
 {
-	Store(Arg0, Local0)
+	Local0 = Arg0
 	Return(Sizeof(Local0))
 }
 
 Method(S2BF, 1, Serialized)
 {
-	Add(SLEN(Arg0), One, Local0)
+	Local0 = SLEN(Arg0) + 1
 	Name(BUFF, Buffer(Local0) {})
-	Store(Arg0, BUFF)
+	BUFF = Arg0
 	Return(BUFF)
 }
 
 /* Strong string compare.  Checks both length and content */
 Method(SCMP, 2)
 {
-	Store(S2BF(Arg0), Local0)
-	Store(S2BF(Arg1), Local1)
-	Store(Zero, Local4)
-	Store(SLEN(Arg0), Local5)
-	Store(SLEN(Arg1), Local6)
-	Store(MIN(Local5, Local6), Local7)
+	Local0 = S2BF(Arg0)
+	Local1 = S2BF(Arg1)
+	Local4 = 0
+	Local5 = SLEN(Arg0)
+	Local6 = SLEN(Arg1)
+	Local7 = MIN(Local5, Local6)
 
-	While(LLess(Local4, Local7)) {
-		Store(Derefof(Index(Local0, Local4)), Local2)
-		Store(Derefof(Index(Local1, Local4)), Local3)
-		if (LGreater(Local2, Local3)) {
+	While(Local4 < Local7) {
+		Local2 = Derefof(Local0[Local4])
+		Local3 = Derefof(Local1[Local4])
+		if (Local2 > Local3) {
 			Return(One)
 		} else {
-			if (LLess(Local2, Local3)) {
+			if (Local2 < Local3) {
 				Return(Ones)
 			}
 		}
-		Increment(Local4)
+		Local4++
 	}
-	if (LLess(Local4, Local5)) {
+	if (Local4 < Local5) {
 		Return(One)
 	} else {
-		if (LLess(Local4, Local6)) {
+		if (Local4 < Local6) {
 			Return(Ones)
 		} else {
 			Return(Zero)
@@ -82,20 +69,19 @@ Method(SCMP, 2)
 */
 Method(WCMP, 2)
 {
-	Store(S2BF(Arg0), Local0)
-	Store(S2BF(Arg1), Local1)
-	if (LLess(SLEN(Arg0), SLEN(Arg1))) {
+	Local0 = S2BF(Arg0)
+	Local1 = S2BF(Arg1)
+	if (SLEN(Arg0) < SLEN(Arg1)) {
 		Return(0)
 	}
-	Store(Zero, Local2)
-	Store(SLEN(Arg1), Local3)
+	Local2 = 0
+	Local3 = SLEN(Arg1)
 
-	While(LLess(Local2, Local3)) {
-		if (LNotEqual(Derefof(Index(Local0, Local2)),
-			Derefof(Index(Local1, Local2)))) {
+	While(Local2 < Local3) {
+		if (Derefof(Local0[Local2]) != Derefof(Local1[Local2])) {
 			Return(0)
 		}
-		Increment(Local2)
+		Local2++
 	}
 	Return(One)
 }
@@ -105,10 +91,10 @@ Method(WCMP, 2)
 */
 Method(I2BM, 1)
 {
-	Store(0, Local0)
-	if (LNotEqual(ARG0, 0)) {
-		Store(1, Local1)
-		ShiftLeft(Local1, ARG0, Local0)
+	Local0 = 0
+	if (ARG0 != 0) {
+		Local1 = 1
+		Local0 = Local1 << ARG0
 	}
 	Return(Local0)
 }

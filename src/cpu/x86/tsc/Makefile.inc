@@ -1,8 +1,6 @@
-bootblock-$(CONFIG_UDELAY_TSC) += delay_tsc.c
-ramstage-$(CONFIG_UDELAY_TSC) += delay_tsc.c
-romstage-$(CONFIG_TSC_CONSTANT_RATE) += delay_tsc.c
-verstage-$(CONFIG_TSC_CONSTANT_RATE) += delay_tsc.c
-postcar-$(CONFIG_TSC_CONSTANT_RATE) += delay_tsc.c
-ifeq ($(CONFIG_HAVE_SMI_HANDLER),y)
-smm-$(CONFIG_TSC_CONSTANT_RATE) += delay_tsc.c
-endif
+bootblock-y += delay_tsc.c
+ramstage-y += delay_tsc.c
+romstage-y += delay_tsc.c
+verstage_x86-y += delay_tsc.c
+postcar-y += delay_tsc.c
+smm-y += delay_tsc.c

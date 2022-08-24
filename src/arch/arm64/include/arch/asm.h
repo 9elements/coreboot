@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __ARM_ARM64_ASM_H
 #define __ARM_ARM64_ASM_H
@@ -32,7 +19,7 @@
 	.size name, .-name
 
 /*
- * Certain SoCs have an alignment requiremnt for the CPU reset vector.
+ * Certain SoCs have an alignment requirement for the CPU reset vector.
  * Align to a 64 byte typical cacheline for now.
  */
 #define CPU_RESET_ENTRY(name) ENTRY_WITH_ALIGN(name, 6)

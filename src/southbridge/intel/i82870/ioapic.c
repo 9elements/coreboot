@@ -1,17 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/console.h>
+#include <arch/ioapic.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
@@ -43,9 +32,6 @@ static void p64h2_ioapic_init(struct device *dev)
 	uint32_t memoryBase;
 	int apic_index, apic_id;
 
-	volatile uint32_t *pIndexRegister;    /* io apic io memory space command address */
-	volatile uint32_t *pWindowRegister;    /* io apic io memory space data address */
-
 	apic_index = num_p64h2_ioapics;
 	num_p64h2_ioapics++;
 
@@ -70,26 +56,11 @@ static void p64h2_ioapic_init(struct device *dev)
 	// NOTE: this address was assigned during enumeration of the bus
 
 	memoryBase = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
-	pIndexRegister  = (volatile uint32_t *) memoryBase;
-	pWindowRegister = (volatile uint32_t *)(memoryBase + 0x10);
 
-	printk(BIOS_DEBUG, "IOAPIC %d at %02x:%02x.%01x  MBAR = %p DataAddr = %p\n",
-		apic_id, dev->bus->secondary, PCI_SLOT(dev->path.pci.devfn),
-		PCI_FUNC(dev->path.pci.devfn), pIndexRegister, pWindowRegister);
+	set_ioapic_id((void *)memoryBase, apic_id);
 
-	apic_id <<= 24;             // Convert ID to bitmask
-
-	*pIndexRegister = 0;        // Select APIC ID register
-	*pWindowRegister = (*pWindowRegister & ~(0x0f << 24)) | apic_id;   // Set the ID
-
-	if ((*pWindowRegister & (0x0f << 24)) != apic_id)
-		die("p64h2_ioapic_init failed");
-
-	*pIndexRegister  = 3;   // Select Boot Configuration register
-	*pWindowRegister |= 1;  // Use Processor System Bus to deliver interrupts
-
-	if (!(*pWindowRegister & 1))
-		die("p64h2_ioapic_init failed");
+	// Use Processor System Bus to deliver interrupts
+	ioapic_set_boot_config((void *)memoryBase, true);
 }
 
 static struct device_operations ioapic_ops = {
@@ -97,13 +68,12 @@ static struct device_operations ioapic_ops = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init     = p64h2_ioapic_init,
-	.scan_bus = 0,
 	.enable   = p64h2_ioapic_enable,
 };
 
 static const struct pci_driver ioapic_driver __pci_driver = {
 	.ops    = &ioapic_ops,
-	.vendor = PCI_VENDOR_ID_INTEL,
-	.device = PCI_DEVICE_ID_INTEL_82870_1E0,
+	.vendor = PCI_VID_INTEL,
+	.device = PCI_DID_INTEL_82870_1E0,
 
 };

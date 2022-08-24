@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Sven Schnelle <svens@stackframe.org>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <arch/io.h>
-#include <delay.h>
+#include <timer.h>
 #include "ipmi_kcs.h"
 
 #define IPMI_KCS_STATE(_x)	((_x) >> 6)
@@ -36,48 +22,44 @@
 #define IPMI_KCS_STATE_WRITE 0x02
 #define IPMI_KCS_STATE_ERROR 0x03
 
-#define IPMI_CMD(_x) ((_x) + 1)
+#define IPMI_CMD(_x) ((_x) + CONFIG_IPMI_KCS_REGISTER_SPACING)
 #define IPMI_DATA(_x) ((_x))
-#define IPMI_STAT(_x) ((_x) + 1)
+#define IPMI_STAT(_x) ((_x) + CONFIG_IPMI_KCS_REGISTER_SPACING)
 
 static unsigned char ipmi_kcs_status(int port)
 {
 	unsigned char status = inb(IPMI_STAT(port));
-	printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, status);
+	if (CONFIG(DEBUG_IPMI))
+		printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, status);
 	return status;
 }
 
 static int wait_ibf_timeout(int port)
 {
-	int timeout = 1000;
-	do {
-		if (!(ipmi_kcs_status(port) & IPMI_KCS_IBF))
-			return 0;
-		udelay(100);
-	} while (timeout--);
-	printk(BIOS_ERR, "wait_ibf timeout!\n");
-	return timeout;
+	if (!wait_ms(CONFIG_IPMI_KCS_TIMEOUT_MS, !(ipmi_kcs_status(port) & IPMI_KCS_IBF))) {
+		printk(BIOS_ERR, "wait_ibf timeout!\n");
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 static int wait_obf_timeout(int port)
 {
-	int timeout = 1000;
-	do {
-		if ((ipmi_kcs_status(port) & IPMI_KCS_OBF))
-			return 0;
-		udelay(100);
-	} while (timeout--);
-
-	printk(BIOS_ERR, "wait_obf timeout!\n");
-	return timeout;
+	if (!wait_ms(CONFIG_IPMI_KCS_TIMEOUT_MS, (ipmi_kcs_status(port) & IPMI_KCS_OBF))) {
+		printk(BIOS_ERR, "wait_obf timeout!\n");
+		return 1;
+	} else {
+		return 0;
+	}
 }
-
 
 static int ipmi_kcs_send_data_byte(int port, const unsigned char byte)
 {
 	unsigned char status;
 
-	printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
+	if (CONFIG(DEBUG_IPMI))
+		printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
 
 	outb(byte, IPMI_DATA(port));
 
@@ -100,7 +82,8 @@ static int ipmi_kcs_send_last_data_byte(int port, const unsigned char byte)
 {
 	unsigned char status;
 
-	printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
+	if (CONFIG(DEBUG_IPMI))
+		printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
 
 	if (wait_ibf_timeout(port))
 		return 1;
@@ -121,7 +104,8 @@ static int ipmi_kcs_send_last_data_byte(int port, const unsigned char byte)
 
 static int ipmi_kcs_send_cmd_byte(int port, const unsigned char byte)
 {
-	printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
+	if (CONFIG(DEBUG_IPMI))
+		printk(BIOS_SPEW, "%s: 0x%02x\n", __func__, byte);
 
 	if (wait_ibf_timeout(port))
 		return 1;

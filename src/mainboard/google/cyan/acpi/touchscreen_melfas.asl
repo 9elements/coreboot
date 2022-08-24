@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- * Copyright (C) 2015 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Scope (\_SB.PCI0.I2C1)
 {
@@ -35,7 +20,7 @@ Scope (\_SB.PCI0.I2C1)
 					AddressingMode7Bit,       /* AddressingMode */
 					"\\_SB.PCI0.I2C1",        /* ResourceSource */
 				)
-				GpioInt (Level, ActiveLow, ExclusiveAndWake, PullDefault,,
+				GpioInt (Level, ActiveLow, SharedAndWake, PullDefault,,
 					"\\_SB.GPNC") { BOARD_TOUCH_GPIO_INDEX }
 			})
 			Return (BUF0)

@@ -20,6 +20,24 @@ doubt if you can bring yourself up to speed in a required time frame
 with the projects. We can then try together to figure out if you're a
 good match for a project, even when requirements might not all be met.
 
+## Easy projects
+
+This is a collection of tasks which don't require deep knowledge on
+coreboot itself. If you are a beginner and want to get familiar with the
+the project and the code base, or if you just want to get your hands
+dirty with some easy tasks, then these are for you.
+
+  * Resolve static analysis issues reported by [scan-build] and
+    [Coverity scan]. More details on the page for
+    [Coverity scan integration].
+
+  * Resolve issues reported by the [linter][Linter issues]
+
+[scan-build]: https://coreboot.org/scan-build/
+[Coverity scan]: https://scan.coverity.com/projects/coreboot
+[Coverity scan integration]: ../infrastructure/coverity.md
+[Linter issues]: https://qa.coreboot.org/job/untested-coreboot-files/lastSuccessfulBuild/artifact/lint.txt
+
 ## Provide toolchain binaries
 Our crossgcc subproject provides a uniform compiler environment for
 working on coreboot and related projects. Sadly, building it takes hours,
@@ -27,7 +45,9 @@ which is a bad experience when trying to build coreboot the first time.
 
 Provide packages/installers of our compiler toolchain for Linux distros,
 Windows, Mac OS. For Windows, this should also include the environment
-(shell, make, ...).
+(shell, make, ...). A student doesn't have to cover _all_ platforms, but
+pick a set of systems that match their interest and knowledge and lay
+out a plan on how to do this.
 
 The scripts to generate these packages should be usable on a Linux
 host, as that's what we're using for our automated build testing system
@@ -64,51 +84,10 @@ across architectures.
 ### Mentors
 * Timothy Pearson <tpearson@raptorengineering.com>
 
-## Support QEMU AArch64 or MIPS
-Having QEMU support for the architectures coreboot can boot helps with
-some (limited) compatibility testing: While QEMU generally doesn't need
-much hardware init, any CPU state changes in the boot flow will likely
-be quite close to reality.
-
-That could be used as a baseline to ensure that changes to architecture
-code doesn't entirely break these architectures
-
-### Requirements
-* coreboot knowledge: Should know the general boot flow in coreboot.
-* other knowledge: This will require knowing how the architecture
-  typically boots, to adapt the coreboot payload interface to be
-  appropriate and, for example, provide a device tree in the platform's
-  typical format.
-* hardware requirements: since QEMU runs practically everywhere and
-  needs no recovery mechanism, these are suitable projects when no special
-  hardware is available.
-
-### Mentors
-* Patrick Georgi <patrick@georgi.software>
-
-## Add Kernel Address Sanitizer functionality to coreboot
-The Kernel Address Sanitizer (KASAN) is a runtime dynamic memory error detector.
-The idea is to check every memory access (variables) for its validity
-during runtime and find bugs like stack overflow or out-of-bounds accesses.
-Implementing this stub into coreboot like "Undefined behavior sanitizer support"
-would help to ensure code quality and make the runtime code more robust.
-
-### Requirements
-* knowledge in the coreboot build system and the concept of stages
-* the KASAN feature can be improved in a way so that the memory space needed
-  during runtime is not on a fixed address provided during compile time but
-  determined during runtime. For this to achieve a small patch to the GCC will
-  be helpful. Therefore minor GCC knowledge would be beneficial.
-* Implementation can be initially done in QEMU and improved on different
-  mainboards and platforms
-
-### Mentors
-* Werner Zeh <werner.zeh@gmx.net>
-
-## Port payloads to ARM, AArch64, MIPS or RISC-V
+## Port payloads to ARM, AArch64 or RISC-V
 While we have a rather big set of payloads for x86 based platforms, all other
 architectures are rather limited. Improve the situation by porting a payload
-to one of the platforms, for example GRUB2, U-Boot (the UI part), Tianocore,
+to one of the platforms, for example GRUB2, U-Boot (the UI part), edk2,
 yabits, FILO, or Linux-as-Payload.
 
 Since this is a bit of a catch-all idea, an application to GSoC should pick a
@@ -153,32 +132,17 @@ their bug reports.
 ### Mentors
 * Patrick Georgi <patrick@georgi.software>
 
-## Make coreboot coverity clean
-coreboot and several other of our projects are automatically tested
-using Synopsys' free "Coverity Scan" service. While some fare pretty
-good, like [em100](https://scan.coverity.com/projects/em100) at 0 known
-defects, there are still many open issues in other projects, most notably
-[coreboot](https://scan.coverity.com/projects/coreboot) itself (which
-is also the largest codebase).
-
-Not all of the reports are actual issues, but the project benefits a
-lot if the list of unhandled reports is down to 0 because that provides
-a baseline when future changes reintroduce new issues: it's easier to
-triage and handle a list of 5 issues rather than more than 350.
-
-This project would be going through all reports and handling them
-appropriately: Figure out if reports are valid or not and mark them
-as such. For valid reports, provide patches to fix the underlying issue.
-
-### Mentors
-* Patrick Georgi <patrick@georgi.software>
-
 ## Extend Ghidra to support analysis of firmware images
 [Ghidra](https://ghidra-sre.org) is a recently released cross-platform
 disassembler and decompiler that is extensible through plugins. Make it
 useful for firmware related work: Automatically parse formats (eg. by
 integrating UEFITool, cbfstool, decompressors), automatically identify
 16/32/64bit code on x86/amd64, etc.
+
+This has been done in 2019 with [some neat
+features](https://github.com/al3xtjames/ghidra-firmware-utils) being
+developed, but it may be possible to expand support for all kinds of firmware
+analyses.
 
 ## Learn hardware behavior from I/O and memory access logs
 [SerialICE](https://www.serialice.com) is a tool to trace the behavior of
@@ -201,3 +165,84 @@ This is a research-heavy project.
 
 ### Mentors
 * Ron Minnich <rminnich@google.com>
+
+## Libpayload based memtest payload
+[Memtest86+](https://www.memtest.org/) has some limitations: first and
+foremost it only works on x86, while it can print to serial console the
+GUI only works in legacy VGA mode.
+
+This project would involve porting the memtest suite to libpayload and
+build a payload around it.
+
+### Requirements
+* coreboot knowledge: Should know how to build coreboot images and
+  include payloads.
+* other knowledge: Knowledge on how dram works is a plus.
+* hardware requirements: Initial work can happen on qemu targets,
+  being able to test on coreboot supported hardware is a plus.
+
+### Mentors
+* TODO
+
+## Fix POST code handling
+coreboot supports writing POST codes to I/O port 80.
+There are various Kconfigs that deal with POST codes, which don't have
+effect on most platforms.
+The code to send POST codes is scattered in C and Assembly, some use
+functions, some use macros and others simply use the `outb` instruction.
+The POST codes are duplicated between stages and aren't documented properly.
+
+
+Tasks:
+* Guard Kconfigs with a *depends on* to only show on supported platforms
+* Remove duplicated Kconfigs
+* Replace `outb(0x80, ...)` with calls to `post_code(...)`
+* Update Documentation/POSTCODES
+* Use defines from console/post_codes.h where possible
+* Drop duplicated POST codes
+* Make use of all possible 255 values
+
+### Requirements
+* knowledge in the coreboot build system and the concept of stages
+* other knowledge: Little experience with C and x86 Assembly
+* hardware requirements: Nothing special
+
+### Mentors
+* Patrick Rudolph <patrick.rudolph@9elements.com>
+* Christian Walter <christian.walter@9elements.com>
+
+## Board status replacement
+The [Board status page](https://coreboot.org/status/board-status.html) allows
+to see last working commit of a board. The page is generated by a cron job
+that runs on a huge git repository.
+
+Build an open source replacement written in Golang using existing tools
+and libraries, consisting of a backend, a frontend and client side
+scripts. The backend should connect to an SQL database with can be
+controlled using a RESTful API. The RESTful API should have basic authentication
+for management tasks and new board status uploads.
+
+At least one older test result should be kept in the database.
+
+The frontend should use established UI libraries or frameworks (for example
+Angular) to display the current board status, that is if it's working or not
+and some details provided with the last test. If a board isn't working the last
+working commit (if any) should be shown in addition to the broken one.
+
+Provide a script/tool that allows to:
+1. Push mainboard details from coreboot master CI
+2. Push mainboard test results from authenticated users containing
+   * working
+   * commit hash
+   * bootlog (if any)
+   * dmesg (if it's booting)
+   * timestamps (if it's booting)
+   * coreboot config
+
+### Requirements
+* coreboot knowledge: Non-technical, needed to perform requirements analysis
+* software knowledge: Golang, SQL for the backend, JS for the frontend
+
+### Mentors
+* Patrick Rudolph <patrick.rudolph@9elements.com>
+* Christian Walter <christian.walter@9elements.com>

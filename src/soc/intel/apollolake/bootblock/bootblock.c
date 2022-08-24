@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016-2018 Intel Corp.
- * (Written by Andrey Petrov <andrey.petrov@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <bootblock_common.h>
 #include <cpu/x86/pae.h>
@@ -21,6 +6,7 @@
 #include <device/pci_ops.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/fast_spi.h>
+#include <intelblocks/lpc_lib.h>
 #include <intelblocks/p2sb.h>
 #include <intelblocks/pcr.h>
 #include <intelblocks/rtc.h>
@@ -31,14 +17,14 @@
 #include <soc/iomap.h>
 #include <soc/cpu.h>
 #include <soc/gpio.h>
+#include <soc/soc_chip.h>
 #include <soc/systemagent.h>
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <spi-generic.h>
-#include <timestamp.h>
 
 static const struct pad_config tpm_spi_configs[] = {
-#if CONFIG(SOC_INTEL_GLK)
+#if CONFIG(SOC_INTEL_GEMINILAKE)
 	PAD_CFG_NF(GPIO_81, NATIVE, DEEP, NF3),	/* FST_SPI_CS2_N */
 #else
 	PAD_CFG_NF(GPIO_106, NATIVE, DEEP, NF3),	/* FST_SPI_CS2_N */
@@ -69,7 +55,7 @@ asmlinkage void bootblock_c_entry(uint64_t base_timestamp)
 	enable_rtc_upper_bank();
 
 	/* Call lib/bootblock.c main */
-	bootblock_main_with_timestamp(base_timestamp, NULL, 0);
+	bootblock_main_with_basetime(base_timestamp);
 }
 
 static void enable_pmcbar(void)
@@ -77,7 +63,7 @@ static void enable_pmcbar(void)
 	pci_devfn_t pmc = PCH_DEV_PMC;
 
 	/* Set PMC base addresses and enable decoding. */
-	pci_write_config32(pmc, PCI_BASE_ADDRESS_0, PMC_BAR0);
+	pci_write_config32(pmc, PCI_BASE_ADDRESS_0, PCH_PWRM_BASE_ADDRESS);
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_1, 0);	/* 64-bit BAR */
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_2, PMC_BAR1);
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_3, 0);	/* 64-bit BAR */
@@ -97,6 +83,27 @@ void bootblock_soc_early_init(void)
 	/* Prepare UART for serial console. */
 	if (CONFIG(INTEL_LPSS_UART_FOR_CONSOLE))
 		uart_bootblock_init();
+
+	uint16_t io_enables = LPC_IOE_SUPERIO_2E_2F | LPC_IOE_KBC_60_64 |
+		LPC_IOE_EC_62_66;
+
+	const config_t *config = config_of_soc();
+
+
+	if (config->lpc_ioe) {
+		io_enables = config->lpc_ioe & 0x3f0f;
+		lpc_set_fixed_io_ranges(config->lpc_iod, 0x1377);
+	} else {
+		/* IO Decode Range */
+		if (CONFIG(DRIVERS_UART_8250IO))
+			lpc_io_setup_comm_a_b();
+	}
+
+	/* IO Decode Enable */
+	lpc_enable_fixed_io_ranges(io_enables);
+
+	/* Program generic IO Decode Range */
+	pch_enable_lpc();
 
 	if (CONFIG(TPM_ON_FAST_SPI))
 		tpm_enable();

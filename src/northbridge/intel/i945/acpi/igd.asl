@@ -1,23 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-Device (GFX0)
+Scope (GFX0)
 {
-	Name (_ADR, 0x00020000)
-
 	Name (BRIG, Package (0x12)
 	{
 		0xf,
@@ -42,7 +26,7 @@ Device (GFX0)
 
 	Method (XBCM, 1, NotSerialized)
 	{
-		Store (Or(ShiftLeft (Arg0, 4), 0xf), ^^DSPC.BRTC)
+		^^DSPC.BRTC = (Arg0 << 4) | 0xf
 #ifdef SMI_SAVE_CMOS
 		Trap(SMI_SAVE_CMOS)
 #endif
@@ -50,8 +34,8 @@ Device (GFX0)
 
 	Method (XBQC, 0, NotSerialized)
 	{
-		Store (^^DSPC.BRTC, Local0)
-		ShiftRight (Local0, 4, Local0)
+		Local0 = ^^DSPC.BRTC
+		Local0 >>= 4
 		Return (Local0)
 	}
 #include <drivers/intel/gma/acpi/common.asl>

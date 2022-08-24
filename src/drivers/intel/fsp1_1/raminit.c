@@ -1,31 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014-2016 Intel Corporation
- * Copyright (C) 2018 Eltan B.V.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <cbmem.h>
 #include <cf9_reset.h>
 #include <commonlib/helpers.h>
 #include <console/console.h>
-#include <fsp/memmap.h>
+#include <cpu/x86/smm.h>
 #include <fsp/romstage.h>
 #include <fsp/util.h>
-#include <lib.h> /* hexdump */
+#include <lib.h>
 #include <string.h>
 #include <timestamp.h>
-#include <security/vboot/vboot_common.h>
 
 void raminit(struct romstage_params *params)
 {
@@ -52,10 +37,9 @@ void raminit(struct romstage_params *params)
 	VPD_DATA_REGION *vpd_ptr;
 	UPD_DATA_REGION *upd_ptr;
 	int fsp_verification_failure = 0;
-#if CONFIG(DISPLAY_HOBS)
-	unsigned long int data;
 	EFI_PEI_HOB_POINTERS hob_ptr;
-#endif
+	uintptr_t smm_base;
+	size_t smm_size;
 
 	/*
 	 * Find and copy the UPD region to the stack so the platform can modify
@@ -70,10 +54,10 @@ void raminit(struct romstage_params *params)
 	fsp_header = params->chipset_context;
 	vpd_ptr = (VPD_DATA_REGION *)(fsp_header->CfgRegionOffset +
 					fsp_header->ImageBase);
-	printk(BIOS_DEBUG, "VPD Data: 0x%p\n", vpd_ptr);
+	printk(BIOS_DEBUG, "VPD Data: %p\n", vpd_ptr);
 	upd_ptr = (UPD_DATA_REGION *)(vpd_ptr->PcdUpdRegionOffset +
 					fsp_header->ImageBase);
-	printk(BIOS_DEBUG, "UPD Data: 0x%p\n", upd_ptr);
+	printk(BIOS_DEBUG, "UPD Data: %p\n", upd_ptr);
 	original_params = (void *)((u8 *)upd_ptr +
 		upd_ptr->MemoryInitUpdOffset);
 	memcpy(&memory_init_params, original_params,
@@ -114,12 +98,12 @@ void raminit(struct romstage_params *params)
 	/* Call FspMemoryInit to initialize RAM */
 	fsp_memory_init = (FSP_MEMORY_INIT)(fsp_header->ImageBase
 		+ fsp_header->FspMemoryInitEntryOffset);
-	printk(BIOS_DEBUG, "Calling FspMemoryInit: 0x%p\n", fsp_memory_init);
-	printk(BIOS_SPEW, "    0x%p: NvsBufferPtr\n",
+	printk(BIOS_DEBUG, "Calling FspMemoryInit: %p\n", fsp_memory_init);
+	printk(BIOS_SPEW, "    %p: NvsBufferPtr\n",
 		fsp_memory_init_params.NvsBufferPtr);
-	printk(BIOS_SPEW, "    0x%p: RtBufferPtr\n",
+	printk(BIOS_SPEW, "    %p: RtBufferPtr\n",
 		fsp_memory_init_params.RtBufferPtr);
-	printk(BIOS_SPEW, "    0x%p: HobListPtr\n",
+	printk(BIOS_SPEW, "    %p: HobListPtr\n",
 		fsp_memory_init_params.HobListPtr);
 
 	timestamp_add_now(TS_FSP_MEMORY_INIT_START);
@@ -136,10 +120,10 @@ void raminit(struct romstage_params *params)
 
 	/* Locate the FSP reserved memory area */
 	fsp_reserved_bytes = 0;
-	fsp_memory = get_next_resource_hob(&fsp_reserved_guid, hob_list_ptr);
+	fsp_memory = get_resource_hob(&fsp_reserved_guid, hob_list_ptr);
 	if (fsp_memory == NULL) {
 		fsp_verification_failure = 1;
-		printk(BIOS_DEBUG,
+		printk(BIOS_ERR,
 			"7.2: FSP_RESERVED_MEMORY_RESOURCE_HOB missing!\n");
 	} else {
 		fsp_reserved_bytes = fsp_memory->ResourceLength;
@@ -148,35 +132,30 @@ void raminit(struct romstage_params *params)
 	}
 
 	/* Display SMM area */
-#if CONFIG(HAVE_SMI_HANDLER)
-	char *smm_base;
-	size_t smm_size;
-
-	smm_region((void **)&smm_base, &smm_size);
-	printk(BIOS_DEBUG, "0x%08x: smm_size\n", (unsigned int)smm_size);
-	printk(BIOS_DEBUG, "0x%p: smm_base\n", smm_base);
-#endif
+	if (CONFIG(HAVE_SMI_HANDLER)) {
+		smm_region(&smm_base, &smm_size);
+		printk(BIOS_DEBUG, "0x%08x: smm_size\n", (unsigned int)smm_size);
+		printk(BIOS_DEBUG, "0x%08x: smm_base\n", (unsigned int)smm_base);
+	}
 
 	/* Migrate CAR data */
-	printk(BIOS_DEBUG, "0x%p: cbmem_top\n", cbmem_top());
+	printk(BIOS_DEBUG, "%p: cbmem_top\n", cbmem_top());
 	if (!s3wake) {
 		cbmem_initialize_empty_id_size(CBMEM_ID_FSP_RESERVED_MEMORY,
 			fsp_reserved_bytes);
 	} else if (cbmem_initialize_id_size(CBMEM_ID_FSP_RESERVED_MEMORY,
 		fsp_reserved_bytes)) {
-#if CONFIG(HAVE_ACPI_RESUME)
 		printk(BIOS_DEBUG, "Failed to recover CBMEM in S3 resume.\n");
 		/* Failed S3 resume, reset to come up cleanly */
 		/* FIXME: A "system" reset is likely enough: */
 		full_reset();
-#endif
 	}
 
 	/* Save the FSP runtime parameters. */
 	fsp_set_runtime(fsp_header, hob_list_ptr);
 
 	/* Lookup the FSP_BOOTLOADER_TOLUM_HOB */
-	cbmem_root = get_next_resource_hob(&bootldr_tolum_guid, hob_list_ptr);
+	cbmem_root = get_resource_hob(&bootldr_tolum_guid, hob_list_ptr);
 	if (cbmem_root == NULL) {
 		fsp_verification_failure = 1;
 		printk(BIOS_ERR, "7.4: FSP_BOOTLOADER_TOLUM_HOB missing!\n");
@@ -185,81 +164,51 @@ void raminit(struct romstage_params *params)
 	}
 
 	/* Locate the FSP_SMBIOS_MEMORY_INFO HOB */
-	memory_info_hob = get_next_guid_hob(&memory_info_hob_guid,
+	memory_info_hob = get_guid_hob(&memory_info_hob_guid,
 		hob_list_ptr);
 	if (memory_info_hob == NULL) {
 		printk(BIOS_ERR, "FSP_SMBIOS_MEMORY_INFO HOB missing!\n");
 		fsp_verification_failure = 1;
-	} else {
-		printk(BIOS_DEBUG,
-			"FSP_SMBIOS_MEMORY_INFO HOB: 0x%p\n",
-			memory_info_hob);
 	}
 
-#if CONFIG(DISPLAY_HOBS)
+	if (hob_list_ptr == NULL)
+		die_with_post_code(POST_RAM_FAILURE,
+			"ERROR - HOB pointer is NULL!\n");
+
 	/*
 	 * Verify that FSP is generating the required HOBs:
 	 *	7.1: FSP_BOOTLOADER_TEMP_MEMORY_HOB only produced for FSP 1.0
 	 *	7.2: FSP_RESERVED_MEMORY_RESOURCE_HOB verified above
 	 *	7.3: FSP_NON_VOLATILE_STORAGE_HOB only produced when
-	 *          new NVS data is generated, verified below
+	 *	     new NVS data is generated, verified below
 	 *	7.4: FSP_BOOTLOADER_TOLUM_HOB verified above
 	 *	7.5: EFI_PEI_GRAPHICS_INFO_HOB produced by SiliconInit
 	 *	FSP_SMBIOS_MEMORY_INFO HOB verified above
 	 */
-	if (cbmem_root != NULL) {
-		printk(BIOS_DEBUG,
-			"7.4: FSP_BOOTLOADER_TOLUM_HOB: 0x%p\n",
-			cbmem_root);
-		data = cbmem_root->PhysicalStart;
-		printk(BIOS_DEBUG, "    0x%016lx: PhysicalStart\n", data);
-		data = cbmem_root->ResourceLength;
-		printk(BIOS_DEBUG, "    0x%016lx: ResourceLength\n", data);
-	}
-	hob_ptr.Raw = get_next_guid_hob(&mrc_guid, hob_list_ptr);
-	if (hob_ptr.Raw == NULL) {
-		if (params->saved_data == NULL) {
-			printk(BIOS_ERR, "7.3: FSP_NON_VOLATILE_STORAGE_HOB missing!\n");
-			fsp_verification_failure = 1;
-		}
-	} else {
-		printk(BIOS_DEBUG,
-			"7.3: FSP_NON_VOLATILE_STORAGE_HOB: 0x%p\n",
-			hob_ptr.Raw);
-	}
-	if (fsp_memory != NULL) {
-		printk(BIOS_DEBUG,
-			"7.2: FSP_RESERVED_MEMORY_RESOURCE_HOB: 0x%p\n",
-			fsp_memory);
-		data = fsp_memory->PhysicalStart;
-		printk(BIOS_DEBUG, "    0x%016lx: PhysicalStart\n", data);
-		data = fsp_memory->ResourceLength;
-		printk(BIOS_DEBUG, "    0x%016lx: ResourceLength\n", data);
+	hob_ptr.Raw = get_guid_hob(&mrc_guid, hob_list_ptr);
+	if ((hob_ptr.Raw == NULL) && (params->saved_data == NULL)) {
+		printk(BIOS_ERR, "7.3: FSP_NON_VOLATILE_STORAGE_HOB missing!\n");
+		fsp_verification_failure = 1;
 	}
 
 	/* Verify all the HOBs are present */
 	if (fsp_verification_failure)
-		printk(BIOS_DEBUG,
-			"ERROR - Missing one or more required FSP HOBs!\n");
+		printk(BIOS_ERR, "Missing one or more required FSP HOBs!\n");
 
 	/* Display the HOBs */
-	if (hob_list_ptr != NULL)
+	if (CONFIG(DISPLAY_HOBS))
 		print_hob_type_structure(0, hob_list_ptr);
-	else
-		printk(BIOS_ERR, "ERROR - HOB pointer is NULL!\n");
-#endif
 
 	/* Get the address of the CBMEM region for the FSP reserved memory */
 	fsp_reserved_memory_area = cbmem_find(CBMEM_ID_FSP_RESERVED_MEMORY);
-	printk(BIOS_DEBUG, "0x%p: fsp_reserved_memory_area\n",
+	printk(BIOS_DEBUG, "%p: fsp_reserved_memory_area\n",
 		fsp_reserved_memory_area);
 
 	/* Verify the order of CBMEM root and FSP memory */
 	if ((fsp_memory != NULL) && (cbmem_root != NULL) &&
 		(cbmem_root->PhysicalStart <= fsp_memory->PhysicalStart)) {
 		fsp_verification_failure = 1;
-		printk(BIOS_DEBUG,
-			"ERROR - FSP reserved memory above CBMEM root!\n");
+		printk(BIOS_ERR, "FSP reserved memory above CBMEM root!\n");
 	}
 
 	/* Verify that the FSP memory was properly reserved */
@@ -267,19 +216,18 @@ void raminit(struct romstage_params *params)
 		(fsp_memory->PhysicalStart !=
 			(unsigned int)fsp_reserved_memory_area))) {
 		fsp_verification_failure = 1;
-		printk(BIOS_DEBUG, "ERROR - Reserving FSP memory area!\n");
-#if CONFIG(HAVE_SMI_HANDLER)
-		if (cbmem_root != NULL) {
-			size_t delta_bytes = (unsigned int)smm_base
+		printk(BIOS_ERR, "Reserving FSP memory area!\n");
+
+		if (CONFIG(HAVE_SMI_HANDLER) && cbmem_root != NULL) {
+			size_t delta_bytes = smm_base
 				- cbmem_root->PhysicalStart
 				- cbmem_root->ResourceLength;
-			printk(BIOS_DEBUG,
+			printk(BIOS_ERR,
 				"0x%08x: Chipset reserved bytes reported by FSP\n",
 				(unsigned int)delta_bytes);
 			die_with_post_code(POST_INVALID_VENDOR_BINARY,
 				"Please verify the chipset reserved size\n");
 		}
-#endif
 	}
 
 	/* Verify the FSP 1.1 HOB interface */
@@ -287,44 +235,16 @@ void raminit(struct romstage_params *params)
 		die_with_post_code(POST_INVALID_VENDOR_BINARY,
 				   "ERROR - coreboot's requirements not met by FSP binary!\n");
 
-	/* Display the memory configuration */
-	report_memory_config();
-
 	/* Locate the memory configuration data to speed up the next reboot */
-	mrc_hob = get_next_guid_hob(&mrc_guid, hob_list_ptr);
-	if (mrc_hob == NULL)
+	mrc_hob = get_guid_hob(&mrc_guid, hob_list_ptr);
+	if (mrc_hob == NULL) {
 		printk(BIOS_DEBUG,
 			"Memory Configuration Data Hob not present\n");
-	else if (!vboot_recovery_mode_enabled()) {
-		/* Do not save MRC data in recovery path */
+	} else {
 		params->data_to_save = GET_GUID_HOB_DATA(mrc_hob);
 		params->data_to_save_size = ALIGN_UP(
 			((u32)GET_HOB_LENGTH(mrc_hob)), 16);
 	}
-}
-
-/* Initialize the UPD parameters for MemoryInit */
-__weak void mainboard_memory_init_params(
-	struct romstage_params *params,
-	MEMORY_INIT_UPD *upd_ptr)
-{
-	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
-}
-
-/* Display the UPD parameters for MemoryInit */
-__weak void soc_display_memory_init_params(
-	const MEMORY_INIT_UPD *old, MEMORY_INIT_UPD *new)
-{
-	printk(BIOS_SPEW, "UPD values for MemoryInit:\n");
-	hexdump32(BIOS_SPEW, new, sizeof(*new));
-}
-
-/* Initialize the UPD parameters for MemoryInit */
-__weak void soc_memory_init_params(
-	struct romstage_params *params,
-	MEMORY_INIT_UPD *upd)
-{
-	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
 }
 
 /* Initialize the SoC after MemoryInit */

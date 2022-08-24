@@ -1,19 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <program_loading.h>
+
+#if ENV_PAYLOAD_LOADER
+
+/*
+ * Payload's entry point is an offset to the real entry point, not to OPD
+ * (Official Procedure Descriptor) for entry point.
+ */
+void arch_prog_run(struct prog *prog)
+{
+	asm volatile(
+	    "mtctr %1\n"
+	    "mr 3, %0\n"
+	    "bctr\n"
+	    :: "r"(prog_entry_arg(prog)), "r"(prog_entry(prog)) : "memory");
+}
+
+#else
 
 void arch_prog_run(struct prog *prog)
 {
@@ -21,3 +25,5 @@ void arch_prog_run(struct prog *prog)
 
 	doit(prog_entry_arg(prog));
 }
+
+#endif

@@ -759,9 +759,9 @@ GfxPowerPlayBuildVceStateTable (
   UINT8                       UsedStateBitmap;
   UsedStateBitmap = 0;
   // build used state
-  for (Index = 0; Index < (sizeof (PpWorkspace->PpFuses->VceFlags) / sizeof (PpWorkspace->PpFuses->VceFlags[0])) ; Index++) {
+  for (Index = 0; Index < ARRAY_SIZE(PpWorkspace->PpFuses->VceFlags); Index++) {
     UsedStateBitmap |= PpWorkspace->PpFuses->VceFlags[Index];
-    for (VceStateIndex = 0; VceStateIndex < (sizeof (PpWorkspace->VceStateArray) / sizeof (PpWorkspace->VceStateArray[0])); VceStateIndex++) {
+    for (VceStateIndex = 0; VceStateIndex < ARRAY_SIZE(PpWorkspace->VceStateArray); VceStateIndex++) {
       if ((PpWorkspace->PpFuses->VceFlags[Index] & (1 << VceStateIndex)) != 0) {
         Sclk = GfxFmCalculateClock (PpWorkspace->PpFuses->SclkDpmDid[PpWorkspace->PpFuses->VceReqSclkSel[Index]], GnbLibGetHeader (PpWorkspace->Gfx));
         Vid = PpWorkspace->PpFuses->SclkDpmVid[PpWorkspace->PpFuses->VceReqSclkSel[Index]];
@@ -777,7 +777,7 @@ GfxPowerPlayBuildVceStateTable (
     }
   }
   //build unused states
-  for (VceStateIndex = 0; VceStateIndex < (sizeof (PpWorkspace->VceStateArray) / sizeof (PpWorkspace->VceStateArray[0])); VceStateIndex++) {
+  for (VceStateIndex = 0; VceStateIndex < ARRAY_SIZE(PpWorkspace->VceStateArray); VceStateIndex++) {
     if ((UsedStateBitmap & (1 << VceStateIndex)) == 0) {
       PpWorkspace->VceStateArray[VceStateIndex].ucClockInfoIndex = 0;
       PpWorkspace->VceStateArray[VceStateIndex].ucVCEClockInfoIndex = GfxPowerPlayAddEclkState (PpWorkspace, 0);
@@ -895,7 +895,7 @@ GfxIntegratedDebugDumpPpTable (
   ClockInfoArrayPtr = (CLOCK_INFO_ARRAY *) ((UINT8 *) PpTable + PpTable->usClockInfoArrayOffset);
   IDS_HDT_CONSOLE (GFX_MISC, "  < --- SW State Table ---------> \n");
   for (Index = 0; Index < StateArray->ucNumEntries; Index++) {
-    IDS_HDT_CONSOLE (GFX_MISC, "  State #%d\n", Index + 1
+    IDS_HDT_CONSOLE (GFX_MISC, "  State #%ld\n", Index + 1
       );
     IDS_HDT_CONSOLE (GFX_MISC, "    Classification 0x%x\n",
        NonClockInfoArrayPtr->NonClockInfo[StatesPtr->nonClockInfoIndex].usClassification
@@ -922,7 +922,7 @@ GfxIntegratedDebugDumpPpTable (
   for (Index = 0; Index < ClockInfoArrayPtr->ucNumEntries; Index++) {
     UINT32  Sclk;
     Sclk = ClockInfoArrayPtr->ClockInfo[Index].usEngineClockLow | (ClockInfoArrayPtr->ClockInfo[Index].ucEngineClockHigh << 16);
-    IDS_HDT_CONSOLE (GFX_MISC, "  DPM State #%d\n",
+    IDS_HDT_CONSOLE (GFX_MISC, "  DPM State #%ld\n",
       Index
       );
     IDS_HDT_CONSOLE (GFX_MISC, "    SCLK = %d\n",
@@ -951,7 +951,7 @@ GfxIntegratedDebugDumpPpTable (
     for (Index = 0; Index < VceStateTable->numEntries; Index++) {
       SclkIndex = VceStateTable->entries[Index].ucClockInfoIndex & 0x3F;
       EclkIndex = VceStateTable->entries[Index].ucVCEClockInfoIndex;
-      IDS_HDT_CONSOLE (GFX_MISC, "  VCE State #%d\n", Index
+      IDS_HDT_CONSOLE (GFX_MISC, "  VCE State #%ld\n", Index
         );
       if ((VceClockInfoArray->entries[EclkIndex].usECClkLow | (VceClockInfoArray->entries[EclkIndex].ucECClkHigh << 16)) == 0) {
         IDS_HDT_CONSOLE (GFX_MISC, "    Disable\n");
@@ -973,7 +973,7 @@ GfxIntegratedDebugDumpPpTable (
     IDS_HDT_CONSOLE (GFX_MISC, "  < --- VCE Voltage Record Table ---> \n");
     for (Index = 0; Index < VceClockVoltageLimitTable->numEntries; Index++) {
       EclkIndex = VceClockVoltageLimitTable->entries[Index].ucVCEClockInfoIndex;
-      IDS_HDT_CONSOLE (GFX_MISC, "  VCE Voltage Record #%d\n", Index
+      IDS_HDT_CONSOLE (GFX_MISC, "  VCE Voltage Record #%ld\n", Index
         );
       IDS_HDT_CONSOLE (GFX_MISC, "    ECLK = %d\n",
         VceClockInfoArray->entries[EclkIndex].usECClkLow | (VceClockInfoArray->entries[EclkIndex].ucECClkHigh << 16)

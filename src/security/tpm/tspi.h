@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (c) 2013 The Chromium OS Authors. All rights reserved.
- * Copyright 2018 Facebook Inc.
- * Copyright 2018 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef TSPI_H_
 #define TSPI_H_
@@ -25,6 +10,12 @@
 
 #define TPM_PCR_MAX_LEN 64
 #define HASH_DATA_CHUNK_SIZE 1024
+
+/**
+ * Get the pointer to the single instance of global
+ * tcpa log data, and initialize it when necessary
+ */
+struct tcpa_table *tcpa_log_init(void);
 
 /**
  * Clears the pre-RAM tcpa log data and initializes
@@ -60,11 +51,11 @@ void tcpa_log_dump(void *unused);
  * @return TPM_SUCCESS on success. If not a tpm error is returned
  */
 uint32_t tpm_extend_pcr(int pcr, enum vb2_hash_algorithm digest_algo,
-			uint8_t *digest, size_t digest_len,
+			const uint8_t *digest, size_t digest_len,
 			const char *name);
 
 /**
- * Issue a TPM_Clear and reenable/reactivate the TPM.
+ * Issue a TPM_Clear and re-enable/reactivate the TPM.
  * @return TPM_SUCCESS on success. If not a tpm error is returned
  */
 uint32_t tpm_clear_and_reenable(void);

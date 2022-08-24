@@ -1,28 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2003-2004 Linux Networx
- * (Written by Eric Biederman <ebiederman@lnxi.com> for Linux Networx)
- * Copyright (C) 2003 Greg Watson <jarrah@users.sourceforge.net>
- * Copyright (C) 2004 Li-Ta Lo <ollie@lanl.gov>
- * Copyright (C) 2005-2006 Tyan
- * (Written by Yinghai Lu <yhlu@tyan.com> for Tyan)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <device/path.h>
 #include <device/pci_def.h>
 #include <device/resource.h>
+#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -31,7 +14,7 @@
  * @param apic_id The Local APIC ID number.
  * @return Pointer to the device structure (if found), 0 otherwise.
  */
-struct device *dev_find_lapic(unsigned apic_id)
+struct device *dev_find_lapic(unsigned int apic_id)
 {
 	struct device *dev;
 	struct device *result = NULL;
@@ -145,7 +128,10 @@ u32 dev_path_encode(const struct device *dev)
 		ret |= dev->path.spi.cs;
 		break;
 	case DEVICE_PATH_USB:
-		ret |= dev->path.usb.port_type << 8 || dev->path.usb.port_id;
+		ret |= dev->path.usb.port_type << 8 | dev->path.usb.port_id;
+		break;
+	case DEVICE_PATH_GPIO:
+		ret |= dev->path.gpio.id;
 		break;
 	case DEVICE_PATH_NONE:
 	case DEVICE_PATH_MMIO:  /* don't care */
@@ -166,14 +152,14 @@ const char *dev_path(const struct device *dev)
 
 	buffer[0] = '\0';
 	if (!dev) {
-		memcpy(buffer, "<null>", 7);
+		strcpy(buffer, "<null>");
 	} else {
 		switch (dev->path.type) {
 		case DEVICE_PATH_NONE:
-			memcpy(buffer, "NONE", 5);
+			strcpy(buffer, "NONE");
 			break;
 		case DEVICE_PATH_ROOT:
-			memcpy(buffer, "Root Device", 12);
+			strcpy(buffer, "Root Device");
 			break;
 		case DEVICE_PATH_PCI:
 			snprintf(buffer, sizeof(buffer),
@@ -229,8 +215,11 @@ const char *dev_path(const struct device *dev)
 				 dev->path.usb.port_type, dev->path.usb.port_id);
 			break;
 		case DEVICE_PATH_MMIO:
-			snprintf(buffer, sizeof(buffer), "MMIO: %08x",
+			snprintf(buffer, sizeof(buffer), "MMIO: %08lx",
 				 dev->path.mmio.addr);
+			break;
+		case DEVICE_PATH_GPIO:
+			snprintf(buffer, sizeof(buffer), "GPIO: %d", dev->path.gpio.id);
 			break;
 		default:
 			printk(BIOS_ERR, "Unknown device path type: %d\n",
@@ -241,7 +230,7 @@ const char *dev_path(const struct device *dev)
 	return buffer;
 }
 
-const char *dev_name(struct device *dev)
+const char *dev_name(const struct device *dev)
 {
 	if (dev->name)
 		return dev->name;
@@ -331,7 +320,7 @@ void compact_resources(struct device *dev)
  * @param index The index of the resource on the device.
  * @return The resource, if it already exists.
  */
-struct resource *probe_resource(struct device *dev, unsigned index)
+struct resource *probe_resource(const struct device *dev, unsigned int index)
 {
 	struct resource *res;
 
@@ -354,7 +343,7 @@ struct resource *probe_resource(struct device *dev, unsigned index)
  * @param index The index of the resource on the device.
  * @return TODO.
  */
-struct resource *new_resource(struct device *dev, unsigned index)
+struct resource *new_resource(struct device *dev, unsigned int index)
 {
 	struct resource *resource, *tail;
 
@@ -373,7 +362,8 @@ struct resource *new_resource(struct device *dev, unsigned index)
 		resource->next = NULL;
 		tail = dev->resource_list;
 		if (tail) {
-			while (tail->next) tail = tail->next;
+			while (tail->next)
+				tail = tail->next;
 			tail->next = resource;
 		} else {
 			dev->resource_list = resource;
@@ -401,7 +391,7 @@ struct resource *new_resource(struct device *dev, unsigned index)
  * @param index The index of the resource on the device.
  * return TODO.
  */
-struct resource *find_resource(struct device *dev, unsigned index)
+struct resource *find_resource(const struct device *dev, unsigned int index)
 {
 	struct resource *resource;
 
@@ -452,7 +442,7 @@ static resource_t align_down(resource_t val, unsigned long gran)
  * @param resource The resource whose limit is desired.
  * @return The end.
  */
-resource_t resource_end(struct resource *resource)
+resource_t resource_end(const struct resource *resource)
 {
 	resource_t base, end;
 
@@ -478,7 +468,7 @@ resource_t resource_end(struct resource *resource)
  * @param resource The resource whose maximum is desired.
  * @return The maximum.
  */
-resource_t resource_max(struct resource *resource)
+resource_t resource_max(const struct resource *resource)
 {
 	resource_t max;
 
@@ -493,7 +483,7 @@ resource_t resource_max(struct resource *resource)
  * @param resource The resource type to decode.
  * @return TODO.
  */
-const char *resource_type(struct resource *resource)
+const char *resource_type(const struct resource *resource)
 {
 	static char buffer[RESOURCE_TYPE_MAX];
 	snprintf(buffer, sizeof(buffer), "%s%s%s%s",
@@ -515,7 +505,7 @@ const char *resource_type(struct resource *resource)
  * @param resource The resource that was just stored.
  * @param comment TODO
  */
-void report_resource_stored(struct device *dev, struct resource *resource,
+void report_resource_stored(struct device *dev, const struct resource *resource,
 			    const char *comment)
 {
 	char buf[10];
@@ -528,11 +518,11 @@ void report_resource_stored(struct device *dev, struct resource *resource,
 	end = resource_end(resource);
 	buf[0] = '\0';
 
-	if (resource->flags & IORESOURCE_PCI_BRIDGE) {
+	if (dev->link_list && (resource->flags & IORESOURCE_PCI_BRIDGE)) {
 		snprintf(buf, sizeof(buf),
 			 "bus %02x ", dev->link_list->secondary);
 	}
-	printk(BIOS_DEBUG, "%s %02lx <- [0x%010llx - 0x%010llx] size 0x%08llx "
+	printk(BIOS_DEBUG, "%s %02lx <- [0x%016llx - 0x%016llx] size 0x%08llx "
 	       "gran 0x%02x %s%s%s\n", dev_path(dev), resource->index,
 		base, end, resource->size, resource->gran, buf,
 		resource_type(resource), comment);
@@ -558,7 +548,7 @@ void search_bus_resources(struct bus *bus, unsigned long type_mask,
 
 			/* If it is a subtractive resource recurse. */
 			if (res->flags & IORESOURCE_SUBTRACTIVE) {
-				struct bus * subbus;
+				struct bus *subbus;
 				for (subbus = curdev->link_list; subbus;
 				     subbus = subbus->next)
 					if (subbus->link_num
@@ -596,6 +586,10 @@ void search_global_resources(unsigned long type_mask, unsigned long type,
 			if (res->flags & IORESOURCE_SUBTRACTIVE)
 				continue;
 
+			/* If the resource is not assigned ignore it. */
+			if (!(res->flags & IORESOURCE_ASSIGNED))
+				continue;
+
 			search(gp, curdev, res);
 		}
 	}
@@ -607,11 +601,10 @@ void dev_set_enabled(struct device *dev, int enable)
 		return;
 
 	dev->enabled = enable;
-	if (dev->ops && dev->ops->enable) {
+	if (dev->ops && dev->ops->enable)
 		dev->ops->enable(dev);
-	} else if (dev->chip_ops && dev->chip_ops->enable_dev) {
+	else if (dev->chip_ops && dev->chip_ops->enable_dev)
 		dev->chip_ops->enable_dev(dev);
-	}
 }
 
 void disable_children(struct bus *bus)
@@ -713,14 +706,14 @@ static void resource_tree(const struct device *root, int debug_level, int depth)
 		indent[i] = ' ';
 	indent[i] = '\0';
 
-	do_printk(BIOS_DEBUG, "%s%s", indent, dev_path(root));
+	printk(BIOS_DEBUG, "%s%s", indent, dev_path(root));
 	if (root->link_list && root->link_list->children)
-		do_printk(BIOS_DEBUG, " child on link 0 %s",
+		printk(BIOS_DEBUG, " child on link 0 %s",
 			  dev_path(root->link_list->children));
-	do_printk(BIOS_DEBUG, "\n");
+	printk(BIOS_DEBUG, "\n");
 
 	for (res = root->resource_list; res; res = res->next) {
-		do_printk(debug_level, "%s%s resource base %llx size %llx "
+		printk(debug_level, "%s%s resource base %llx size %llx "
 			  "align %d gran %d limit %llx flags %lx index %lx\n",
 			  indent, dev_path(root), res->base, res->size,
 			  res->align, res->gran, res->limit, res->flags,
@@ -738,12 +731,12 @@ void print_resource_tree(const struct device *root, int debug_level,
 {
 	/* Bail if root is null. */
 	if (!root) {
-		do_printk(debug_level, "%s passed NULL for root!\n", __func__);
+		printk(debug_level, "%s passed NULL for root!\n", __func__);
 		return;
 	}
 
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show resources in subtree (%s)...%s\n",
+	if (!printk(debug_level, "Show resources in subtree (%s)...%s\n",
 		       dev_path(root), msg))
 		return;
 
@@ -761,7 +754,7 @@ void show_devs_tree(const struct device *dev, int debug_level, int depth)
 		depth_str[i] = ' ';
 	depth_str[i] = '\0';
 
-	do_printk(debug_level, "%s%s: enabled %d\n",
+	printk(debug_level, "%s%s: enabled %d\n",
 		  depth_str, dev_path(dev), dev->enabled);
 
 	for (link = dev->link_list; link; link = link->next) {
@@ -774,7 +767,7 @@ void show_devs_tree(const struct device *dev, int debug_level, int depth)
 void show_all_devs_tree(int debug_level, const char *msg)
 {
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs in tree form... %s\n", msg))
+	if (!printk(debug_level, "Show all devs in tree form... %s\n", msg))
 		return;
 	show_devs_tree(all_devices, debug_level, 0);
 }
@@ -782,10 +775,10 @@ void show_all_devs_tree(int debug_level, const char *msg)
 void show_devs_subtree(struct device *root, int debug_level, const char *msg)
 {
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs in subtree %s... %s\n",
+	if (!printk(debug_level, "Show all devs in subtree %s... %s\n",
 		       dev_path(root), msg))
 		return;
-	do_printk(debug_level, "%s\n", msg);
+	printk(debug_level, "%s\n", msg);
 	show_devs_tree(root, debug_level, 0);
 }
 
@@ -794,10 +787,10 @@ void show_all_devs(int debug_level, const char *msg)
 	struct device *dev;
 
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs... %s\n", msg))
+	if (!printk(debug_level, "Show all devs... %s\n", msg))
 		return;
 	for (dev = all_devices; dev; dev = dev->next) {
-		do_printk(debug_level, "%s: enabled %d\n",
+		printk(debug_level, "%s: enabled %d\n",
 			  dev_path(dev), dev->enabled);
 	}
 }
@@ -811,78 +804,73 @@ void show_one_resource(int debug_level, struct device *dev,
 	end = resource_end(resource);
 	buf[0] = '\0';
 
-	do_printk(debug_level, "%s %02lx <- [0x%010llx - 0x%010llx] "
+	printk(debug_level, "%s %02lx <- [0x%016llx - 0x%016llx] "
 		  "size 0x%08llx gran 0x%02x %s%s%s\n", dev_path(dev),
 		  resource->index, base, end, resource->size, resource->gran,
 		  buf, resource_type(resource), comment);
 }
 
-void show_all_devs_resources(int debug_level, const char* msg)
+void show_all_devs_resources(int debug_level, const char *msg)
 {
 	struct device *dev;
 
-	if (!do_printk(debug_level, "Show all devs with resources... %s\n", msg))
+	if (!printk(debug_level, "Show all devs with resources... %s\n", msg))
 		return;
 
 	for (dev = all_devices; dev; dev = dev->next) {
 		struct resource *res;
-		do_printk(debug_level, "%s: enabled %d\n",
+		printk(debug_level, "%s: enabled %d\n",
 			  dev_path(dev), dev->enabled);
 		for (res = dev->resource_list; res; res = res->next)
 			show_one_resource(debug_level, dev, res, "");
 	}
 }
 
-void fixed_mem_resource(struct device *dev, unsigned long index,
-			unsigned long basek, unsigned long sizek,
-			unsigned long type)
+const struct resource *fixed_resource_range_idx(struct device *dev, unsigned long index,
+				uint64_t base, uint64_t size, unsigned long flags)
 {
 	struct resource *resource;
-
-	if (!sizek)
-		return;
-
-	resource = new_resource(dev, index);
-	resource->base = ((resource_t)basek) << 10;
-	resource->size = ((resource_t)sizek) << 10;
-	resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-		 IORESOURCE_STORED | IORESOURCE_ASSIGNED;
-
-	resource->flags |= type;
-}
-
-void fixed_io_resource(struct device *dev, unsigned long index,
-			unsigned long base, unsigned long size)
-{
-	struct resource *resource;
+	if (!size)
+		return NULL;
 
 	resource = new_resource(dev, index);
-	resource->base = (resource_t)base;
-	resource->size = (resource_t)size;
-	resource->limit = resource->base + resource->size - 1;
-	resource->flags = IORESOURCE_IO | IORESOURCE_FIXED |
-		 IORESOURCE_STORED | IORESOURCE_ASSIGNED |
-		 IORESOURCE_RESERVE;
-}
-
-void mmconf_resource_init(struct resource *resource, resource_t base,
-	int buses)
-{
 	resource->base = base;
-	resource->size = buses * MiB;
-	resource->flags = IORESOURCE_MEM | IORESOURCE_RESERVE |
-		IORESOURCE_FIXED | IORESOURCE_STORED | IORESOURCE_ASSIGNED;
+	resource->size = size;
+	resource->flags = IORESOURCE_FIXED | IORESOURCE_ASSIGNED;
+	resource->flags |= flags;
 
-	printk(BIOS_DEBUG, "Adding PCIe enhanced config space BAR "
-			"0x%08lx-0x%08lx.\n", (unsigned long)(resource->base),
-			(unsigned long)(resource->base + resource->size));
+	printk(BIOS_SPEW, "dev: %s, index: 0x%lx, base: 0x%llx, size: 0x%llx\n",
+	       dev_path(dev), resource->index, resource->base, resource->size);
+
+	return resource;
+}
+
+const struct resource *lower_ram_end(struct device *dev, unsigned long index, uint64_t end)
+{
+	return ram_from_to(dev, index, 0, end);
+}
+
+const struct resource *upper_ram_end(struct device *dev, unsigned long index, uint64_t end)
+{
+	if (end <= 4ull * GiB)
+		return NULL;
+
+	printk(BIOS_INFO, "Available memory above 4GB: %lluM\n", (end - 4ull * GiB) / MiB);
+
+	return ram_from_to(dev, index, 4ull * GiB, end);
 }
 
 void mmconf_resource(struct device *dev, unsigned long index)
 {
 	struct resource *resource = new_resource(dev, index);
-	mmconf_resource_init(resource, CONFIG_MMCONF_BASE_ADDRESS,
-		CONFIG_MMCONF_BUS_NUMBER);
+	resource->base = CONFIG_ECAM_MMCONF_BASE_ADDRESS;
+	resource->size = CONFIG_ECAM_MMCONF_LENGTH;
+	resource->flags = IORESOURCE_MEM | IORESOURCE_RESERVE |
+		IORESOURCE_FIXED | IORESOURCE_STORED | IORESOURCE_ASSIGNED;
+
+	printk(BIOS_DEBUG, "Adding PCIe enhanced config space BAR 0x%08lx-0x%08lx.\n",
+			(unsigned long)(resource->base),
+			(unsigned long)(resource->base + resource->size));
 }
 
 void tolm_test(void *gp, struct device *dev, struct resource *new)
@@ -891,6 +879,13 @@ void tolm_test(void *gp, struct device *dev, struct resource *new)
 	struct resource *best;
 
 	best = *best_p;
+
+	/*
+	 * If resource is not allocated any space i.e. size is zero,
+	 * then do not consider this resource in tolm calculations.
+	 */
+	if (new->size == 0)
+		return;
 
 	if (!best || (best->base > new->base))
 		best = new;
@@ -902,9 +897,9 @@ u32 find_pci_tolm(struct bus *bus)
 {
 	struct resource *min = NULL;
 	u32 tolm;
+	unsigned long mask_match = IORESOURCE_MEM | IORESOURCE_ASSIGNED;
 
-	search_bus_resources(bus, IORESOURCE_MEM, IORESOURCE_MEM,
-			     tolm_test, &min);
+	search_bus_resources(bus, mask_match, mask_match, tolm_test, &min);
 
 	tolm = 0xffffffffUL;
 
@@ -942,4 +937,13 @@ const char *dev_path_name(enum device_path_type type)
 	if (type < ARRAY_SIZE(type_names))
 		type_name = type_names[type];
 	return type_name;
+}
+
+void log_resource(const char *type, const struct device *dev, const struct resource *res,
+			const char *srcfile, const int line)
+{
+	printk(BIOS_SPEW, "%s:%d res: %s, dev: %s, index: 0x%lx, base: 0x%llx, "
+			  "end: 0x%llx, size_kb: 0x%llx\n",
+			  srcfile, line, type, dev_path(dev), res->index, res->base,
+			  resource_end(res), res->size / KiB);
 }

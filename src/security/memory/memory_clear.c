@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2019 9elements Agency GmbH
- * Copyright (C) 2019 Facebook Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#if CONFIG(ARCH_X86)
+#if ENV_X86
 #include <cpu/x86/pae.h>
 #else
 #define memset_pae(a, b, c, d, e) 0
@@ -33,7 +19,7 @@
 #include <string.h>
 #include <security/memory/memory.h>
 #include <cbmem.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 
 /* Helper to find free space for memset_pae. */
 static uintptr_t get_free_memory_range(struct memranges *mem,
@@ -91,19 +77,12 @@ static void clear_memory(void *unused)
 	void *baseptr = NULL;
 	size_t size = 0;
 
-	/* Only skip CBMEM, as RELOCATABLE_RAMSTAGE is a requirement, no need
-	 * to separately protect stack or heap */
+	/* Only skip CBMEM, stage program, stack and heap are included there. */
 
 	cbmem_get_region(&baseptr, &size);
 	memranges_insert(&mem, (uintptr_t)baseptr, size, BM_MEM_TABLE);
 
-	if (CONFIG(PLATFORM_USES_FSP1_0)) {
-		/* Protect CBMEM pointer */
-		memranges_insert(&mem, CBMEM_FSP_HOB_PTR, sizeof(void *),
-				 BM_MEM_TABLE);
-	}
-
-	if (CONFIG(ARCH_X86)) {
+	if (ENV_X86) {
 		/* Find space for PAE enabled memset */
 		pgtbl = get_free_memory_range(&mem, MEMSET_PAE_PGTL_ALIGN,
 					MEMSET_PAE_PGTL_SIZE);
@@ -119,7 +98,7 @@ static void clear_memory(void *unused)
 		__func__, (void *)pgtbl, (void *)vmem_addr);
 	}
 
-	/* Now clear all useable DRAM */
+	/* Now clear all usable DRAM */
 	memranges_each_entry(r, &mem) {
 		if (range_entry_tag(r) != BM_MEM_RAM)
 			continue;
@@ -127,13 +106,14 @@ static void clear_memory(void *unused)
 		       __func__, range_entry_base(r), range_entry_end(r));
 
 		/* Does regular memset work? */
-		if (!(range_entry_end(r) >> sizeof(void *) * 8)) {
+		if (sizeof(resource_t) == sizeof(void *) ||
+		    !(range_entry_end(r) >> (sizeof(void *) * 8))) {
 			/* fastpath */
 			memset((void *)(uintptr_t)range_entry_base(r), 0,
 			       range_entry_size(r));
 		}
 		/* Use PAE if available */
-		else if (CONFIG(ARCH_X86)) {
+		else if (ENV_X86) {
 			if (memset_pae(range_entry_base(r), 0,
 			    range_entry_size(r), (void *)pgtbl,
 			    (void *)vmem_addr))
@@ -145,7 +125,7 @@ static void clear_memory(void *unused)
 		}
 	}
 
-	if (CONFIG(ARCH_X86)) {
+	if (ENV_X86) {
 		/* Clear previously skipped memory reserved for pagetables */
 		printk(BIOS_DEBUG, "%s: Clearing DRAM %016lx-%016lx\n",
 		__func__, pgtbl, pgtbl + MEMSET_PAE_PGTL_SIZE);

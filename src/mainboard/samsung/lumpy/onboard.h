@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef LUMPY_ONBOARD_H
 #define LUMPY_ONBOARD_H
@@ -24,5 +11,15 @@
 #define BOARD_TRACKPAD_I2C_ADDR     0x67
 #define BOARD_TRACKPAD_IRQ          21
 #define BOARD_TRACKPAD_WAKE_GPIO    0x1b
+
+/* Write Protect: GPIO24 = KBC3_SPI_WP#, active high */
+#define GPIO_SPI_WP	24
+
+/* Recovery: GPIO42 = CHP3_REC_MODE#, active low */
+#define GPIO_REC_MODE	42
+
+#ifndef __ACPI__
+int get_power_switch(void);
+#endif
 
 #endif

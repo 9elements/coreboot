@@ -1,22 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef EC_GOOGLE_WILCO_COMMANDS_H
 #define EC_GOOGLE_WILCO_COMMANDS_H
 
-#include <stdint.h>
 #include <types.h>
 
 enum {
@@ -24,7 +10,7 @@ enum {
 	KB_POWER_SMI = 0x04,
 	/* Read but do not clear power state information */
 	KB_POWER_STATUS = 0x05,
-	/* Inform the EC aboout the reason host is turning off */
+	/* Inform the EC about the reason host is turning off */
 	KB_POWER_OFF = 0x08,
 	/* Control wireless radios */
 	KB_RADIO_CONTROL = 0x2b,
@@ -52,6 +38,8 @@ enum {
 	KB_BIOS_PROGRESS = 0xc2,
 	/* Inform the EC that a fatal error occurred */
 	KB_ERR_CODE = 0x7b,
+	/* Set CPU ID */
+	KB_CPU_ID = 0xbf,
 };
 
 enum ec_ram_addr {
@@ -336,5 +324,19 @@ int wilco_ec_signed_fw(void);
  * @post_code: Post code to save
  */
 void wilco_ec_save_post_code(uint8_t post_code);
+
+/**
+ * wilco_ec_set_cpuid
+ *
+ * Set CPU ID to EC.
+ *
+ * @cpuid:	read CPU ID from cpu_eax(1)
+ * @cpu_cores:	cores of CPU
+ * @gpu_cores:	cores of GPU
+ *
+ * Returns 0 if EC command was successful
+ * Returns -1 if EC command failed
+ */
+int wilco_ec_set_cpuid(uint32_t cpuid, uint8_t cpu_cores, uint8_t gpu_cores);
 
 #endif /* EC_GOOGLE_WILCO_COMMANDS_H */

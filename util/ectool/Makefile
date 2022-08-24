@@ -1,21 +1,8 @@
-##
-## Makefile for ectool
-##
-## Copyright (C) 2009 by coresystems GmbH
-## written by Stefan Reinauer <stepan@coresystems.de>
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 CC = gcc
-CFLAGS = -O2 -Wall -W
+WERROR=-Werror
+CFLAGS = -O2 -Wall -Wextra -Wshadow $(WERROR)
 PROGRAM = ectool
 INSTALL = /usr/bin/env install
 PREFIX  = /usr/local
@@ -35,7 +22,8 @@ $(PROGRAM): ec.o ectool.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 install: $(PROGRAM)
-	$(INSTALL) $(PROGRAM) $(PREFIX)/sbin
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/sbin
+	$(INSTALL) $(PROGRAM) $(DESTDIR)$(PREFIX)/sbin
 
 clean:
 	rm -f *.o $(PROGRAM) junit.xml
@@ -45,4 +33,10 @@ distclean: clean
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -I. -o $@
 
-.PHONY: all install clean distclean
+help:
+	@echo "${PROGRAM}: Dump RAM of Embedded Controller (EC)"
+	@echo "Targets: all, clean, distclean, help, install"
+	@echo "To disable warnings as errors, run make as:"
+	@echo "  make all WERROR=\"\""
+
+.PHONY: all clean distclean help install

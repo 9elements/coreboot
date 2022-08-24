@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- * Copyright (C) 2015 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbfs.h>
 #include <cbmem.h>
@@ -49,8 +35,7 @@ static void *get_spd_pointer(int *dual)
 	int spd_index = 0;
 
 	/* Find the SPD data in CBFS. */
-	spd_file = cbfs_boot_map_with_leak("spd.bin", CBFS_TYPE_SPD,
-		&spd_file_len);
+	spd_file = cbfs_map("spd.bin", &spd_file_len);
 	if (!spd_file)
 		die("SPD data not found.");
 
@@ -122,9 +107,9 @@ static void set_dimm_info(const uint8_t *spd, struct dimm_info *dimm)
 	const int spd_busw[8]  = {  8, 16, 32, 64, -1, -1, -1, -1 };
 
 	int capmb = spd_capmb[spd[SPD_DENSITY_BANKS] & 7] * 256;
-	int ranks = spd_ranks[(spd[SPD_ORGANIZATION] >> 3) & 7];
-	int devw  = spd_devw[spd[SPD_ORGANIZATION] & 7];
-	int busw  = spd_busw[spd[SPD_BUS_DEV_WIDTH] & 7];
+	int ranks = spd_ranks[(spd[DDR3_ORGANIZATION] >> 3) & 7];
+	int devw  = spd_devw[spd[DDR3_ORGANIZATION] & 7];
+	int busw  = spd_busw[spd[DDR3_BUS_DEV_WIDTH] & 7];
 
 	void *hob_list_ptr;
 	EFI_HOB_GUID_TYPE *hob_ptr;
@@ -133,7 +118,7 @@ static void set_dimm_info(const uint8_t *spd, struct dimm_info *dimm)
 
 	/* Locate the memory info HOB, presence validated by raminit */
 	hob_list_ptr = fsp_get_hob_list();
-	hob_ptr = get_next_guid_hob(&memory_info_hob_guid, hob_list_ptr);
+	hob_ptr = get_guid_hob(&memory_info_hob_guid, hob_list_ptr);
 	if (hob_ptr != NULL) {
 		memory_info_hob = (FSP_SMBIOS_MEMORY_INFO *)(hob_ptr + 1);
 		dimm->ddr_frequency = memory_info_hob->MemoryFrequencyInMHz;
@@ -191,7 +176,7 @@ void mainboard_save_dimm_info(struct romstage_params *params)
 	 * table 17
 	 */
 	mem_info = cbmem_add(CBMEM_ID_MEMINFO, sizeof(*mem_info));
-	printk(BIOS_DEBUG, "CBMEM entry for DIMM info: 0x%p\n", mem_info);
+	printk(BIOS_DEBUG, "CBMEM entry for DIMM info: %p\n", mem_info);
 	if (mem_info == NULL)
 		return;
 	memset(mem_info, 0, sizeof(*mem_info));

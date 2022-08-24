@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
@@ -54,32 +41,28 @@ int __weak mainboard_get_ehci_oc_map(uint16_t *map)
 	return -1;
 }
 
-static struct pci_operations lops_pci = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
-
 static struct device_operations usb_ops = {
 	.read_resources = pci_ehci_read_resources,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = set_usb_over_current,
-	.scan_bus = scan_usb_bus,
+	.scan_bus = scan_static_bus,
 	.acpi_name = soc_acpi_name,
-	.ops_pci = &lops_pci,
+	.ops_pci = &pci_dev_ops_pci,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_AMD_SB900_USB_18_0,
-	PCI_DEVICE_ID_AMD_SB900_USB_18_2,
-	PCI_DEVICE_ID_AMD_SB900_USB_20_5,
-	PCI_DEVICE_ID_AMD_CZ_USB_0,
-	PCI_DEVICE_ID_AMD_CZ_USB_1,
-	PCI_DEVICE_ID_AMD_CZ_USB3_0,
+	PCI_DID_AMD_SB900_USB_18_0,
+	PCI_DID_AMD_SB900_USB_18_2,
+	PCI_DID_AMD_SB900_USB_20_5,
+	PCI_DID_AMD_CZ_USB_0,
+	PCI_DID_AMD_CZ_USB_1,
+	PCI_DID_AMD_CZ_USB3_0,
 	0
 };
 
 static const struct pci_driver usb_0_driver __pci_driver = {
 	.ops = &usb_ops,
-	.vendor = PCI_VENDOR_ID_AMD,
+	.vendor = PCI_VID_AMD,
 	.devices = pci_device_ids,
 };

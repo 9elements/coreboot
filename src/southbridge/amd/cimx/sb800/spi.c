@@ -1,19 +1,5 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-#include <stdint.h>
-#include <stdlib.h>
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <device/mmio.h>
 #include <console/console.h>
 #include <spi_flash.h>
@@ -21,6 +7,7 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
+#include <types.h>
 
 #include "SBPLATFORM.h"
 #include <vendorcode/amd/cimx/sb800/ECfan.h>
@@ -42,10 +29,10 @@ static void execute_command(void)
 	write8((void *)(spibar + 2), read8((void *)(spibar + 2)) | 1);
 
 	while ((read8((void *)(spibar + 2)) & 1) &&
-	       (read8((void *)(spibar+3)) & 0x80));
+	       (read8((void *)(spibar + 3)) & 0x80));
 }
 
-void spi_init()
+void spi_init(void)
 {
 	struct device *dev;
 
@@ -111,13 +98,12 @@ static void ImcSleep(void)
 	u8	reg0_val = 0;		/* clear response register */
 	u8	reg1_val = 0xB4;	/* request ownership flag */
 
-	WriteECmsg (MSG_REG0, AccWidthUint8, &reg0_val);
-	WriteECmsg (MSG_REG1, AccWidthUint8, &reg1_val);
-	WriteECmsg (MSG_SYS_TO_IMC, AccWidthUint8, &cmd_val);
+	WriteECmsg(MSG_REG0, AccWidthUint8, &reg0_val);
+	WriteECmsg(MSG_REG1, AccWidthUint8, &reg1_val);
+	WriteECmsg(MSG_SYS_TO_IMC, AccWidthUint8, &cmd_val);
 
 	WaitForEcLDN9MailboxCmdAck();
 }
-
 
 static void ImcWakeup(void)
 {
@@ -125,9 +111,9 @@ static void ImcWakeup(void)
 	u8	reg0_val = 0;		/* clear response register */
 	u8	reg1_val = 0xB5;	/* release ownership flag */
 
-	WriteECmsg (MSG_REG0, AccWidthUint8, &reg0_val);
-	WriteECmsg (MSG_REG1, AccWidthUint8, &reg1_val);
-	WriteECmsg (MSG_SYS_TO_IMC, AccWidthUint8, &cmd_val);
+	WriteECmsg(MSG_REG0, AccWidthUint8, &reg0_val);
+	WriteECmsg(MSG_REG1, AccWidthUint8, &reg1_val);
+	WriteECmsg(MSG_SYS_TO_IMC, AccWidthUint8, &cmd_val);
 
 	WaitForEcLDN9MailboxCmdAck();
 }

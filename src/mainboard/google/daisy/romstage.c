@@ -1,42 +1,26 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cache.h>
 #include <arch/exception.h>
 #include <armv7.h>
 #include <cbmem.h>
 #include <console/console.h>
-#include <program_loading.h>
 #include <device/i2c_simple.h>
 #include <drivers/maxim/max77686/max77686.h>
+#include <program_loading.h>
+#include <romstage_common.h>
 #include <soc/clk.h>
 #include <soc/cpu.h>
 #include <soc/dmc.h>
 #include <soc/gpio.h>
 #include <soc/i2c.h>
-#include <soc/setup.h>
 #include <soc/periph.h>
 #include <soc/power.h>
+#include <soc/setup.h>
 #include <soc/trustzone.h>
 #include <soc/wakeup.h>
 #include <timestamp.h>
-#include <types.h>
 
 #include "exynos5250.h"
-
-#define PMIC_BUS	0
 
 static void setup_power(int is_resume)
 {
@@ -63,26 +47,26 @@ static void setup_power(int is_resume)
 	 *
 	 * Disable Coin BATT Charging
 	 */
-	error = max77686_disable_backup_batt(PMIC_BUS);
+	error = max77686_disable_backup_batt(CONFIG_PMIC_BUS);
 
-	error |= max77686_volsetting(PMIC_BUS, PMIC_BUCK2, VDD_ARM_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_BUCK2, VDD_ARM_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_BUCK3, VDD_INT_UV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_BUCK3, VDD_INT_UV,
 						REG_ENABLE, MAX77686_UV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_BUCK1, VDD_MIF_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_BUCK1, VDD_MIF_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_BUCK4, VDD_G3D_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_BUCK4, VDD_G3D_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_LDO2, VDD_LDO2_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_LDO2, VDD_LDO2_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_LDO3, VDD_LDO3_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_LDO3, VDD_LDO3_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_LDO5, VDD_LDO5_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_LDO5, VDD_LDO5_MV,
 						REG_ENABLE, MAX77686_MV);
-	error |= max77686_volsetting(PMIC_BUS, PMIC_LDO10, VDD_LDO10_MV,
+	error |= max77686_volsetting(CONFIG_PMIC_BUS, PMIC_LDO10, VDD_LDO10_MV,
 						REG_ENABLE, MAX77686_MV);
 
-	error |= max77686_enable_32khz_cp(PMIC_BUS);
+	error |= max77686_enable_32khz_cp(CONFIG_PMIC_BUS);
 
 	if (error) {
 		printk(BIOS_CRIT, "%s: PMIC error: %#x\n", __func__, error);
@@ -136,11 +120,21 @@ static struct mem_timings *setup_clock(void)
 
 void main(void)
 {
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_ROMSTAGE_START);
+
+	/*
+	 * From the clocks comment below it looks like serial console won't
+	 * work in the bootblock so keep in the romstage_main flow even with
+	 * !CONFIG  SEPARATE_ROMSTAGE.
+	 */
+	romstage_main();
+}
+
+void __noreturn romstage_main(void)
+{
 	struct mem_timings *mem;
 	int is_resume = (get_wakeup_state() != IS_NOT_WAKEUP);
-
-	timestamp_init(timestamp_get());
-	timestamp_add_now(TS_START_ROMSTAGE);
 
 	/* Clock must be initialized before console_init, otherwise you may need
 	 * to re-initialize serial console drivers again. */
@@ -151,11 +145,11 @@ void main(void)
 
 	setup_power(is_resume);
 
-	timestamp_add_now(TS_BEFORE_INITRAM);
+	timestamp_add_now(TS_INITRAM_START);
 
 	setup_memory(mem, is_resume);
 
-	timestamp_add_now(TS_AFTER_INITRAM);
+	timestamp_add_now(TS_INITRAM_END);
 
 	/* This needs to happen on normal boots and on resume. */
 	trustzone_init();

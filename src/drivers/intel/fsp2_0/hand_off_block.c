@@ -1,14 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015-2018 Intel Corp.
- * (Written by Alexandru Gagniuc <alexandrux.gagniuc@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/mmio.h>
 #include <cbmem.h>
@@ -16,7 +6,7 @@
 #include <console/console.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <string.h>
 
 #define HOB_HEADER_LEN		8
@@ -30,6 +20,11 @@ const uint8_t fsp_bootloader_tolum_guid[16] = {
 const uint8_t fsp_reserved_memory_guid[16] = {
 	0x59, 0x97, 0xa7, 0x69, 0x73, 0x13, 0x67, 0x43,
 	0xa6, 0xc4, 0xc7, 0xf5, 0x9e, 0xfd, 0x98, 0x6e,
+};
+
+const uint8_t fsp_nv_storage_guid_2[16] = {
+	0x8f, 0x78, 0x66, 0x48, 0xa8, 0x6b, 0xd8, 0x47,
+	0x83, 0x6, 0xac, 0xf7, 0x7f, 0x55, 0x10, 0x46
 };
 
 const uint8_t fsp_nv_storage_guid[16] = {
@@ -114,13 +109,13 @@ static void save_hob_list(int is_recovery)
 	*cbmem_loc = (uintptr_t)hob_list;
 }
 
-ROMSTAGE_CBMEM_INIT_HOOK(save_hob_list);
+CBMEM_CREATION_HOOK(save_hob_list);
 
 const void *fsp_get_hob_list(void)
 {
 	uint32_t *list_loc;
 
-	if (ENV_ROMSTAGE)
+	if (ENV_RAMINIT)
 		return fsp_hob_list_ptr;
 	list_loc = cbmem_find(CBMEM_ID_FSP_RUNTIME);
 	return (list_loc) ? (void *)(uintptr_t)(*list_loc) : NULL;
@@ -139,7 +134,6 @@ struct hob_resource *find_resource_hob_by_guid(const struct hob_header *hob,
 
 	for (; hob->type != HOB_TYPE_END_OF_HOB_LIST;
 		hob = fsp_next_hob(hob)) {
-
 		if (hob->type != HOB_TYPE_RESOURCE_DESCRIPTOR)
 			continue;
 
@@ -187,9 +181,10 @@ int fsp_find_range_hob(struct range_entry *re, const uint8_t guid[16])
 	return 0;
 }
 
-int fsp_find_reserved_memory(struct range_entry *re)
+void fsp_find_reserved_memory(struct range_entry *re)
 {
-	return fsp_find_range_hob(re, fsp_reserved_memory_guid);
+	if (fsp_find_range_hob(re, fsp_reserved_memory_guid))
+		die("9.1: FSP_RESERVED_MEMORY_RESOURCE_HOB missing!\n");
 }
 
 const void *fsp_find_extension_hob_by_guid(const uint8_t *guid, size_t *size)
@@ -202,7 +197,6 @@ const void *fsp_find_extension_hob_by_guid(const uint8_t *guid, size_t *size)
 
 	for (; hob->type != HOB_TYPE_END_OF_HOB_LIST;
 		hob = fsp_next_hob(hob)) {
-
 		if (hob->type != HOB_TYPE_GUID_EXTENSION)
 			continue;
 
@@ -216,30 +210,51 @@ const void *fsp_find_extension_hob_by_guid(const uint8_t *guid, size_t *size)
 	return NULL;
 }
 
-static void display_fsp_version_info_hob(const void *hob, size_t size)
+static void display_fsp_version_info_hob(const void *hob)
 {
+#if CONFIG(DISPLAY_FSP_VERSION_INFO) || CONFIG(DISPLAY_FSP_VERSION_INFO_2)
+
+	int index, cnt, tcount;
+	char *str_ptr;
+	uint8_t vs;
 #if CONFIG(DISPLAY_FSP_VERSION_INFO)
 	const FIRMWARE_VERSION_INFO *fvi;
 	const FIRMWARE_VERSION_INFO_HOB *fvih =
 			(FIRMWARE_VERSION_INFO_HOB *)hob;
-	int index, cnt;
-	char *str_ptr;
 
 	fvi = (void *)&fvih[1];
 	str_ptr = (char *)((uintptr_t)fvi +
-			 (fvih->Count * sizeof (FIRMWARE_VERSION_INFO)));
-	size -= sizeof(SMBIOS_STRUCTURE);
+			 (fvih->Count * sizeof(FIRMWARE_VERSION_INFO)));
+	tcount = fvih->Count;
+#elif CONFIG(DISPLAY_FSP_VERSION_INFO_2)
 
-	printk(BIOS_DEBUG, "Display FSP Version Info HOB\n");
-	for (index = 0; index < fvih->Count; index++) {
+	uint8_t *hobstart = (uint8_t *) hob;
+	hobstart += sizeof(EFI_HOB_GUID_TYPE);
+
+	const SMBIOS_TABLE_TYPE_OEM_INTEL_FVI *stfvi =
+			(SMBIOS_TABLE_TYPE_OEM_INTEL_FVI *)hobstart;
+	const INTEL_FIRMWARE_VERSION_INFO *fvi;
+
+	str_ptr = ((char *) &(stfvi->Fvi[0])) +
+			(stfvi->Count * sizeof(INTEL_FIRMWARE_VERSION_INFO));
+	tcount = stfvi->Count;
+	fvi = &stfvi->Fvi[0];
+#endif
+
+	for (index = 0; index < tcount; index++) {
 		cnt = strlen(str_ptr);
 
+#if CONFIG(DISPLAY_FSP_VERSION_INFO)
+			vs = fvi[index].VersionStringIndex;
+#elif CONFIG(DISPLAY_FSP_VERSION_INFO_2)
+			vs = fvi[index].VersionString;
+#endif
 		/*  Don't show ingredient name and version if its all 0xFF */
 		if (fvi[index].Version.MajorVersion == 0xFF &&
 			fvi[index].Version.MinorVersion == 0xFF &&
 			fvi[index].Version.Revision == 0xFF &&
 			fvi[index].Version.BuildNumber == 0xFF &&
-			fvi[index].VersionStringIndex == 0) {
+			vs == 0) {
 			str_ptr = (char *)((uintptr_t)str_ptr + cnt +
 					sizeof(uint8_t));
 			continue;
@@ -252,7 +267,7 @@ static void display_fsp_version_info_hob(const void *hob, size_t size)
 		 */
 		printk(BIOS_DEBUG, "%s = ", str_ptr);
 
-		if (!fvi[index].VersionStringIndex)
+		if (!vs)
 			printk(BIOS_DEBUG, "%x.%x.%x.%x\n",
 					fvi[index].Version.MajorVersion,
 					fvi[index].Version.MinorVersion,
@@ -274,11 +289,11 @@ void fsp_display_fvi_version_hob(void)
 {
 	const uint8_t *hob_uuid;
 	const struct hob_header *hob = fsp_get_hob_list();
-	size_t size;
 
 	if (!hob)
 		return;
 
+	printk(BIOS_DEBUG, "Display FSP Version Info HOB\n");
 	for (; hob->type != HOB_TYPE_END_OF_HOB_LIST;
 			hob = fsp_next_hob(hob)) {
 		if (hob->type != HOB_TYPE_GUID_EXTENSION)
@@ -287,13 +302,28 @@ void fsp_display_fvi_version_hob(void)
 		hob_uuid = hob_header_to_struct(hob);
 
 		if (fsp_guid_compare(hob_uuid, uuid_fv_info)) {
-			size = hob->length - (HOB_HEADER_LEN + 16);
-			display_fsp_version_info_hob(hob, size);
+			display_fsp_version_info_hob(hob);
 		}
 	}
 }
 
 const void *fsp_find_nv_storage_data(size_t *size)
 {
+	if (CONFIG(PLATFORM_USES_FSP2_3)) {
+		const struct fsp_nvs_hob2_data_region_header *hob;
+
+		hob = (const struct fsp_nvs_hob2_data_region_header *)
+		      fsp_find_extension_hob_by_guid(fsp_nv_storage_guid_2, size);
+		if (hob != NULL) {
+			*size = hob->nvs_data_length;
+			return (void *)(uintptr_t)hob->nvs_data_ptr;
+		}
+	}
 	return fsp_find_extension_hob_by_guid(fsp_nv_storage_guid, size);
+}
+
+void fsp_find_bootloader_tolum(struct range_entry *re)
+{
+	if (fsp_find_range_hob(re, fsp_bootloader_tolum_guid))
+		die("9.3: FSP_BOOTLOADER_TOLUM_HOB missing!\n");
 }

@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  * Copyright (C) 2009 coresystems GmbH
@@ -48,20 +47,11 @@ static void cb_parse_x86_rom_var_mtrr(void *ptr, struct sysinfo_t *info)
 	info->x86_rom_var_mtrr_index = rom_mtrr->index;
 }
 
-static void cb_parse_mrc_cache(void *ptr, struct sysinfo_t *info)
-{
-	struct cb_cbmem_tab *const cbmem = (struct cb_cbmem_tab *)ptr;
-	info->mrc_cache = phys_to_virt(cbmem->cbmem_tab);
-}
-
 int cb_parse_arch_specific(struct cb_record *rec, struct sysinfo_t *info)
 {
 	switch(rec->tag) {
 	case CB_TAG_X86_ROM_MTRR:
 		cb_parse_x86_rom_var_mtrr(rec, info);
-		break;
-	case CB_TAG_MRC_CACHE:
-		cb_parse_mrc_cache(rec, info);
 		break;
 	default:
 		return 0;

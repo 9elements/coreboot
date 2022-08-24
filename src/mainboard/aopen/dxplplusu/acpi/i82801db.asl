@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/ioapic.h>
 
@@ -126,7 +113,7 @@ Device (ICH0)
 		CreateByteField (MSBF, \_SB_.PCI0.ICH0.PMIO._LEN, IOAL)
 
 		Store (PBAR, Local0)
-		If ( Land(Local0, 0x01) )
+		If (Local0 && 1)
 		{
 			And (Local0, 0xFFFE, Local0)
 			Store (Local0, IOA1)
@@ -141,7 +128,7 @@ Device (ICH0)
 		CreateByteField (MSBF, \_SB_.PCI0.ICH0.GPIO._LEN, IOSL)
 
 		Store (GBAR, Local0)
-		If ( Land(Local0, 0x01) ) {
+		If (Local0 && 1) {
 			And (Local0, 0xFFFE, Local0)
 			Store (Local0, IOS1)
 			Store (Local0, IOS2)

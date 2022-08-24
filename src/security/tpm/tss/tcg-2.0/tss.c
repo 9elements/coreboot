@@ -1,10 +1,5 @@
-/*
- * Copyright 2016 The Chromium OS Authors. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
-#include <arch/early_variables.h>
 #include <console/console.h>
 #include <endian.h>
 #include <string.h>
@@ -29,11 +24,9 @@ void *tpm_process_command(TPM_CC command, void *command_body)
 	size_t in_size;
 	const uint8_t *sendb;
 	/* Command/response buffer. */
-	static uint8_t cr_buffer[TPM_BUFFER_SIZE] CAR_GLOBAL;
+	static uint8_t cr_buffer[TPM_BUFFER_SIZE];
 
-	uint8_t *cr_buffer_ptr = car_get_var_ptr(cr_buffer);
-
-	obuf_init(&ob, cr_buffer_ptr, sizeof(cr_buffer));
+	obuf_init(&ob, cr_buffer, sizeof(cr_buffer));
 
 	if (tpm_marshal_command(command, command_body, &ob) < 0) {
 		printk(BIOS_ERR, "command %#x\n", command);
@@ -43,12 +36,12 @@ void *tpm_process_command(TPM_CC command, void *command_body)
 	sendb = obuf_contents(&ob, &out_size);
 
 	in_size = sizeof(cr_buffer);
-	if (tis_sendrecv(sendb, out_size, cr_buffer_ptr, &in_size)) {
+	if (tis_sendrecv(sendb, out_size, cr_buffer, &in_size)) {
 		printk(BIOS_ERR, "tpm transaction failed\n");
 		return NULL;
 	}
 
-	ibuf_init(&ib, cr_buffer_ptr, in_size);
+	ibuf_init(&ib, cr_buffer, in_size);
 
 	return tpm_unmarshal_response(command, &ib);
 }
@@ -172,13 +165,29 @@ uint32_t tlcl_force_clear(void)
 	return TPM_SUCCESS;
 }
 
-static uint8_t tlcl_init_done CAR_GLOBAL;
+uint32_t tlcl_clear_control(bool disable)
+{
+	struct tpm2_response *response;
+	struct tpm2_clear_control_cmd cc = {
+		.disable = 0,
+	};
+
+	response = tpm_process_command(TPM2_ClearControl, &cc);
+	printk(BIOS_INFO, "%s: response is %x\n",
+		__func__, response ? response->hdr.tpm_code : -1);
+
+	if (!response || response->hdr.tpm_code)
+		return TPM_E_IOERROR;
+
+	return TPM_SUCCESS;
+}
+
+static uint8_t tlcl_init_done;
 
 /* This function is called directly by vboot, uses vboot return types. */
 uint32_t tlcl_lib_init(void)
 {
-	uint8_t done = car_get_var(tlcl_init_done);
-	if (done)
+	if (tlcl_init_done)
 		return VB2_SUCCESS;
 
 	if (tis_init()) {
@@ -191,7 +200,7 @@ uint32_t tlcl_lib_init(void)
 		return VB2_ERROR_UNKNOWN;
 	}
 
-	car_set_var(tlcl_init_done, 1);
+	tlcl_init_done = 1;
 
 	return VB2_SUCCESS;
 }
@@ -233,6 +242,9 @@ uint32_t tlcl_read(uint32_t index, void *data, uint32_t length)
 	case TPM_RC_CR50_NV_UNDEFINED:
 		return TPM_E_BADINDEX;
 
+	case TPM_RC_NV_RANGE:
+		return TPM_E_RANGE;
+
 	default:
 		return TPM_E_READ_FAILURE;
 	}
@@ -264,7 +276,7 @@ uint32_t tlcl_self_test_full(void)
 uint32_t tlcl_lock_nv_write(uint32_t index)
 {
 	struct tpm2_response *response;
-	/* TPM Wll reject attempts to write at non-defined index. */
+	/* TPM Will reject attempts to write at non-defined index. */
 	struct tpm2_nv_write_lock_cmd nv_wl = {
 		.nvIndex = HR_NV_INDEX + index,
 	};
@@ -308,6 +320,29 @@ uint32_t tlcl_write(uint32_t index, const void *data, uint32_t length)
 	return TPM_SUCCESS;
 }
 
+uint32_t tlcl_set_bits(uint32_t index, uint64_t bits)
+{
+	struct tpm2_nv_setbits_cmd nvsb_cmd;
+	struct tpm2_response *response;
+
+	/* Prepare the command structure */
+	memset(&nvsb_cmd, 0, sizeof(nvsb_cmd));
+
+	nvsb_cmd.nvIndex = HR_NV_INDEX + index;
+	nvsb_cmd.bits = bits;
+
+	response = tpm_process_command(TPM2_NV_SetBits, &nvsb_cmd);
+
+	printk(BIOS_INFO, "%s: response is %x\n",
+	       __func__, response ? response->hdr.tpm_code : -1);
+
+	/* Need to map tpm error codes into internal values. */
+	if (!response || response->hdr.tpm_code)
+		return TPM_E_WRITE_FAILURE;
+
+	return TPM_SUCCESS;
+}
+
 uint32_t tlcl_define_space(uint32_t space_index, size_t space_size,
 			   const TPMA_NV nv_attributes,
 			   const uint8_t *nv_policy, size_t nv_policy_size)
@@ -340,7 +375,7 @@ uint32_t tlcl_define_space(uint32_t space_index, size_t space_size,
 	if (!response)
 		return TPM_E_NO_DEVICE;
 
-	/* Map TPM2 retrun codes into common vboot represenation. */
+	/* Map TPM2 return codes into common vboot representation. */
 	switch (response->hdr.tpm_code) {
 	case TPM2_RC_SUCCESS:
 		return TPM_SUCCESS;
@@ -349,6 +384,38 @@ uint32_t tlcl_define_space(uint32_t space_index, size_t space_size,
 	default:
 		return TPM_E_INTERNAL_INCONSISTENCY;
 	}
+}
+
+uint16_t tlcl_get_hash_size_from_algo(TPMI_ALG_HASH hash_algo)
+{
+	uint16_t value;
+
+	switch (hash_algo) {
+	case TPM_ALG_ERROR:
+		value = 1;
+		break;
+	case TPM_ALG_SHA1:
+		value = SHA1_DIGEST_SIZE;
+		break;
+	case TPM_ALG_SHA256:
+		value = SHA256_DIGEST_SIZE;
+		break;
+	case TPM_ALG_SHA384:
+		value = SHA384_DIGEST_SIZE;
+		break;
+	case TPM_ALG_SHA512:
+		value = SHA512_DIGEST_SIZE;
+		break;
+	case TPM_ALG_SM3_256:
+		value = SM3_256_DIGEST_SIZE;
+		break;
+	default:
+		printk(BIOS_SPEW, "%s: unknown hash algorithm %d\n", __func__,
+		hash_algo);
+		value = 0;
+	};
+
+	return value;
 }
 
 uint32_t tlcl_disable_platform_hierarchy(void)
@@ -364,5 +431,33 @@ uint32_t tlcl_disable_platform_hierarchy(void)
 	if (!response || response->hdr.tpm_code)
 		return TPM_E_INTERNAL_INCONSISTENCY;
 
+	return TPM_SUCCESS;
+}
+
+uint32_t tlcl_get_capability(TPM_CAP capability, uint32_t property,
+		uint32_t property_count,
+		TPMS_CAPABILITY_DATA *capability_data)
+{
+	struct tpm2_get_capability cmd;
+	struct tpm2_response *response;
+
+	cmd.capability = capability;
+	cmd.property = property;
+	cmd.propertyCount = property_count;
+
+	if (property_count > 1) {
+		printk(BIOS_ERR, "%s: property_count more than one not "
+		       "supported yet\n", __func__);
+		return TPM_E_IOERROR;
+	}
+
+	response = tpm_process_command(TPM2_GetCapability, &cmd);
+
+	if (!response) {
+		printk(BIOS_ERR, "%s: Command Failed\n", __func__);
+		return TPM_E_IOERROR;
+	}
+
+	memcpy(capability_data, &response->gc.cd, sizeof(TPMS_CAPABILITY_DATA));
 	return TPM_SUCCESS;
 }

@@ -1,19 +1,19 @@
-/*
- * This file is part of the coreboot project.
- *
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _RULES_H
 #define _RULES_H
+
+#if defined(__TEST__)
+#define ENV_TEST 1
+#else
+#define ENV_TEST 0
+#endif
+
+#if defined(__TIMELESS__)
+#define ENV_TIMELESS 1
+#else
+#define ENV_TIMELESS 0
+#endif
 
 /* Useful helpers to tell whether the code is executing in bootblock,
  * romstage, ramstage or SMM.
@@ -25,7 +25,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -37,7 +37,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -49,7 +49,7 @@
 #define ENV_ROMSTAGE 1
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -61,23 +61,35 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 1
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
 #define ENV_STRING "smm"
 
+/*
+ * NOTE: "verstage" code may either run as a separate stage or linked into the
+ * bootblock/romstage, depending on the setting of the VBOOT_SEPARATE_VERSTAGE
+ * kconfig option. The ENV_SEPARATE_VERSTAGE macro will only return true for
+ * "verstage" code when CONFIG(VBOOT_SEPARATE_VERSTAGE) is true, otherwise that
+ * code will have ENV_BOOTBLOCK or ENV_ROMSTAGE set (depending on the
+ * "VBOOT_STARTS_IN_"... kconfig options).
+ */
 #elif defined(__VERSTAGE__)
 #define ENV_DECOMPRESSOR 0
 #define ENV_BOOTBLOCK 0
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 1
+#define ENV_SEPARATE_VERSTAGE 1
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
+#if CONFIG(VBOOT_STARTS_BEFORE_BOOTBLOCK)
+#define ENV_STRING "verstage-before-bootblock"
+#else
 #define ENV_STRING "verstage"
+#endif
 
 #elif defined(__RAMSTAGE__)
 #define ENV_DECOMPRESSOR 0
@@ -85,7 +97,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 1
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -97,7 +109,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 1
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -109,7 +121,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 1
 #define ENV_LIBAGESA 0
@@ -121,7 +133,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 1
@@ -137,7 +149,7 @@
 #define ENV_ROMSTAGE 0
 #define ENV_RAMSTAGE 0
 #define ENV_SMM 0
-#define ENV_VERSTAGE 0
+#define ENV_SEPARATE_VERSTAGE 0
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
@@ -173,7 +185,6 @@
 #define ENV_ARMV7 0
 #endif
 #define ENV_ARMV8 0
-#define ENV_MIPS 0
 #define ENV_RISCV 0
 #define ENV_X86 0
 #define ENV_X86_32 0
@@ -189,19 +200,6 @@
 #else
 #define ENV_ARMV8 0
 #endif
-#define ENV_MIPS 0
-#define ENV_RISCV 0
-#define ENV_X86 0
-#define ENV_X86_32 0
-#define ENV_X86_64 0
-
-#elif defined(__ARCH_mips__)
-#define ENV_ARM 0
-#define ENV_ARM64 0
-#define ENV_ARMV4 0
-#define ENV_ARMV7 0
-#define ENV_ARMV8 0
-#define ENV_MIPS 1
 #define ENV_RISCV 0
 #define ENV_X86 0
 #define ENV_X86_32 0
@@ -213,7 +211,6 @@
 #define ENV_ARMV4 0
 #define ENV_ARMV7 0
 #define ENV_ARMV8 0
-#define ENV_MIPS 0
 #define ENV_RISCV 1
 #define ENV_X86 0
 #define ENV_X86_32 0
@@ -225,7 +222,6 @@
 #define ENV_ARMV4 0
 #define ENV_ARMV7 0
 #define ENV_ARMV8 0
-#define ENV_MIPS 0
 #define ENV_RISCV 0
 #define ENV_X86 1
 #define ENV_X86_32 1
@@ -237,7 +233,6 @@
 #define ENV_ARMV4 0
 #define ENV_ARMV7 0
 #define ENV_ARMV8 0
-#define ENV_MIPS 0
 #define ENV_RISCV 0
 #define ENV_X86 1
 #define ENV_X86_32 0
@@ -249,7 +244,6 @@
 #define ENV_ARMV4 0
 #define ENV_ARMV7 0
 #define ENV_ARMV8 0
-#define ENV_MIPS 0
 #define ENV_RISCV 0
 #define ENV_X86 0
 #define ENV_X86_32 0
@@ -266,6 +260,60 @@
 #define ENV_PAYLOAD_LOADER ENV_RAMSTAGE
 #endif
 
+#define ENV_ROMSTAGE_OR_BEFORE \
+	(ENV_DECOMPRESSOR || ENV_BOOTBLOCK || ENV_ROMSTAGE || \
+	(ENV_SEPARATE_VERSTAGE && !CONFIG(VBOOT_STARTS_IN_ROMSTAGE)))
+
+#if ENV_X86
+/* Indicates memory layout is determined with arch/x86/car.ld. */
+#define ENV_CACHE_AS_RAM		(ENV_ROMSTAGE_OR_BEFORE && !CONFIG(RESET_VECTOR_IN_RAM))
+/* No .data sections with execute-in-place from ROM.  */
+#define ENV_HAS_DATA_SECTION	!ENV_CACHE_AS_RAM
+#else
+/* Both .data and .bss, sometimes SRAM not DRAM. */
+#define ENV_HAS_DATA_SECTION	1
+#define ENV_CACHE_AS_RAM		0
+#endif
+
+/* Currently rmodules, ramstage and smm have heap. */
+#define ENV_HAS_HEAP_SECTION	(ENV_RMODULE || ENV_RAMSTAGE || ENV_SMM)
+
+/* Set USER_SPACE in the makefile for the rare code that runs in userspace */
+#if defined(__USER_SPACE__)
+#define ENV_USER_SPACE		1
+#else
+#define ENV_USER_SPACE		0
+#endif
+
+/* Define the first stage to run */
+#if CONFIG(VBOOT_STARTS_BEFORE_BOOTBLOCK)
+#define ENV_INITIAL_STAGE		ENV_SEPARATE_VERSTAGE
+#else
+#define ENV_INITIAL_STAGE		ENV_BOOTBLOCK
+#endif
+
+#define ENV_CREATES_CBMEM	ENV_ROMSTAGE
+#define ENV_HAS_CBMEM		(ENV_ROMSTAGE | ENV_POSTCAR | ENV_RAMSTAGE)
+#define ENV_RAMINIT		ENV_ROMSTAGE
+
+#if ENV_X86
+#define ENV_HAS_SPINLOCKS		!ENV_ROMSTAGE_OR_BEFORE
+#elif ENV_RISCV
+#define ENV_HAS_SPINLOCKS		1
+#else
+#define ENV_HAS_SPINLOCKS		0
+#endif
+
+/* When set <arch/smp/spinlock.h> is included for the spinlock implementation. */
+#define ENV_SUPPORTS_SMP		(CONFIG(SMP) && ENV_HAS_SPINLOCKS)
+
+#if ENV_X86 && CONFIG(COOP_MULTITASKING) && (ENV_RAMSTAGE || ENV_ROMSTAGE)
+/* TODO: Enable in all x86 stages */
+#define ENV_SUPPORTS_COOP         1
+#else
+#define ENV_SUPPORTS_COOP         0
+#endif
+
 /**
  * For pre-DRAM stages and post-CAR always build with simple device model, ie.
  * PCI, PNP and CPU functions operate without use of devicetree. The reason
@@ -277,16 +325,8 @@
  * be built with simple device model.
  */
 
-#if (defined(__PRE_RAM__) || ENV_SMM || !ENV_PAYLOAD_LOADER)
+#if !ENV_RAMSTAGE
 #define __SIMPLE_DEVICE__
-#endif
-
-/* x86 specific. Indicates that the current stage is running with cache-as-ram
- * enabled from the beginning of the stage in C code. */
-#if defined(__PRE_RAM__)
-#define ENV_CACHE_AS_RAM CONFIG(CACHE_AS_RAM)
-#else
-#define ENV_CACHE_AS_RAM 0
 #endif
 
 #endif /* _RULES_H */

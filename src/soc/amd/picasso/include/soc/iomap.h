@@ -1,88 +1,85 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Raptor Engineering, LLC
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef __SOC_PICASSO_IOMAP_H__
-#define __SOC_PICASSO_IOMAP_H__
+#ifndef AMD_PICASSO_IOMAP_H
+#define AMD_PICASSO_IOMAP_H
+
+#if ENV_X86
 
 /* MMIO Ranges */
-#define PSP_MAILBOX_BAR3_BASE		0xf0a00000
+/* IO_APIC_ADDR defined in arch/x86	0xfec00000 */
+#define GNB_IO_APIC_ADDR		0xfec01000
 #define SPI_BASE_ADDRESS		0xfec10000
-#define IO_APIC2_ADDR			0xfec20000
+
+/* FCH AL2AHB Registers */
+#define ALINK_AHB_ADDRESS		0xfedc0000
+#define AL2AHB_CONTROL_CLK_OFFSET	0x10
+#define   AL2AHB_CLK_GATE_EN		(1 << 1)
+#define AL2AHB_CONTROL_HCLK_OFFSET	0x30
+#define   AL2AHB_HCLK_GATE_EN		(1 << 1)
+
+/* Reserved				0xfecd1000-0xfedc3fff */
+
+#endif /* ENV_X86 */
 
 /*
- * AcpiMmio blocks are at fixed offsets from FED8_0000h and enabled in PMx04[1].
- * All ranges not specified as supported below may, or may not, be listed in
- * any documentation but should be considered reserved through FED8_1FFFh.
+ * Picasso/Dali have I2C0 and I2C1 wired to the Sensor Fusion Hub (SFH/MP2).
+ * The controllers are not directly accessible via the x86.
+ *
+ * On Pollock, I2C0 and I2C1 are routed to the x86 domain, but unfortunately the
+ * interrupts weren't. This effectively makes the I2C controllers useless, so we
+ * pretend they don't exist.
+ *
+ * We want the device tree numbering to match the I2C numbers, so we allocate
+ * I2C0 and I2C1 even though they are not functional.
  */
-#include <amdblocks/acpimmio_map.h>
-#define SUPPORTS_ACPIMMIO_SMI_BASE	1 /* 0xfed80100 */
-#define SUPPORTS_ACPIMMIO_PMIO_BASE	1 /* 0xfed80300 */
-#define SUPPORTS_ACPIMMIO_BIOSRAM_BASE	1 /* 0xfed80500 */
-#define SUPPORTS_ACPIMMIO_ACPI_BASE	1 /* 0xfed80800 */
-#define SUPPORTS_ACPIMMIO_ASF_BASE	1 /* 0xfed80900 */
-#define SUPPORTS_ACPIMMIO_SMBUS_BASE	1 /* 0xfed80a00 */
-#define SUPPORTS_ACPIMMIO_IOMUX_BASE	1 /* 0xfed80d00 */
-#define SUPPORTS_ACPIMMIO_MISC_BASE	1 /* 0xfed80e00 */
-#define SUPPORTS_ACPIMMIO_GPIO0_BASE	1 /* 0xfed81500 */
-#define SUPPORTS_ACPIMMIO_GPIO1_BASE	1 /* 0xfed81800 */
-#define SUPPORTS_ACPIMMIO_GPIO2_BASE	1 /* 0xfed81700 */
-#define SUPPORTS_ACPIMMIO_XHCIPM_BASE	1 /* 0xfed81c00 */
-#define SUPPORTS_ACPIMMIO_AOAC_BASE	1 /* 0xfed81e00 */
+#define I2C_MASTER_DEV_COUNT		4
+#define I2C_MASTER_START_INDEX		2
+#define I2C_PERIPHERAL_DEV_COUNT	1
+#define I2C_CTRLR_COUNT			(I2C_MASTER_DEV_COUNT + I2C_PERIPHERAL_DEV_COUNT)
 
-#define ALINK_AHB_ADDRESS		0xfedc0000
+#if ENV_X86
 
-/* I2C fixed address */
-#define I2C_BASE_ADDRESS		0xfedc2000
-#define I2C_DEVICE_SIZE			0x00001000
-#define I2C_DEVICE_COUNT		4
+#define APU_I2C0_BASE			0xfedc2000
+#define APU_I2C1_BASE			0xfedc3000
+#define APU_I2C2_BASE			0xfedc4000
+#define APU_I2C3_BASE			0xfedc5000
+#define APU_I2C4_BASE			0xfedc6000
 
-#if CONFIG(HPET_ADDRESS_OVERRIDE)
-#error HPET address override is not allowed and must be fixed at 0xfed00000
-#endif
-#define HPET_BASE_ADDRESS		0xfed00000
+#define APU_DMAC0_BASE			0xfedc7000
+#define APU_DMAC1_BASE			0xfedc8000
+#define APU_UART0_BASE			0xfedc9000
+#define APU_UART1_BASE			0xfedca000
+/* Reserved				0xfedcb000 */
+#define APU_DMAC2_BASE			0xfedcc000
+#define APU_DMAC3_BASE			0xfedcd000
+#define APU_UART2_BASE			0xfedce000
+#define APU_UART3_BASE			0xfedcf000
+/* Reserved				0xfedd0000-0xfedd4fff */
+#define APU_EMMC_BASE			0xfedd5000
+#define APU_EMMC_CONFIG_BASE		0xfedd5800
 
-#define APU_UART0_BASE			0xfedc6000
-#define APU_UART1_BASE			0xfedc8000
+#endif /* ENV_X86 */
 
 #define FLASH_BASE_ADDR			((0xffffffff - CONFIG_ROM_SIZE) + 1)
 
 /* I/O Ranges */
-#define ACPI_SMI_CTL_PORT		0xb2
-#define STONEYRIDGE_ACPI_IO_BASE	CONFIG_STONEYRIDGE_ACPI_IO_BASE
-#define  ACPI_PM_EVT_BLK	(STONEYRIDGE_ACPI_IO_BASE + 0x00) /* 4 bytes */
+#define ACPI_IO_BASE			0x400
+#define  ACPI_PM_EVT_BLK	(ACPI_IO_BASE + 0x00)     /* 4 bytes */
 #define  ACPI_PM1_STS		(ACPI_PM_EVT_BLK + 0x00)	  /* 2 bytes */
 #define  ACPI_PM1_EN		(ACPI_PM_EVT_BLK + 0x02)	  /* 2 bytes */
-#define  ACPI_PM1_CNT_BLK	(STONEYRIDGE_ACPI_IO_BASE + 0x04) /* 2 bytes */
-#define  ACPI_CPU_CONTROL	(STONEYRIDGE_ACPI_IO_BASE + 0x08) /* 6 bytes */
-#define  ACPI_GPE0_BLK		(STONEYRIDGE_ACPI_IO_BASE + 0x10) /* 8 bytes */
+#define  ACPI_PM1_CNT_BLK	(ACPI_IO_BASE + 0x04)     /* 2 bytes */
+#define  ACPI_PM_TMR_BLK	(ACPI_IO_BASE + 0x08)     /* 4 bytes */
+#define  ACPI_CPU_CONTROL	(ACPI_IO_BASE + 0x10)
+/* doc says 0x14 for GPE0_BLK but FT5 only works with 0x20 */
+#define  ACPI_GPE0_BLK		(ACPI_IO_BASE + 0x20)     /* 8 bytes */
 #define  ACPI_GPE0_STS		(ACPI_GPE0_BLK + 0x00)		  /* 4 bytes */
 #define  ACPI_GPE0_EN		(ACPI_GPE0_BLK + 0x04)		  /* 4 bytes */
-#define  ACPI_PM_TMR_BLK	(STONEYRIDGE_ACPI_IO_BASE + 0x18) /* 4 bytes */
 #define SMB_BASE_ADDR			0xb00
 #define PM2_INDEX			0xcd0
 #define PM2_DATA			0xcd1
 #define BIOSRAM_INDEX			0xcd4
 #define BIOSRAM_DATA			0xcd5
 #define AB_INDX				0xcd8
-#define AB_DATA				(AB_INDX+4)
-#define SYS_RESET			0xcf9
+#define AB_DATA				(AB_INDX + 4)
 
-/* BiosRam Ranges at 0xfed80500 or I/O 0xcd4/0xcd5 */
-#define BIOSRAM_CBMEM_TOP		0xf0 /* 4 bytes */
-#define BIOSRAM_UMA_SIZE		0xf4 /* 4 bytes */
-#define BIOSRAM_UMA_BASE		0xf8 /* 8 bytes */
-
-#endif /* __SOC_PICASSO_IOMAP_H__ */
+#endif /* AMD_PICASSO_IOMAP_H */
