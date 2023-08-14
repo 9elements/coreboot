@@ -6,4 +6,6 @@ ramstage-y += pmh7.c
 smm-y += pmh7.c
 romstage-y += pmh7.c
 
+ramstage-$(CONFIG_DRIVERS_OPTION_CFR) += cfr.c
+
 endif

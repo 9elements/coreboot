@@ -13,6 +13,7 @@
 
 #include "h8.h"
 #include "chip.h"
+#include "cfr.h"
 
 void h8_trackpoint_enable(int on)
 {
@@ -80,7 +81,7 @@ static void f1_to_f12_as_primary(int on)
 		ec_clr_bit(0x3b, 3);
 }
 
-static void h8_log_ec_version(void)
+static void h8_log_ec_version(char id[64])
 {
 	char ecfw[17];
 	u8 len;
@@ -92,8 +93,9 @@ static void h8_log_ec_version(void)
 	fwvh = ec_read(0xe9);
 	fwvl = ec_read(0xe8);
 
-	printk(BIOS_INFO, "H8: EC Firmware ID %s, Version %d.%d%d%c\n", ecfw,
+	snprintf(id, 64, "ID %s, Version %d.%d%d%c", ecfw,
 	       fwvh >> 4, fwvh & 0x0f, fwvl >> 4, 0x41 + (fwvl & 0xf));
+	printk(BIOS_INFO, "H8: EC Firmware %s\n", id);
 }
 
 void h8_set_audio_mute(int mute)
@@ -226,11 +228,12 @@ static void h8_enable(struct device *dev)
 	struct ec_lenovo_h8_config *conf = dev->chip_info;
 	u8 val;
 	u8 beepmask0, beepmask1, reg8;
+	char id[64];
 
 	dev->ops = &h8_dev_ops;
 
 	ec_clear_out_queue();
-	h8_log_ec_version();
+	h8_log_ec_version(id);
 
 	/* Always enable I/O range 0x1600-0x160f and thermal management */
 	reg8 = conf->config0;
@@ -322,6 +325,14 @@ static void h8_enable(struct device *dev)
 
 	h8_set_audio_mute(0);
 	h8_mb_init();
+
+	/* Update firmware menu */
+	h8_cfr_update(h8_has_bdc(dev),
+		      h8_has_wwan(dev),
+		      conf->has_uwb,
+		      conf->has_keyboard_backlight,
+		      conf->has_power_management_beeps,
+		      id);
 }
 
 struct chip_operations ec_lenovo_h8_ops = {
