@@ -87,6 +87,7 @@ enum {
 	LB_TAG_TYPE_C_INFO		= 0x0042,
 	LB_TAG_ACPI_RSDP		= 0x0043,
 	LB_TAG_PCIE			= 0x0044,
+	LB_TAG_CFR_ROOT			= 0x0045,
 	/* The following options are CMOS-related */
 	LB_TAG_CMOS_OPTION_TABLE	= 0x00c8,
 	LB_TAG_OPTION			= 0x00c9,
@@ -570,6 +571,13 @@ struct lb_acpi_rsdp {
 	uint32_t tag;
 	uint32_t size;
 	lb_uint64_t rsdp_pointer; /* Address of the ACPI RSDP */
+};
+
+struct lb_cfr {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t checksum;	/* Of the entire structure with this field set to 0 */
+	/* struct lb_cfr_option_form		forms[] */
 };
 
 #endif
