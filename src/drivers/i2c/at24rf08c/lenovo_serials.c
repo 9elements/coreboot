@@ -1,18 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <build.h>
 #include <types.h>
 #include <string.h>
 #include <device/device.h>
@@ -58,7 +46,7 @@ static void at24rf08c_read_string_dev(struct device *dev, u8 start,
 		int t = at24rf08c_read_byte(dev, start + i);
 
 		if (t < 0x20 || t > 0x7f) {
-			memcpy(result, ERROR_STRING, sizeof (ERROR_STRING));
+			memcpy(result, ERROR_STRING, sizeof(ERROR_STRING));
 			return;
 		}
 		result[i] = t;
@@ -73,7 +61,7 @@ static void at24rf08c_read_string(u8 bank, u8 start, u8 len, char *result)
 	dev = at24rf08c_find_bank(bank);
 	if (dev == NULL) {
 		printk(BIOS_WARNING, "EEPROM not found\n");
-		memcpy(result, ERROR_STRING, sizeof (ERROR_STRING));
+		memcpy(result, ERROR_STRING, sizeof(ERROR_STRING));
 		return;
 	}
 
@@ -88,7 +76,7 @@ const char *smbios_mainboard_serial_number(void)
 	if (already_read)
 		return result;
 
-	memset(result, 0, sizeof (result));
+	memset(result, 0, sizeof(result));
 	at24rf08c_read_string(0, 0x2e, 7, result);
 
 	already_read = 1;
@@ -103,7 +91,7 @@ const char *lenovo_mainboard_partnumber(void)
 	if (already_read)
 		return result;
 
-	memset(result, 0, sizeof (result));
+	memset(result, 0, sizeof(result));
 	at24rf08c_read_string(0, 0x27, 7, result);
 
 	already_read = 1;
@@ -118,7 +106,7 @@ const char *smbios_mainboard_product_name(void)
 void smbios_system_set_uuid(u8 *uuid)
 {
 	static char result[16];
-	unsigned i;
+	unsigned int i;
 	static int already_read;
 	struct device *dev;
 	const int remap[16] = {
@@ -126,13 +114,12 @@ void smbios_system_set_uuid(u8 *uuid)
 		3, 2, 1, 0, 5, 4, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15
 	};
 
-
 	if (already_read) {
 		memcpy(uuid, result, 16);
 		return;
 	}
 
-	memset(result, 0, sizeof (result));
+	memset(result, 0, sizeof(result));
 
 	dev = dev_find_slot_on_smbus(1, 0x56);
 	if (dev == NULL) {
@@ -154,7 +141,7 @@ void smbios_system_set_uuid(u8 *uuid)
 				break;
 		}
 		if (t < 0) {
-			memset(result, 0, sizeof (result));
+			memset(result, 0, sizeof(result));
 			break;
 		}
 		result[remap[i]] = t;
@@ -175,17 +162,17 @@ const char *smbios_mainboard_version(void)
 	if (already_read)
 		return result;
 
-	memset(result, 0, sizeof (result));
+	memset(result, 0, sizeof(result));
 
 	dev = at24rf08c_find_bank(2);
 	if (dev == NULL) {
-		memcpy(result, ERROR_STRING, sizeof (ERROR_STRING));
+		memcpy(result, ERROR_STRING, sizeof(ERROR_STRING));
 		return result;
 	}
 
 	len = at24rf08c_read_byte(dev, 0x26) - 2;
 	if (len < 0 || len > sizeof(result) - 1) {
-		memcpy(result, ERROR_STRING, sizeof (ERROR_STRING));
+		memcpy(result, ERROR_STRING, sizeof(ERROR_STRING));
 		return result;
 	}
 
@@ -197,16 +184,11 @@ const char *smbios_mainboard_version(void)
 
 const char *smbios_mainboard_bios_version(void)
 {
-	static char *s = NULL;
-
 	/* Satisfy thinkpad_acpi.  */
 	if (strlen(CONFIG_LOCALVERSION))
 		return "CBET4000 " CONFIG_LOCALVERSION;
 
-	if (s != NULL)
-		return s;
-	s = strconcat("CBET4000 ", coreboot_version);
-	return s;
+	return "CBET4000 " COREBOOT_VERSION;
 }
 
 const char *smbios_mainboard_manufacturer(void)

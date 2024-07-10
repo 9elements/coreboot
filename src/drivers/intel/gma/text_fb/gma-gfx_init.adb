@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: GPL-2.0-only
+
 with HW.GFX;
 with HW.GFX.GMA;
 with HW.GFX.GMA.Display_Probing;
@@ -10,22 +12,11 @@ with GMA.Mainboard;
 
 package body GMA.GFX_Init
 is
-
-   function fill_lb_framebuffer
-     (framebuffer : in out lb_framebuffer)
-      return Interfaces.C.int
-   is
-      use type Interfaces.C.int;
-   begin
-      return -1;
-   end fill_lb_framebuffer;
-
-   ----------------------------------------------------------------------------
+   configs : Pipe_Configs;
 
    procedure gfxinit (lightup_ok : out Interfaces.C.int)
    is
       ports : Port_List;
-      configs : Pipe_Configs;
 
       success : boolean;
 
@@ -57,12 +48,23 @@ is
             configs (Primary).Framebuffer.Offset   :=
                VGA_PLANE_FRAMEBUFFER_OFFSET;
 
-            HW.GFX.GMA.Dump_Configs (configs);
+            pragma Debug (HW.GFX.GMA.Dump_Configs (configs));
             HW.GFX.GMA.Update_Outputs (configs);
 
             lightup_ok := 1;
          end if;
       end if;
    end gfxinit;
+
+   procedure gfxstop
+   is
+   begin
+      if configs (Primary).Port /= Disabled then
+         for i in Pipe_Index loop
+            configs (i).Port := Disabled;
+         end loop;
+         HW.GFX.GMA.Update_Outputs (configs);
+      end if;
+   end gfxstop;
 
 end GMA.GFX_Init;

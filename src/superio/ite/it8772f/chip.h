@@ -1,23 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef SUPERIO_ITE_IT8772F_CHIP_H
 #define SUPERIO_ITE_IT8772F_CHIP_H
 
 #include <device/device.h>
+#include <types.h>
+
 #include "it8772f.h"
 
 struct superio_ite_it8772f_config {
@@ -29,7 +17,7 @@ struct superio_ite_it8772f_config {
 	u8 gpio_set5;
 	u8 gpio_set6;
 
-	u8 skip_keyboard;
+	bool skip_keyboard;
 
 	/*
 	 * Enable external temperature sensor to use PECI GetTemp()
@@ -46,9 +34,9 @@ struct superio_ite_it8772f_config {
 	/*
 	 * Enable a FAN for software control.
 	 */
-	u8 fan1_enable;
-	u8 fan2_enable;
-	u8 fan3_enable;
+	bool fan1_enable;
+	bool fan2_enable;
+	bool fan3_enable;
 
 	/*
 	 * Default FAN speed

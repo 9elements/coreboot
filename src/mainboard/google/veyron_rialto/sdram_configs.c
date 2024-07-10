@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include <boardid.h>
 #include <console/console.h>
 #include <gpio.h>
@@ -47,7 +34,7 @@ static struct rk3288_sdram_params sdram_configs[] = {
 
 _Static_assert(ARRAY_SIZE(sdram_configs) == 24, "Must have 24 sdram_configs!");
 
-const struct rk3288_sdram_params *get_sdram_config()
+const struct rk3288_sdram_params *get_sdram_config(void)
 {
 	u32 ramcode = ram_code();
 

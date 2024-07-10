@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_GPE_H_
 #define _SOC_GPE_H_
@@ -42,7 +29,7 @@
 #define GPE0_DW1_00		32
 #define GPE0_DW1_01		33
 #define GPE0_DW1_02		34
-#define GPE0_DW1_03		36
+#define GPE0_DW1_03		35
 #define GPE0_DW1_04		36
 #define GPE0_DW1_05		37
 #define GPE0_DW1_06		38

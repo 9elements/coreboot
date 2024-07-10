@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/device.h>
 #include <device/pci.h>
@@ -26,12 +13,12 @@ static void sata_init(struct device *dev)
 	/**************************************
 	 * Configure the SATA port multiplier *
 	 **************************************/
-	#define BYTE_TO_DWORD_OFFSET(x) (x/4)
+	#define BYTE_TO_DWORD_OFFSET(x) (x / 4)
 	#define AHCI_BASE_ADDRESS_REG 0x24
 	#define MISC_CONTROL_REG 0x40
-	#define UNLOCK_BIT (1<<0)
+	#define UNLOCK_BIT (1 << 0)
 	#define SATA_CAPABILITIES_REG 0xFC
-	#define CFG_CAP_SPM (1<<12)
+	#define CFG_CAP_SPM (1 << 12)
 
 	volatile u32 *ahci_ptr =
 		(u32*)(pci_read_config32(dev, AHCI_BASE_ADDRESS_REG) & 0xFFFFFF00);
@@ -61,20 +48,19 @@ static struct device_operations sata_ops = {
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = sata_init,
-	.scan_bus = 0,
 	.ops_pci = &lops_pci,
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_AMD_SB900_SATA,
-	PCI_DEVICE_ID_AMD_SB900_SATA_AHCI,
-	PCI_DEVICE_ID_AMD_CZ_SATA,
-	PCI_DEVICE_ID_AMD_CZ_SATA_AHCI,
+	PCI_DID_AMD_SB900_SATA,
+	PCI_DID_AMD_SB900_SATA_AHCI,
+	PCI_DID_AMD_CZ_SATA,
+	PCI_DID_AMD_CZ_SATA_AHCI,
 	0
 };
 
 static const struct pci_driver sata0_driver __pci_driver = {
 	.ops = &sata_ops,
-	.vendor = PCI_VENDOR_ID_AMD,
+	.vendor = PCI_VID_AMD,
 	.devices = pci_device_ids,
 };

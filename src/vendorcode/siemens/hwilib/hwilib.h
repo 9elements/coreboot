@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SIEMENS_HWI_LIB_H_
 #define SIEMENS_HWI_LIB_H_
@@ -131,11 +118,11 @@ typedef enum {
 /* Use this function to find all supported blocks in cbfs. It must be called
  * once with a valid cbfs file name before hwilib_get_field() can be used.
  */
-enum cb_err hwilib_find_blocks (const char *hwi_filename);
+enum cb_err hwilib_find_blocks(const char *hwi_filename);
 
 /* Use this function to get fields out of supported info blocks
  * This function returns the number of copied bytes or 0 on error.
  */
-uint32_t hwilib_get_field (hwinfo_field_t field, uint8_t *data, uint32_t maxlen);
+size_t hwilib_get_field(hwinfo_field_t field, uint8_t *dst, size_t dstsize);
 
 #endif /* SIEMENS_HWI_LIB_H_ */

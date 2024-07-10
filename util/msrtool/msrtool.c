@@ -1,17 +1,4 @@
-/*
- * This file is part of msrtool.
- *
- * Copyright (c) 2008 Peter Stuge <peter@stuge.se>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,7 +87,7 @@ static void *add_target(const struct targetdef *t) {
 	return targets;
 }
 
-static int found_system() {
+static int found_system(void) {
 	if (!sys || (sys && !sys->name)) {
 		fprintf(stderr, "Unable to detect the current operating system!\n");
 		fprintf(stderr, "On Linux, please run 'modprobe msr' and try again.\n");

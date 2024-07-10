@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
 #include <console/console.h>
@@ -20,7 +7,7 @@
 
 static void disable_platform_hierarchy(void *unused)
 {
-	int ret;
+	tpm_result_t rc;
 
 	if (!CONFIG(TPM2))
 		return;
@@ -28,17 +15,17 @@ static void disable_platform_hierarchy(void *unused)
 	if (!CONFIG(RESUME_PATH_SAME_AS_BOOT))
 		return;
 
-	ret = tlcl_lib_init();
+	rc = tlcl_lib_init();
 
-	if (ret != VB2_SUCCESS) {
-		printk(BIOS_ERR, "tlcl_lib_init() failed: %x\n", ret);
+	if (rc != TPM_SUCCESS) {
+		printk(BIOS_ERR, "tlcl_lib_init() failed: %#x\n", rc);
 		return;
 	}
 
-	ret = tlcl_disable_platform_hierarchy();
-	if (ret != TPM_SUCCESS)
-		printk(BIOS_ERR, "Platform hierarchy disablement failed: %x\n",
-			ret);
+	rc = tlcl_disable_platform_hierarchy();
+	if (rc != TPM_SUCCESS)
+		printk(BIOS_ERR, "Platform hierarchy disablement failed: %#x\n",
+			rc);
 }
 
 BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, disable_platform_hierarchy,

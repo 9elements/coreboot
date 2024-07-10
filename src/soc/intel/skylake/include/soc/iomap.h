@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_IOMAP_H_
 #define _SOC_IOMAP_H_
@@ -49,8 +35,6 @@
 #define VTVC0_BASE_ADDRESS	0xfed91000
 #define VTVC0_BASE_SIZE		0x1000
 
-#define HPET_BASE_ADDRESS	0xfed00000
-
 #define PCH_PWRM_BASE_ADDRESS	0xfe000000
 #define PCH_PWRM_BASE_SIZE	0x10000
 
@@ -62,6 +46,9 @@
 #define HECI1_BASE_ADDRESS	0xfed1a000
 
 #define THERMAL_BASE_ADDRESS	0xfe600000
+
+#define VTD_BASE_ADDRESS	0xFED90000
+#define VTD_BASE_SIZE		0x00004000
 
 /* CPU Trace reserved memory size */
 #define GDXC_MOT_MEMORY_SIZE	(96*MiB)

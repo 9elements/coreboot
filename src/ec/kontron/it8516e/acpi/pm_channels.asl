@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifdef IT8516E_FIRST_DATA
 Device (PM1) {
@@ -44,12 +31,12 @@ Device (PM1) {
 	 */
 	Method (CTK)
 	{
-		Store (EC_READ (0x52), Local0)
-		If (And (Local0, EC_ERROR_MASK)) {
+		Local0 = EC_READ (0x52)
+		If (Local0 & EC_ERROR_MASK) {
 			Return (0)
 		}
-		Multiply (Local0, 10, Local0)	/* Convert to 10th °C */
-		Return (Add (Local0, 2732))	/* Return as 10th Kelvin */
+		Local0 *= 10
+		Return (Local0 + 2732)	/* Return as 10th Kelvin */
 	}
 }
 #endif
@@ -86,26 +73,26 @@ Device (PM2) {
 	Method (CTK)
 	{
 		Acquire (EC_MUTEX, 0xffff)
-		Store (SEND_EC_COMMAND (0x20), Local0) /* GET_CPUTEMP */
-		If (And (Local0, EC_ERROR_MASK)) {
+		Local0 = SEND_EC_COMMAND (0x20) /* GET_CPUTEMP */
+		If (Local0 & EC_ERROR_MASK) {
 			Release (EC_MUTEX)
 			Return (0)
 		}
-		Store (RECV_EC_DATA (), Local0)	/* Temp low byte in 64th °C */
-		If (And (Local0, EC_ERROR_MASK)) {
+		Local0 = RECV_EC_DATA ()	/* Temp low byte in 64th °C */
+		If (Local0 & EC_ERROR_MASK) {
 			Release (EC_MUTEX)
 			Return (0)
 		}
-		Store (RECV_EC_DATA (), Local1)	/* Temp high byte in 64th °C */
-		If (And (Local1, EC_ERROR_MASK)) {
+		Local1 = RECV_EC_DATA ()	/* Temp high byte in 64th °C */
+		If (Local1 & EC_ERROR_MASK) {
 			Release (EC_MUTEX)
 			Return (0)
 		}
 		Release (EC_MUTEX)
 
-		Or (ShiftLeft (Local1, 8), Local0, Local0)
-		Store (Divide (Multiply (Local0, 10), 64), Local0)	/* Convert to 10th °C */
-		Return (Add (Local0, 2732))				/* Return as 10th Kelvin */
+		Local0 |= Local1 << 8
+		Local0 *= 10 / 64				/* Convert to 10th °C */
+		Return (Local0 + 2732)				/* Return as 10th Kelvin */
 	}
 }
 #endif

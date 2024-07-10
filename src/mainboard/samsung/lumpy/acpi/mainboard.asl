@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <mainboard/samsung/lumpy/onboard.h>
 
@@ -22,7 +8,7 @@ Scope (\_SB) {
 		Name(_HID, EisaId("PNP0C0D"))
 		Method(_LID, 0)
 		{
-			Store (\_SB.PCI0.LPCB.EC0.LIDS, \LIDS)
+			\LIDS = \_SB.PCI0.LPCB.EC0.LIDS
 			Return (\LIDS)
 		}
 
@@ -37,9 +23,9 @@ Scope (\_SB) {
 
 	Device (TPAD)
 	{
-		// Report as a Sleep Button device so
-		// Linux will automatically enable for wake
-		Name(_HID, EisaId("PNP0C0E"))
+		Name(_HID, "CYSM0000")
+		Name(_UID, 1)
+		Name(_HRV, 2)
 
 		// Trackpad Wake is GPIO11
 		Name(_PRW, Package() { BOARD_TRACKPAD_WAKE_GPIO, 0x03 })
@@ -47,7 +33,7 @@ Scope (\_SB) {
 		Name(_CRS, ResourceTemplate()
 		{
 			// PIRQF -> GSI21
-			Interrupt (ResourceConsumer, Edge, ActiveLow)
+			Interrupt (ResourceConsumer, Level, ActiveLow, Exclusive, ,, )
 			{
 				BOARD_TRACKPAD_IRQ
 			}

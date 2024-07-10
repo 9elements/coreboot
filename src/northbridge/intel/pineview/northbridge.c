@@ -1,63 +1,39 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2015  Damien Zammit <damien@zamaudio.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/hpet.h>
 #include <cbmem.h>
 #include <console/console.h>
+#include <commonlib/bsd/helpers.h>
+#include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <stdint.h>
 #include <device/device.h>
-#include <device/pci.h>
-#include <stdlib.h>
-#include <cpu/cpu.h>
 #include <boot/tables.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <northbridge/intel/pineview/pineview.h>
-#include <cpu/intel/smm/gen1/smi.h>
+#include <cpu/intel/smm_reloc.h>
+#include <cpu/x86/smm.h>
 
-/* Reserve everything between A segment and 1MB:
+/*
+ * Reserve everything between A segment and 1MB:
  *
  * 0xa0000 - 0xbffff: legacy VGA
  * 0xc0000 - 0xcffff: VGA OPROM (needed by kernel)
  * 0xe0000 - 0xfffff: SeaBIOS, if used, otherwise DMI
  */
-static const int legacy_hole_base_k = 0xa0000 / 1024;
 
 static void add_fixed_resources(struct device *dev, int index)
 {
-	struct resource *resource;
-
-	resource = new_resource(dev, index++);
-	resource->base = (resource_t) 0xfed00000;
-	resource->size = (resource_t) 0x00100000;
-	resource->flags = IORESOURCE_MEM | IORESOURCE_RESERVE |
-		IORESOURCE_FIXED | IORESOURCE_STORED | IORESOURCE_ASSIGNED;
-
-	mmio_resource(dev, index++, legacy_hole_base_k,
-			(0xc0000 >> 10) - legacy_hole_base_k);
-	reserved_ram_resource(dev, index++, 0xc0000 >> 10,
-			(0x100000 - 0xc0000) >> 10);
+	mmio_range(dev, index++, HPET_BASE_ADDRESS, 0x00100000);
+	mmio_from_to(dev, index++, 0xa0000, 0xc0000);
+	reserved_ram_from_to(dev, index++, 0xc0000, 1 * MiB);
 }
 
 static void mch_domain_read_resources(struct device *dev)
 {
 	u64 tom, touud;
-	u32 tomk, tolud, tseg_sizek;
-	u32 pcie_config_base, pcie_config_size, cbmem_topk, delta_cbmem;
+	u32 tolud;
 	u16 index;
-	const u32 top32memk = 4 * (GiB / KiB);
 
 	struct device *mch = pcidev_on_root(0, 0);
 
@@ -74,68 +50,43 @@ static void mch_domain_read_resources(struct device *dev)
 	tolud <<= 16;
 
 	/* Top of Memory - does not account for any UMA */
-	tom = pci_read_config16(mch, TOM) & 0x1ff;
+	tom = pci_read_config16(mch, TOM) & 0x01ff;
 	tom <<= 27;
 
-	printk(BIOS_DEBUG, "TOUUD 0x%llx TOLUD 0x%08x TOM 0x%llx ",
-	       touud, tolud, tom);
-
-	tomk = tolud >> 10;
+	printk(BIOS_DEBUG, "TOUUD 0x%llx TOLUD 0x%08x TOM 0x%llx ", touud, tolud, tom);
 
 	/* Graphics memory */
 	const u16 ggc = pci_read_config16(mch, GGC);
-	const u32 gms_sizek = decode_igd_memory_size((ggc >> 4) & 0xf);
-	printk(BIOS_DEBUG, "%uM UMA", gms_sizek >> 10);
-	tomk -= gms_sizek;
+	const u32 gms_size = decode_igd_memory_size((ggc >> 4) & 0xf) * KiB;
+	printk(BIOS_DEBUG, "%uM UMA", gms_size / MiB);
 
 	/* GTT Graphics Stolen Memory Size (GGMS) */
-	const u32 gsm_sizek = decode_igd_gtt_size((ggc >> 8) & 0xf);
-	printk(BIOS_DEBUG, " and %uM GTT\n", gsm_sizek >> 10);
-	tomk -= gsm_sizek;
+	const u32 gsm_size = decode_igd_gtt_size((ggc >> 8) & 0xf) * KiB;
+	printk(BIOS_DEBUG, " and %uM GTT\n", gsm_size / MiB);
 
-	const u32 tseg_basek = pci_read_config32(mch, TSEG) >> 10;
-	const u32 igd_basek = pci_read_config32(mch, GBSM) >> 10;
-	const u32 gtt_basek = pci_read_config32(mch, BGSM) >> 10;
-
-	/* Subtract TSEG size */
-	tseg_sizek = gtt_basek - tseg_basek;
-	tomk -= tseg_sizek;
-	printk(BIOS_DEBUG, "TSEG decoded, subtracting %dM\n", tseg_sizek >> 10);
-
-	/* cbmem_top can be shifted downwards due to alignment.
-	   Mark the region between cbmem_top and tomk as unusable */
-	cbmem_topk = (uint32_t)cbmem_top() >> 10;
-	delta_cbmem = tomk - cbmem_topk;
-	tomk -= delta_cbmem;
-
-	printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOMK: 0x%xK\n",
-	       delta_cbmem);
+	const u32 igd_base = pci_read_config32(mch, GBSM);
+	const u32 gtt_base = pci_read_config32(mch, BGSM);
 
 	/* Report the memory regions */
-	ram_resource(dev, index++, 0, 640);
-	ram_resource(dev, index++, 768, tomk - 768);
-	reserved_ram_resource(dev, index++, tseg_basek, tseg_sizek);
-	reserved_ram_resource(dev, index++, gtt_basek, gsm_sizek);
-	reserved_ram_resource(dev, index++, igd_basek, gms_sizek);
-	reserved_ram_resource(dev, index++, cbmem_topk, delta_cbmem);
+	ram_range(dev, index++, 0, 0xa0000);
+	ram_from_to(dev, index++, 1 * MiB, (uintptr_t)cbmem_top());
+	uintptr_t tseg_base;
+	size_t tseg_size;
+	smm_region(&tseg_base, &tseg_size);
+	mmio_range(dev, index++, tseg_base, tseg_size);
+	mmio_range(dev, index++, gtt_base,  gsm_size);
+	mmio_range(dev, index++, igd_base,  gms_size);
+	printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOM: 0x%lx\n",
+	       tseg_base - (uintptr_t)cbmem_top());
+	reserved_ram_from_to(dev, index++, (uintptr_t)cbmem_top(), tseg_base);
 
 	/*
 	 * If > 4GB installed then memory from TOLUD to 4GB
 	 * is remapped above TOM, TOUUD will account for both
 	 */
-	touud >>= 10; /* Convert to KB */
-	if (touud > top32memk) {
-		ram_resource(dev, index++, top32memk, touud - top32memk);
-		printk(BIOS_INFO, "Available memory above 4GB: %lluM\n",
-		       (touud - top32memk) >> 10);
-	}
+	upper_ram_end(dev, index++, touud);
 
-	if (decode_pciebar(&pcie_config_base, &pcie_config_size)) {
-		printk(BIOS_DEBUG, "Adding PCIe config bar base=0x%08x "
-			"size=0x%x\n", pcie_config_base, pcie_config_size);
-		fixed_mem_resource(dev, index++, pcie_config_base >> 10,
-			pcie_config_size >> 10, IORESOURCE_RESERVE);
-	}
+	mmconf_resource(dev, index++);
 
 	add_fixed_resources(dev, index);
 }
@@ -144,7 +95,7 @@ void northbridge_write_smram(u8 smram)
 {
 	struct device *dev = pcidev_on_root(0, 0);
 
-	if (dev == NULL)
+	if (!dev)
 		die("could not find pci 00:00.0!\n");
 
 	pci_write_config8(dev, SMRAM, smram);
@@ -157,17 +108,13 @@ static void mch_domain_set_resources(struct device *dev)
 	for (res = dev->resource_list; res; res = res->next)
 		report_resource_stored(dev, res, "");
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void mch_domain_init(struct device *dev)
 {
-	u32 reg32;
-
 	/* Enable SERR */
-	reg32 = pci_read_config32(dev, PCI_COMMAND);
-	reg32 |= PCI_COMMAND_SERR;
-	pci_write_config32(dev, PCI_COMMAND, reg32);
+	pci_or_config16(dev, PCI_COMMAND, PCI_COMMAND_SERR);
 }
 
 static const char *northbridge_acpi_name(const struct device *dev)
@@ -175,7 +122,7 @@ static const char *northbridge_acpi_name(const struct device *dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN)
 		return "PCI0";
 
-	if (dev->path.type != DEVICE_PATH_PCI || dev->bus->secondary != 0)
+	if (!is_pci_dev_on_bus(dev, 0))
 		return NULL;
 
 	switch (dev->path.pci.devfn) {
@@ -187,26 +134,19 @@ static const char *northbridge_acpi_name(const struct device *dev)
 }
 
 static struct device_operations pci_domain_ops = {
-	.read_resources   = mch_domain_read_resources,
-	.set_resources    = mch_domain_set_resources,
-	.init             = mch_domain_init,
-	.scan_bus         = pci_domain_scan_bus,
-	.acpi_fill_ssdt_generator = generate_cpu_entries,
-	.acpi_name        = northbridge_acpi_name,
+	.read_resources	= mch_domain_read_resources,
+	.set_resources	= mch_domain_set_resources,
+	.init		= mch_domain_init,
+	.scan_bus	= pci_host_bridge_scan_bus,
+	.acpi_fill_ssdt	= generate_cpu_entries,
+	.acpi_name	= northbridge_acpi_name,
 };
-
-static void cpu_bus_init(struct device *dev)
-{
-	bsp_init_and_start_aps(dev->link_list);
-}
 
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = DEVICE_NOOP,
-	.set_resources    = DEVICE_NOOP,
-	.enable_resources = DEVICE_NOOP,
-	.init             = cpu_bus_init,
+	.read_resources   = noop_read_resources,
+	.set_resources    = noop_set_resources,
+	.init             = mp_cpu_bus_init,
 };
-
 
 static void enable_dev(struct device *dev)
 {
@@ -219,6 +159,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations northbridge_intel_pineview_ops = {
-	CHIP_NAME("Intel Pineview Northbridge")
+	.name = "Intel Pineview Northbridge",
 	.enable_dev = enable_dev,
 };

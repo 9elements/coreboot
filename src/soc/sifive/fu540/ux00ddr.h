@@ -1,4 +1,3 @@
-/* Copyright (c) 2018 SiFive, Inc */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* See the file LICENSE for further information */
@@ -48,10 +47,9 @@ static inline void phy_reset(volatile uint32_t *ddrphyreg, const uint32_t *physe
   }
 }
 
-
 static inline void ux00ddr_writeregmap(size_t ahbregaddr, const uint32_t *ctlsettings, const uint32_t *physettings) {
-  volatile uint32_t *ddrctlreg = (volatile uint32_t *) ahbregaddr;
-  volatile uint32_t *ddrphyreg = ((volatile uint32_t *) ahbregaddr) + (0x2000 / sizeof(uint32_t));
+  volatile uint32_t *ddrctlreg = (volatile uint32_t *)ahbregaddr;
+  volatile uint32_t *ddrphyreg = ((volatile uint32_t *)ahbregaddr) + (0x2000 / sizeof(uint32_t));
 
   unsigned int i;
   for (i=0;i<=264;i++) {
@@ -84,14 +82,14 @@ static inline void ux00ddr_mask_mc_init_complete_interrupt(size_t ahbregaddr) {
 
 static inline void ux00ddr_mask_outofrange_interrupts(size_t ahbregaddr) {
   // Mask off Bit 8, Bit 2 and Bit 1 of Interrupt Status
-  // Bit [2] Multiple accesses outside the defined PHYSICAL memory space have occured
-  // Bit [1] A memory access outside the defined PHYSICAL memory space has occured
+  // Bit [2] Multiple accesses outside the defined PHYSICAL memory space have occurred
+  // Bit [1] A memory access outside the defined PHYSICAL memory space has occurred
   _REG32(136<<2, ahbregaddr) |= ((1<<OUT_OF_RANGE_OFFSET) | (1<<MULTIPLE_OUT_OF_RANGE_OFFSET));
 }
 
 static inline void ux00ddr_mask_port_command_error_interrupt(size_t ahbregaddr) {
   // Mask off Bit 7 of Interrupt Status
-  // Bit [7] An error occured on the port command channel
+  // Bit [7] An error occurred on the port command channel
   _REG32(136<<2, ahbregaddr) |= (1<<PORT_COMMAND_CHANNEL_ERROR_OFFSET);
 }
 
@@ -104,7 +102,7 @@ static inline void ux00ddr_mask_leveling_completed_interrupt(size_t ahbregaddr) 
 static inline void ux00ddr_setuprangeprotection(size_t ahbregaddr, size_t end_addr) {
   _REG32(209<<2, ahbregaddr) = 0x0;
   size_t end_addr_16Kblocks = ((end_addr >> 14) & 0x7FFFFF)-1;
-  _REG32(210<<2, ahbregaddr) = ((uint32_t) end_addr_16Kblocks);
+  _REG32(210<<2, ahbregaddr) = ((uint32_t)end_addr_16Kblocks);
   _REG32(212<<2, ahbregaddr) = 0x0;
   _REG32(214<<2, ahbregaddr) = 0x0;
   _REG32(216<<2, ahbregaddr) = 0x0;
@@ -150,9 +148,9 @@ static inline uint64_t ux00ddr_phy_fixup(size_t ahbregaddr) {
 
   size_t ddrphyreg = ahbregaddr + 0x2000;
 
-  uint64_t fails=0;
+  // uint64_t fails=0;
   uint32_t slicebase = 0;
-  uint32_t dq = 0;
+  // uint32_t dq = 0;
 
   // check errata condition
   for (uint32_t slice = 0; slice < 8; slice++) {
@@ -177,11 +175,11 @@ static inline uint64_t ux00ddr_phy_fixup(size_t ahbregaddr) {
         // print error message on failure
         if (failc0 || failc1) {
           //if (fails==0) uart_puts((void*) UART0_CTRL_ADDR, "DDR error in fixing up \n");
-          fails |= (1<<dq);
-          char slicelsc = '0';
-          char slicemsc = '0';
-          slicelsc += (dq % 10);
-          slicemsc += (dq / 10);
+          //fails |= (1<<dq);
+          /* char slicelsc = '0'; */
+          /* char slicemsc = '0'; */
+          /* slicelsc += (dq % 10); */
+          /* slicemsc += (dq / 10); */
           //uart_puts((void*) UART0_CTRL_ADDR, "S ");
           //uart_puts((void*) UART0_CTRL_ADDR, &slicemsc);
           //uart_puts((void*) UART0_CTRL_ADDR, &slicelsc);
@@ -189,7 +187,7 @@ static inline uint64_t ux00ddr_phy_fixup(size_t ahbregaddr) {
           //else uart_puts((void*) UART0_CTRL_ADDR, "D");
           //uart_puts((void*) UART0_CTRL_ADDR, "\n");
         }
-        dq++;
+        //dq++;
       }
     }
     slicebase+=128;

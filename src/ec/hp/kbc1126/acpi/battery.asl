@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Iru Cai <mytbk920423@gmail.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Field (ECRM, ByteAcc, NoLock, Preserve)
 {
@@ -56,8 +42,12 @@ Mutex (BTMX, 0x00)
 
 Method (ITLB, 0, NotSerialized)
 {
-	Divide ((NLB1 + 0x09), 0x0A, Local0, Local1)
-	Divide ((0x96 + 0x09), 0x0A, Local0, Local2)
+	Local0 = (NLB1 + 9) % 0x0a
+	Local1 = (NLB1 + 9) / 0x0a
+
+	Local0 = (0x96 + 9) % 0x0a
+	Local2 = (0x96 + 9) / 0x0a
+
 	Local0 = Local0
 	LB1 = Local1
 	LB2 = Local2
@@ -243,8 +233,9 @@ Method (\ISTR, 2, Serialized)
 	While (Local1)
 	{
 		Local1--
-		Divide (Local0, 10, Local2, Local0)
-		Add (Local2, 48, Index (NUMB, Local1))
+		Local2 = Local0 % 10
+		Local0 = Local0 / 10
+		NUMB[Local1] = Local2 + 48
 	}
 	ToString (NUMB, Arg1, Local3)
 	Return (Local3)
@@ -451,7 +442,7 @@ Method (SBTN, 2, Serialized)
 
 Method (_Q03, 0, NotSerialized)
 {
-	Store ("EC: _Q03", Debug)
+	Printf ("EC: _Q03")
 	Acquire (BTMX, 0xFFFF)
 	Local0 = NDCB
 	Release (BTMX)
@@ -461,7 +452,7 @@ Method (_Q03, 0, NotSerialized)
 
 Method (_Q08, 0, NotSerialized)
 {
-	Store ("EC: PRIMARY BATTERY ATTACHED/DETACHED", Debug)
+	Printf ("EC: PRIMARY BATTERY ATTACHED/DETACHED")
 	PWUP (0x06, 0x01)
 	Local0 = GBAP ()
 	If ((Local0 != 0x02))
@@ -481,7 +472,7 @@ Method (_Q08, 0, NotSerialized)
 
 Method (_Q09, 0, NotSerialized)
 {
-	Store ("EC: PRIMARY BATTERY STATUS", Debug)
+	Printf ("EC: PRIMARY BATTERY STATUS")
 	PWUP (0x04, 0x01)
 	If (BTDR (0x02))
 	{
@@ -491,7 +482,7 @@ Method (_Q09, 0, NotSerialized)
 
 Method (_Q18, 0, NotSerialized)
 {
-	Store("EC: SECONDARY BATTERY ATTACHED/DETACHED", Debug)
+	Printf ("EC: SECONDARY BATTERY ATTACHED/DETACHED")
 	PWUP (0x06, 0x02)
 	Local0 = GBAP ()
 	If ((Local0 != 0x01))
@@ -511,7 +502,7 @@ Method (_Q18, 0, NotSerialized)
 
 Method (_Q19, 0, NotSerialized)
 {
-	Store ("EC: SECONDARY BATTERY STATUS", Debug)
+	Printf ("EC: SECONDARY BATTERY STATUS")
 	PWUP (0x04, 0x02)
 	If (BTDR (0x02))
 	{

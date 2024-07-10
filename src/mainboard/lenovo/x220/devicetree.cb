@@ -1,49 +1,46 @@
 chip northbridge/intel/sandybridge
 	# IGD Displays
-	register "gfx.ndid" = "3"
-	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
+	register "gfx" = "GMA_STATIC_DISPLAYS(1)"
 
 	# Enable DisplayPort Hotplug with 6ms pulse
 	register "gpu_dp_d_hotplug" = "0x06"
 
 	# Enable Panel as LVDS and configure power delays
-	register "gpu_panel_port_select" = "0"			# LVDS
+	register "gpu_panel_port_select" = "PANEL_PORT_LVDS"
 	register "gpu_panel_power_cycle_delay" = "5"
 	register "gpu_panel_power_up_delay" = "300"		# T1+T2: 30ms
 	register "gpu_panel_power_down_delay" = "300"		# T5+T6: 30ms
 	register "gpu_panel_power_backlight_on_delay" = "2000"	# T3: 200ms
 	register "gpu_panel_power_backlight_off_delay" = "2000"	# T4: 200ms
-	register "gfx.use_spread_spectrum_clock" = "1"
-	register "gfx.link_frequency_270_mhz" = "1"
 	register "gpu_cpu_backlight" = "0x1155"
 	register "gpu_pch_backlight" = "0x06100610"
 
-	device cpu_cluster 0 on
-		chip cpu/intel/model_206ax
-			# Magic APIC ID to locate this chip
-			device lapic 0x0 on end
-			device lapic 0xacac off end
+	register "spd_addresses" = "{0x50, 0, 0x51, 0}"
+	register "ec_present" = "1"		# I have an embedded controller
+	register "max_mem_clock_mhz" = "666"	# So DDR3 freq = 1333
 
-			register "c1_acpower" = "1"	# ACPI(C1) = MWAIT(C1)
-			register "c2_acpower" = "3"	# ACPI(C2) = MWAIT(C3)
-			register "c3_acpower" = "5"	# ACPI(C3) = MWAIT(C7)
-
-			register "c1_battery" = "1"	# ACPI(C1) = MWAIT(C1)
-			register "c2_battery" = "3"	# ACPI(C2) = MWAIT(C3)
-			register "c3_battery" = "5"	# ACPI(C3) = MWAIT(C7)
-		end
-	end
-
-	register "pci_mmio_size" = "1024"
+	register "usb_port_config" = "{
+		{ 1, 0, 0x0040 },
+		{ 1, 1, 0x0080 },
+		{ 1, 3, 0x0080 },
+		{ 1, 3, 0x0080 },
+		{ 1, 0, 0x0080 },
+		{ 1, 0, 0x0080 },
+		{ 1, 2, 0x0040 },
+		{ 1, 2, 0x0040 },
+		{ 1, 6, 0x0080 },
+		{ 1, 5, 0x0080 },
+		{ 1, 6, 0x0080 },
+		{ 1, 6, 0x0080 },
+		{ 1, 7, 0x0080 },
+		{ 1, 6, 0x0080 },}"
 
 	device domain 0 on
-		device pci 00.0 on
-			subsystemid 0x17aa 0x21db
-		end # host bridge
-		device pci 01.0 off end # PCIe Bridge for discrete graphics
-		device pci 02.0 on
-			subsystemid 0x17aa 0x21db
-		end # vga controller
+		subsystemid 0x17aa 0x21db inherit
+
+		device ref host_bridge on end
+		device ref peg10 off end
+		device ref igd on end
 
 		chip southbridge/intel/bd82x6x # Intel Series 6 Cougar Point PCH
 			# GPI routing
@@ -66,66 +63,46 @@ chip northbridge/intel/sandybridge
 			register "pcie_hotplug_map" = "{ 0, 0, 0, 1, 0, 0, 0, 0 }"
 
 			# Enable zero-based linear PCIe root port functions
-			register "pcie_port_coalesce" = "1"
-
-			register "c2_latency" = "101"  # c2 not supported
-			register "p_cnt_throttling_supported" = "1"
+			register "pcie_port_coalesce" = "true"
 
 			register "spi_uvscc" = "0x2005"
 			register "spi_lvscc" = "0x2005"
 
-			device pci 16.0 off end # Management Engine Interface 1
-			device pci 16.1 off end # Management Engine Interface 2
-			device pci 16.2 off end # Management Engine IDE-R
-			device pci 16.3 off end # Management Engine KT
-			device pci 19.0 on
+			device ref mei1 on  end
+			device ref mei2 off end
+			device ref me_ide_r off end
+			device ref me_kt off end
+			device ref gbe on
 				subsystemid 0x17aa 0x21ce
-			end # Intel Gigabit Ethernet
-			device pci 1a.0 on
-				subsystemid 0x17aa 0x21db
-			end # USB2 EHCI #2
-			device pci 1b.0 on
-				subsystemid 0x17aa 0x21db
-			end # High Definition Audio
-			device pci 1c.0 on
-				subsystemid 0x17aa 0x21db
-			end # PCIe Port #1
-			device pci 1c.1 on
-				subsystemid 0x17aa 0x21db
-			end # PCIe Port #2 (wlan)
-			device pci 1c.2 on
-				subsystemid 0x17aa 0x21db
-			end # PCIe Port #3
-			device pci 1c.3 on
-				subsystemid 0x17aa 0x21db
+			end
+			device ref ehci2 on end
+			device ref hda on end
+			device ref pcie_rp1 off end
+			device ref pcie_rp2 on
+				smbios_slot_desc "SlotTypeM2Socket1_SD" "SlotLengthShort"
+					"WIFI" "SlotDataBusWidth1X"
+			end
+			device ref pcie_rp3 off end
+			device ref pcie_rp4 on
 				smbios_slot_desc "7" "3" "ExpressCard Slot" "8"
-			end # PCIe Port #4
-			device pci 1c.4 on
-				subsystemid 0x17aa 0x21db
+			end
+			device ref pcie_rp5 on
 				chip drivers/ricoh/rce822
 					register "sdwppol" = "1"
 					register "disable_mask" = "0x87"
-					device pci 00.0 on
-						subsystemid 0x17aa 0x21fa
-					end
+					device pci 00.0 on end
 				end
-			end # PCIe Port #5 (SD)
-			device pci 1c.5 off end # PCIe Port #6
-			device pci 1c.6 on
-				subsystemid 0x17aa 0x21db
-			end # PCIe Port #7
-			device pci 1c.7 off end # PCIe Port #8
-			device pci 1d.0 on
-				subsystemid 0x17aa 0x21db
-			end # USB2 EHCI #1
-			device pci 1e.0 off end # PCI bridge
-			device pci 1f.0 on #LPC bridge
-				subsystemid 0x17aa 0x21db
+			end
+			device ref pcie_rp6 off end
+			device ref pcie_rp7 on end # Optional XHCI controller
+			device ref pcie_rp8 off end
+			device ref ehci1 on end
+			device ref pci_bridge off end
+			device ref lpc on
 				chip ec/lenovo/pmh7
-					device pnp ff.1 on # dummy
-					end
-					register "backlight_enable" = "0x01"
-					register "dock_event_enable" = "0x01"
+					device pnp ff.1 on end # dummy
+					register "backlight_enable" = "true"
+					register "dock_event_enable" = "true"
 				end
 
 				chip drivers/pc80/tpm
@@ -172,12 +149,9 @@ chip northbridge/intel/sandybridge
 					register "wwan_gpio_num" = "70"
 					register "wwan_gpio_lvl" = "0"
 				end
-			end # LPC bridge
-			device pci 1f.2 on
-				subsystemid 0x17aa 0x21db
-			end # SATA Controller 1
-			device pci 1f.3 on
-				subsystemid 0x17aa 0x21db
+			end
+			device ref sata1 on end
+			device ref smbus on
 				# eeprom, 8 virtual devices, same chip
 				chip drivers/i2c/at24rf08c
 					device i2c 54 on end
@@ -189,11 +163,9 @@ chip northbridge/intel/sandybridge
 					device i2c 5e on end
 					device i2c 5f on end
 				end
-			end # SMBus
-			device pci 1f.5 off end # SATA Controller 2
-			device pci 1f.6 on
-				subsystemid 0x17aa 0x21db
-			end # Thermal
+			end
+			device ref sata2 off end
+			device ref thermal on end
 		end
 	end
 end

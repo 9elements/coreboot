@@ -1,18 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016-2019 Kyösti Mälkki
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/x86/lapic.h>
 #include <console/console.h>
 #include <stdint.h>
 #include <string.h>
@@ -40,69 +28,69 @@ static const struct agesa_mapping entrypoint[] = {
 		.func = AMD_INIT_RESET,
 		.name = "AmdInitReset",
 		.entry_id = TS_AGESA_INIT_RESET_START,
-		.exit_id = TS_AGESA_INIT_RESET_DONE,
+		.exit_id = TS_AGESA_INIT_RESET_END,
 	},
 	{
 		.func = AMD_INIT_EARLY,
 		.name = "AmdInitEarly",
 		.entry_id = TS_AGESA_INIT_EARLY_START,
-		.exit_id = TS_AGESA_INIT_EARLY_DONE,
+		.exit_id = TS_AGESA_INIT_EARLY_END,
 	},
 	{
 		.func = AMD_INIT_POST,
 		.name = "AmdInitPost",
 		.entry_id = TS_AGESA_INIT_POST_START,
-		.exit_id = TS_AGESA_INIT_POST_DONE,
+		.exit_id = TS_AGESA_INIT_POST_END,
 	},
 	{
 		.func = AMD_INIT_RESUME,
 		.name = "AmdInitResume",
 		.entry_id = TS_AGESA_INIT_RESUME_START,
-		.exit_id = TS_AGESA_INIT_RESUME_DONE,
+		.exit_id = TS_AGESA_INIT_RESUME_END,
 	},
 	{
 		.func = AMD_INIT_ENV,
 		.name = "AmdInitEnv",
 		.entry_id = TS_AGESA_INIT_ENV_START,
-		.exit_id = TS_AGESA_INIT_ENV_DONE,
+		.exit_id = TS_AGESA_INIT_ENV_END,
 	},
 	{
 		.func = AMD_INIT_MID,
 		.name = "AmdInitMid",
 		.entry_id = TS_AGESA_INIT_MID_START,
-		.exit_id = TS_AGESA_INIT_MID_DONE,
+		.exit_id = TS_AGESA_INIT_MID_END,
 	},
 	{
 		.func = AMD_INIT_LATE,
 		.name = "AmdInitLate",
 		.entry_id = TS_AGESA_INIT_LATE_START,
-		.exit_id = TS_AGESA_INIT_LATE_DONE,
+		.exit_id = TS_AGESA_INIT_LATE_END,
 	},
 	{
 		.func = AMD_S3LATE_RESTORE,
 		.name = "AmdS3LateRestore",
 		.entry_id = TS_AGESA_S3_LATE_START,
-		.exit_id = TS_AGESA_S3_LATE_DONE,
+		.exit_id = TS_AGESA_S3_LATE_END,
 	},
 #if !defined(AMD_S3_SAVE_REMOVED)
 	{
 		.func = AMD_S3_SAVE,
 		.name = "AmdS3Save",
 		.entry_id = TS_AGESA_INIT_RTB_START,
-		.exit_id = TS_AGESA_INIT_RTB_DONE,
+		.exit_id = TS_AGESA_INIT_RTB_END,
 	},
 #endif
 	{
 		.func = AMD_S3FINAL_RESTORE,
 		.name = "AmdS3FinalRestore",
 		.entry_id = TS_AGESA_S3_FINAL_START,
-		.exit_id = TS_AGESA_S3_FINAL_DONE,
+		.exit_id = TS_AGESA_S3_FINAL_END,
 	},
 	{
 		.func = AMD_INIT_RTB,
 		.name = "AmdInitRtb",
 		.entry_id = TS_AGESA_INIT_RTB_START,
-		.exit_id = TS_AGESA_INIT_RTB_DONE,
+		.exit_id = TS_AGESA_INIT_RTB_END,
 	},
 };
 
@@ -110,7 +98,7 @@ void agesa_state_on_entry(struct agesa_state *task, AGESA_STRUCT_NAME func)
 {
 	int i;
 
-	task->apic_id = (u8) (cpuid_ebx(1) >> 24);
+	task->apic_id = (u8)initial_lapicid();
 	task->func = func;
 	task->function_name = undefined;
 
@@ -163,13 +151,13 @@ static const char *decodeAGESA_STATUS(AGESA_STATUS sret)
 
 static void show_event(EVENT_PARAMS *Event)
 {
-	printk(BIOS_DEBUG,"\nEventLog:  EventClass = %x, EventInfo = %x.\n",
+	printk(BIOS_DEBUG, "\nEventLog:  EventClass = %x, EventInfo = %x.\n",
 			(unsigned int)Event->EventClass,
 			(unsigned int)Event->EventInfo);
-	printk(BIOS_DEBUG,"  Param1 = %x, Param2 = %x.\n",
+	printk(BIOS_DEBUG, "  Param1 = %x, Param2 = %x.\n",
 			(unsigned int)Event->DataParam1,
 			(unsigned int)Event->DataParam2);
-	printk(BIOS_DEBUG,"  Param3 = %x, Param4 = %x.\n",
+	printk(BIOS_DEBUG, "  Param3 = %x, Param4 = %x.\n",
 			(unsigned int)Event->DataParam3,
 			(unsigned int)Event->DataParam4);
 }
@@ -182,11 +170,7 @@ static void amd_flush_eventlog(EVENT_PARAMS *Event)
 
 	do {
 		AGESA_STATUS status;
-#if HAS_LEGACY_WRAPPER
-		status = AmdReadEventLog(Event);
-#else
 		status = module_dispatch(AMD_READ_EVENT_LOG, &Event->StdHeader);
-#endif
 		if (status != AGESA_SUCCESS)
 			return;
 		if (Event->EventClass == 0)
@@ -205,21 +189,12 @@ void agesawrapper_trace(AGESA_STATUS ret, AMD_CONFIG_PARAMS *StdHeader,
 		return;
 
 	memset(&AmdEventParams, 0, sizeof(EVENT_PARAMS));
-
-	if (HAS_LEGACY_WRAPPER) {
-		AmdEventParams.StdHeader.AltImageBasePtr = 0;
-		AmdEventParams.StdHeader.CalloutPtr = &GetBiosCallout;
-		AmdEventParams.StdHeader.Func = 0;
-		AmdEventParams.StdHeader.ImageBasePtr = 0;
-		AmdEventParams.StdHeader.HeapStatus = StdHeader->HeapStatus;
-	} else {
-		memcpy(&AmdEventParams.StdHeader, StdHeader, sizeof(*StdHeader));
-	}
+	memcpy(&AmdEventParams.StdHeader, StdHeader, sizeof(*StdHeader));
 
 	amd_flush_eventlog(&AmdEventParams);
 }
 
-AGESA_STATUS agesawrapper_amdreadeventlog (UINT8 HeapStatus)
+AGESA_STATUS agesawrapper_amdreadeventlog(UINT8 HeapStatus)
 {
 	EVENT_PARAMS AmdEventParams;
 

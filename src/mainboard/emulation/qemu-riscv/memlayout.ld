@@ -1,32 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <memlayout.h>
 #include <arch/header.ld>
 #include <mainboard/addressmap.h>
 
-//Stages start after CBFS in DRAM
-#define STAGES_START (QEMU_VIRT_DRAM + CONFIG_ROM_SIZE)
-
 SECTIONS
 {
+	REGION(flash, QEMU_VIRT_FLASH, CONFIG_ROM_SIZE, 0) \
+
 	DRAM_START(QEMU_VIRT_DRAM)
-	BOOTBLOCK(QEMU_VIRT_DRAM, 64K)
-	// CBFS goes here
-	STACK(STAGES_START, 4K)
-	ROMSTAGE(STAGES_START + 64K, 128K)
-	PRERAM_CBMEM_CONSOLE(STAGES_START + 192K, 8K)
-	RAMSTAGE(STAGES_START + 200K, 16M)
+	BOOTBLOCK(QEMU_VIRT_DRAM, 128K)
+	OPENSBI(QEMU_VIRT_DRAM + 128K, 256K)
+	ROMSTAGE(QEMU_VIRT_DRAM + 128K + 256K, 256K)
+	RAMSTAGE(QEMU_VIRT_DRAM + 128K + 256K + 256K, 2M)
+	PRERAM_CBMEM_CONSOLE(QEMU_VIRT_DRAM + 128K + 256K + 256K + 2M,  8K)
+	FMAP_CACHE(QEMU_VIRT_DRAM + 128K + 256K + 256K + 2M + 8K,  2K)
+	CBFS_MCACHE(QEMU_VIRT_DRAM + 128K + 256K + 256K + 2M + 8K + 2K,  10K)
+	STACK(QEMU_VIRT_DRAM + 128K + 256K + 256K + 2M + 8K + 2K + 10K, 4M)
 }

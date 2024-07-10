@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/x86/acpi/statdef.asl>
 
@@ -22,13 +11,13 @@ Scope(\_TZ)
 
 	Method(C2K, 1, NotSerialized)
 	{
-		Multiply(Arg0, 10, Local0)
-		Add (Local0, 2732, Local0)
-		if (LLessEqual(Local0, 2732)) {
+		Local0 = Arg0 * 10
+		Local0 += 2732
+		if (Local0 <= 2732) {
 			Return (3000)
 		}
 
-		if (LGreater(Local0, 4012)) {
+		if (Local0 > 4012) {
 			Return (3000)
 		}
 		Return (Local0)
@@ -57,8 +46,8 @@ External (\PPKG, MethodObj)
 
 		/* Get critical temperature in degree celsius */
 		Method (GCRT, 0, NotSerialized) {
-			Store (\TCRT, Local0)
-			if (LGreater (Local0, 0)) {
+			Local0 = \TCRT
+			if (Local0 > 0) {
 				Return (Local0)
 			}
 			Return (127)
@@ -66,8 +55,8 @@ External (\PPKG, MethodObj)
 
 		/* Get passive temperature in degree celsius */
 		Method (GPSV, 0, NotSerialized) {
-			Store (\TPSV, Local0)
-			if (LGreater (Local0, 0)) {
+			Local0 = \TPSV
+			if (Local0 > 0) {
 				Return (Local0)
 			}
 			Return (95)
@@ -84,23 +73,23 @@ External (\PPKG, MethodObj)
 		Method(_TMP) {
 #if defined(EC_LENOVO_H8_ME_WORKAROUND)
 			/* Avoid tripping alarm if ME isn't booted at all yet */
-			If (LAnd (LNot (MEB1), LEqual (\_SB.PCI0.LPCB.EC.TMP0, 128))) {
+			If (!MEB1 && \_SB.PCI0.LPCB.EC.TMP0 == 128) {
 				Return (C2K(40))
 			}
-			Store (1, MEB1)
+			MEB1 = 1
 #endif
 			Return (C2K(\_SB.PCI0.LPCB.EC.TMP0))
 		}
 
 		Method (_AC0) {
-			Store (GPSV (), Local0)
+			Local0 = GPSV ()
 
 			/* Active fan 10 degree below passive threshold */
-			Subtract (Local0, 10, Local0)
+			Local0 -= 10
 
 			If (\FLVL) {
 				/* Turn of 5 degree below trip point */
-				Subtract (Local0, 5, Local0)
+				Local0 -= 5
 			}
 
 			Return (C2K (Local0))
@@ -108,7 +97,7 @@ External (\PPKG, MethodObj)
 
 		Name (_AL0, Package () { FAN })
 
-		PowerResource (FPwR, 0, 0)
+		PowerResource (FPWR, 0, 0)
 		{
 			/*
 			 * WINDOWS BUG: Don't read from EmbeddedControl
@@ -123,14 +112,14 @@ External (\PPKG, MethodObj)
 			 * in another ACPI scope. Call a method that does it!
 			 */
 			Method (_ON) {
-				\_SB.PCI0.LPCB.EC.FANE(One)
-				Store (One, \FLVL)
+				\_SB.PCI0.LPCB.EC.FANE(1)
+				\FLVL = 1
 				Notify (\_TZ.THM0, NOTIFY_TZ_TRIPPTCHG)
 			}
 
 			Method (_OFF) {
-				\_SB.PCI0.LPCB.EC.FANE(Zero)
-				Store (Zero, \FLVL)
+				\_SB.PCI0.LPCB.EC.FANE(0)
+				\FLVL = 0
 				Notify (\_TZ.THM0, NOTIFY_TZ_TRIPPTCHG)
 			}
 		}
@@ -138,7 +127,7 @@ External (\PPKG, MethodObj)
 		Device (FAN)
 		{
 			Name (_HID, EISAID ("PNP0C0B"))
-			Name (_PR0, Package () { FPwR })
+			Name (_PR0, Package () { FPWR })
 		}
 	}
 
@@ -171,10 +160,10 @@ External (\PPKG, MethodObj)
 		Method(_TMP) {
 #if defined(EC_LENOVO_H8_ME_WORKAROUND)
 			/* Avoid tripping alarm if ME isn't booted at all yet */
-			If (LAnd (LNot (MEB2), LEqual (\_SB.PCI0.LPCB.EC.TMP1, 128))) {
+			If (!MEB2 && \_SB.PCI0.LPCB.EC.TMP1 == 128) {
 				Return (C2K(40))
 			}
-			Store (1, MEB2)
+			MEB2 = 1
 #endif
 			Return (C2K(\_SB.PCI0.LPCB.EC.TMP1))
 		}

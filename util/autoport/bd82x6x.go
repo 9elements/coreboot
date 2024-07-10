@@ -41,6 +41,7 @@ func (b bd82x6x) GPIO(ctx Context, inteltool InteltoolData) {
 	gpio := Create(ctx, "gpio.c")
 	defer gpio.Close()
 
+	AddBootBlockFile("gpio.c", "")
 	AddROMStageFile("gpio.c", "")
 
 	Add_gpl(gpio)
@@ -191,10 +192,6 @@ func (b bd82x6x) Scan(ctx Context, addr PCIDevData) {
 		DSDTDefine{
 			Key:   "BRIGHTNESS_DOWN",
 			Value: "\\_SB.PCI0.GFX0.DECB",
-		},
-		DSDTDefine{
-			Key:   "ACPI_VIDEO_DEVICE",
-			Value: "\\_SB.PCI0.GFX0",
 		})
 
 	/* SPI init */
@@ -233,36 +230,34 @@ func (b bd82x6x) Scan(ctx Context, addr PCIDevData) {
 
 			"sata_port_map": fmt.Sprintf("0x%x", PCIMap[PCIAddr{Bus: 0, Dev: 0x1f, Func: 2}].ConfigDump[0x92]&0x3f),
 
-			"p_cnt_throttling_supported": (FormatBool(FADT[104] == 1 && FADT[105] == 3)),
-			"c2_latency":                 FormatHexLE16(FADT[96:98]),
-			"docking_supported":          (FormatBool((FADT[113] & (1 << 1)) != 0)),
-			"spi_uvscc":                  fmt.Sprintf("0x%x", inteltool.RCBA[0x38c8]),
-			"spi_lvscc":                  fmt.Sprintf("0x%x", inteltool.RCBA[0x38c4]&^(1<<23)),
+			"docking_supported": (FormatBool((FADT[113] & (1 << 1)) != 0)),
+			"spi_uvscc":         fmt.Sprintf("0x%x", inteltool.RCBA[0x38c8]),
+			"spi_lvscc":         fmt.Sprintf("0x%x", inteltool.RCBA[0x38c4]&^(1<<23)),
 		},
 		PCISlots: []PCISlot{
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x14, Func: 0}, writeEmpty: false, additionalComment: "USB 3.0 Controller"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 0}, writeEmpty: true, additionalComment: "Management Engine Interface 1"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 1}, writeEmpty: true, additionalComment: "Management Engine Interface 2"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 2}, writeEmpty: true, additionalComment: "Management Engine IDE-R"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 3}, writeEmpty: true, additionalComment: "Management Engine KT"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x19, Func: 0}, writeEmpty: true, additionalComment: "Intel Gigabit Ethernet"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1a, Func: 0}, writeEmpty: true, additionalComment: "USB2 EHCI #2"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1b, Func: 0}, writeEmpty: true, additionalComment: "High Definition Audio"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 0}, writeEmpty: true, additionalComment: "PCIe Port #1"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 1}, writeEmpty: true, additionalComment: "PCIe Port #2"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 2}, writeEmpty: true, additionalComment: "PCIe Port #3"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 3}, writeEmpty: true, additionalComment: "PCIe Port #4"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 4}, writeEmpty: true, additionalComment: "PCIe Port #5"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 5}, writeEmpty: true, additionalComment: "PCIe Port #6"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 6}, writeEmpty: true, additionalComment: "PCIe Port #7"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 7}, writeEmpty: true, additionalComment: "PCIe Port #8"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1d, Func: 0}, writeEmpty: true, additionalComment: "USB2 EHCI #1"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1e, Func: 0}, writeEmpty: true, additionalComment: "PCI bridge"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 0}, writeEmpty: true, additionalComment: "LPC bridge"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 2}, writeEmpty: true, additionalComment: "SATA Controller 1"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 3}, writeEmpty: true, additionalComment: "SMBus"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 5}, writeEmpty: true, additionalComment: "SATA Controller 2"},
-			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 6}, writeEmpty: true, additionalComment: "Thermal"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x14, Func: 0}, writeEmpty: false, alias: "xhci", additionalComment: "USB 3.0 Controller"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 0}, writeEmpty: true, alias: "mei1", additionalComment: "Management Engine Interface 1"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 1}, writeEmpty: true, alias: "mei2", additionalComment: "Management Engine Interface 2"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 2}, writeEmpty: true, alias: "me_ide_r", additionalComment: "Management Engine IDE-R"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x16, Func: 3}, writeEmpty: true, alias: "me_kt", additionalComment: "Management Engine KT"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x19, Func: 0}, writeEmpty: true, alias: "gbe", additionalComment: "Intel Gigabit Ethernet"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1a, Func: 0}, writeEmpty: true, alias: "ehci2", additionalComment: "USB2 EHCI #2"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1b, Func: 0}, writeEmpty: true, alias: "hda", additionalComment: "High Definition Audio"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 0}, writeEmpty: true, alias: "pcie_rp1", additionalComment: "PCIe Port #1"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 1}, writeEmpty: true, alias: "pcie_rp2", additionalComment: "PCIe Port #2"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 2}, writeEmpty: true, alias: "pcie_rp3", additionalComment: "PCIe Port #3"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 3}, writeEmpty: true, alias: "pcie_rp4", additionalComment: "PCIe Port #4"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 4}, writeEmpty: true, alias: "pcie_rp5", additionalComment: "PCIe Port #5"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 5}, writeEmpty: true, alias: "pcie_rp6", additionalComment: "PCIe Port #6"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 6}, writeEmpty: true, alias: "pcie_rp7", additionalComment: "PCIe Port #7"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1c, Func: 7}, writeEmpty: true, alias: "pcie_rp8", additionalComment: "PCIe Port #8"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1d, Func: 0}, writeEmpty: true, alias: "ehci1", additionalComment: "USB2 EHCI #1"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1e, Func: 0}, writeEmpty: true, alias: "pci_bridge", additionalComment: "PCI bridge"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 0}, writeEmpty: true, alias: "lpc", additionalComment: "LPC bridge"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 2}, writeEmpty: true, alias: "sata1", additionalComment: "SATA Controller 1"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 3}, writeEmpty: true, alias: "smbus", additionalComment: "SMBus"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 5}, writeEmpty: true, alias: "sata2", additionalComment: "SATA Controller 2"},
+			PCISlot{PCIAddr: PCIAddr{Dev: 0x1f, Func: 6}, writeEmpty: true, alias: "thermal", additionalComment: "Thermal"},
 		},
 	}
 
@@ -277,54 +272,35 @@ func (b bd82x6x) Scan(ctx Context, addr PCIDevData) {
 	}
 
 	PutPCIChip(addr, cur)
-	PutPCIDevParent(addr, "PCI-LPC bridge", "lpc")
+	PutPCIDevParent(addr, "", "lpc")
 
 	DSDTIncludes = append(DSDTIncludes, DSDTInclude{
-		File: "southbridge/intel/bd82x6x/acpi/platform.asl",
+		File: "southbridge/intel/common/acpi/platform.asl",
 	})
 	DSDTIncludes = append(DSDTIncludes, DSDTInclude{
-		File:    "southbridge/intel/bd82x6x/acpi/globalnvs.asl",
-		Comment: "global NVS and variables",
+		File: "southbridge/intel/bd82x6x/acpi/globalnvs.asl",
 	})
 	DSDTIncludes = append(DSDTIncludes, DSDTInclude{
-		File: "southbridge/intel/bd82x6x/acpi/sleepstates.asl",
+		File: "southbridge/intel/common/acpi/sleepstates.asl",
 	})
 	DSDTPCI0Includes = append(DSDTPCI0Includes, DSDTInclude{
 		File: "southbridge/intel/bd82x6x/acpi/pch.asl",
 	})
 
-	sb := Create(ctx, "romstage.c")
+	AddBootBlockFile("early_init.c", "")
+	AddROMStageFile("early_init.c", "")
+
+	sb := Create(ctx, "early_init.c")
 	defer sb.Close()
 	Add_gpl(sb)
-	sb.WriteString(`/* FIXME: Check if all includes are needed. */
 
-#include <stdint.h>
-#include <string.h>
-#include <timestamp.h>
-#include <arch/byteorder.h>
-#include <device/mmio.h>
+	sb.WriteString(`
+#include <bootblock_common.h>
 #include <device/pci_ops.h>
-#include <device/pnp_ops.h>
-#include <console/console.h>
-#include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit_native.h>
 #include <southbridge/intel/bd82x6x/pch.h>
-#include <southbridge/intel/common/gpio.h>
 
-void pch_enable_lpc(void)
-{
 `)
-	RestorePCI16Simple(sb, addr, 0x82)
-
-	RestorePCI16Simple(sb, addr, 0x80)
-
-	sb.WriteString(`}
-
-void mainboard_rcba_config(void)
-{
-`)
-	sb.WriteString("}\n\n")
-
 	sb.WriteString("const struct southbridge_usb_port mainboard_usb_ports[] = {\n")
 
 	currentMap := map[uint32]int{
@@ -333,6 +309,10 @@ void mainboard_rcba_config(void)
 		0x2000055b: 2,
 		0x20000f51: 3,
 		0x2000094a: 4,
+		0x2000035f: 5,
+		0x20000f53: 6,
+		0x20000357: 7,
+		0x20000353: 8,
 	}
 
 	for port := uint(0); port < 14; port++ {
@@ -351,23 +331,30 @@ void mainboard_rcba_config(void)
 				}
 			}
 		}
-		fmt.Fprintf(sb, "\t{ %d, %d, %d },\n",
+		current, ok := currentMap[inteltool.RCBA[uint16(0x3500+4*port)]]
+		comment := ""
+		if !ok {
+			comment = fmt.Sprintf("// FIXME: Unknown current: RCBA(0x%x)=0x%x", 0x3500+4*port, uint16(0x3500+4*port))
+		}
+		fmt.Fprintf(sb, "\t{ %d, %d, %d }, %s\n",
 			((inteltool.RCBA[0x359c]>>port)&1)^1,
-			currentMap[inteltool.RCBA[uint16(0x3500+4*port)]],
-			OCPin)
+			current,
+			OCPin,
+			comment)
 	}
 	sb.WriteString("};\n")
 
 	guessedMap := GuessSPDMap(ctx)
 
 	sb.WriteString(`
-void mainboard_early_init(int s3resume)
+void bootblock_mainboard_early_init(void)
 {
-}
+`)
+	RestorePCI16Simple(sb, addr, 0x82)
 
-void mainboard_config_superio(void)
-{
-}
+	RestorePCI16Simple(sb, addr, 0x80)
+
+	sb.WriteString(`}
 
 /* FIXME: Put proper SPD map here. */
 void mainboard_get_spd(spd_raw_data *spd, bool id_only)
@@ -382,23 +369,18 @@ void mainboard_get_spd(spd_raw_data *spd, bool id_only)
 	defer gnvs.Close()
 
 	Add_gpl(gnvs)
-	gnvs.WriteString(`#include <southbridge/intel/bd82x6x/nvs.h>
+	gnvs.WriteString(`#include <acpi/acpi_gnvs.h>
+#include <soc/nvs.h>
 
 /* FIXME: check this function.  */
-void acpi_create_gnvs(global_nvs_t *gnvs)
+void mainboard_fill_gnvs(struct global_nvs *gnvs)
 {
-	/* Disable USB ports in S3 by default */
-	gnvs->s3u0 = 0;
-	gnvs->s3u1 = 0;
-
-	/* Disable USB ports in S5 by default */
-	gnvs->s5u0 = 0;
-	gnvs->s5u1 = 0;
-
-	// the lid is open by default.
+	/* The lid is open by default. */
 	gnvs->lids = 1;
 
+	/* Temperature at which OS will shutdown */
 	gnvs->tcrt = 100;
+	/* Temperature at which OS will throttle CPU */
 	gnvs->tpsv = 90;
 }
 `)

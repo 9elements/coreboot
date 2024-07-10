@@ -1,34 +1,24 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 arthur@aheymans.xyz
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
 #include <commonlib/helpers.h>
 #include <console/console.h>
 #include <northbridge/intel/gm45/gm45.h>
+#include <device/pci.h>
 #include <drivers/intel/gma/opregion.h>
 
 static const struct blc_pwm_t blc_entries[] = {
 	/* corrected to 320MHz CDClk, vendor set 753; works fine at both: */
 	{"LTD121EQ3B", 447},
 	{"LTD121EWVB", 165},
+	{"LTD133EQ1B", 264},  /* Found on an X301 */
 	{"B121EW03 V6 ", 165},
 	/* datasheets: between 100 and 20k, typical 200 */
 	/* TESTED: works best at 400 */
 	{"B121EW09 V3 ", 400},
 	{"HV121WX4-120", 110}, /* Aftermarket AFFS lcd, works well at low pwm */
 	{"LTN121AT03001", 110},
+	{"LTN121AT07L02", 750}, /* Its part name is LTN121AT07-L02 */
 	{"LTN121AP03001", 750},
 	/* TODO: untested panels found on thinkwiki */
 	/* Generally CCFL runs best at lower PWM */
@@ -48,9 +38,7 @@ int get_blc_values(const struct blc_pwm_t **entries)
 
 const char *mainboard_vbt_filename(void)
 {
-	u16 pwm_freq;
-
-	pwm_freq = get_blc_pwm_freq_value(NULL);
+	u16 pwm_freq = get_blc_pwm_freq_value();
 
 	if (pwm_freq == 0) {
 		printk(BIOS_DEBUG,

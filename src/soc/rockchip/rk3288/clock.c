@@ -1,22 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Rockchip Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <device/mmio.h>
 #include <assert.h>
+#include <commonlib/bsd/gcd.h>
 #include <console/console.h>
 #include <delay.h>
+#include <device/mmio.h>
 #include <lib.h>
 #include <soc/addressmap.h>
 #include <soc/clock.h>
@@ -24,7 +12,6 @@
 #include <soc/i2c.h>
 #include <soc/soc.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct pll_div {
@@ -67,7 +54,7 @@ static struct rk3288_cru_reg * const cru_ptr = (void *)CRU_BASE;
 	.nr = _nr, .nf = (u32)((u64)hz * _nr * _no / OSC_HZ), .no = _no};\
 	_Static_assert(((u64)hz * _nr * _no / OSC_HZ) * OSC_HZ /\
 		       (_nr * _no) == hz, #hz "Hz cannot be hit with PLL "\
-		       "divisors on line " STRINGIFY(__LINE__));
+		       "divisors on line " STRINGIFY(__LINE__))
 
 /* Keep divisors as low as possible to reduce jitter and power usage. */
 static const struct pll_div gpll_init_cfg = PLL_DIVISORS(GPLL_HZ, 2, 2);
@@ -452,16 +439,6 @@ void rkclk_configure_spi(unsigned int bus, unsigned int hz)
 	}
 }
 
-static u32 clk_gcd(u32 a, u32 b)
-{
-	while (b != 0) {
-		int r = b;
-		b = a % b;
-		a = r;
-	}
-	return a;
-}
-
 void rkclk_configure_i2s(unsigned int hz)
 {
 	int n, d;
@@ -476,7 +453,7 @@ void rkclk_configure_i2s(unsigned int hz)
 			      1 << 15 | 0 << 12 | 1 << 8 | 0 << 0));
 
 	/* set frac divider */
-	v = clk_gcd(GPLL_HZ, hz);
+	v = gcd(GPLL_HZ, hz);
 	n = (GPLL_HZ / v) & (0xffff);
 	d = (hz / v) & (0xffff);
 	assert(hz == GPLL_HZ / n * d);
@@ -669,7 +646,7 @@ int rkclk_was_watchdog_reset(void)
 	return read32(&cru_ptr->cru_glb_rst_st) & 0x30;
 }
 
-unsigned rkclk_i2c_clock_for_bus(unsigned bus)
+unsigned int rkclk_i2c_clock_for_bus(unsigned int bus)
 {
 	/*i2c0,i2c2 src clk from pd_bus_pclk
 	other i2c src clk from peri_pclk

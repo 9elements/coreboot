@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016-2017 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SIEMENS_NC_FPGA_H_
 #define _SIEMENS_NC_FPGA_H_
@@ -30,6 +17,7 @@
 #define  NC_DIAG_FW_DONE		0x10000
 #define NC_BL_BRIGHTNESS_OFFSET		0x88
 #define NC_BL_PWM_OFFSET		0x8C
+#define NC_FPGA_POST_OFFSET		0xE0
 #define NC_FANMON_CTRL_OFFSET		0x400
 
 #define MAX_NUM_SENSORS			8
@@ -70,5 +58,8 @@ typedef struct {
 	uint16_t	res9[4];
 	uint32_t	fanmon;
 } __packed fan_ctrl_t;
+
+void nc_fpga_post(uint8_t value);
+void nc_fpga_remap(uint32_t new_mmio);
 
 #endif /* _SIEMENS_NC_FPGA_H_ */

@@ -1,5 +1,4 @@
 /*
- * This file is part of the coreboot project.
  *
  * Copyright 2014 Google Inc.
  *
@@ -28,7 +27,7 @@
  *
  */
 
-#ifndef __ARCH_BARRIER_H_
+#ifndef __ARCH_BARRIER_H__
 #define __ARCH_BARRIER_H__
 
 #define mb()

@@ -1,33 +1,22 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
 #include <assert.h>
 #include <baseboard/variants.h>
 #include <cbfs.h>
 #include <chip.h>
-#include <commonlib/cbfs_serialized.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
+#include <cpu/intel/cpu_ids.h>
 #include <device/device.h>
 #include <drivers/intel/gma/opregion.h>
 #include <ec/google/chromeec/ec.h>
-#include <intelblocks/mp_init.h>
+#include <intelblocks/power_limit.h>
 #include <smbios.h>
 #include <soc/ramstage.h>
 #include <string.h>
 #include <variant/sku.h>
+#include <gpio.h>
+#include <delay.h>
 
 #define PL2_I7_SKU	44
 #define PL2_DEFAULT	29
@@ -168,9 +157,8 @@ const char *smbios_mainboard_manufacturer(void)
 	if (oem_id == OEM_UNKNOWN)
 		return CONFIG_MAINBOARD_SMBIOS_MANUFACTURER;
 
-	oem_data_size = cbfs_boot_load_file("oem.bin", oem_bin_data,
-					    sizeof(oem_bin_data),
-					    CBFS_TYPE_RAW);
+	oem_data_size = cbfs_load("oem.bin", oem_bin_data,
+				  sizeof(oem_bin_data));
 
 	while ((curr < oem_data_size) &&
 	       ((oem_data_size - curr) >= sizeof(*oem_entry))) {
@@ -186,6 +174,56 @@ const char *smbios_mainboard_manufacturer(void)
 		manuf = CONFIG_MAINBOARD_SMBIOS_MANUFACTURER;
 
 	return manuf;
+}
+
+const char *smbios_mainboard_product_name(void)
+{
+	uint32_t sku_id = variant_board_sku();
+	static char product[12];
+
+	switch (sku_id) {
+	case SKU_0_PANTHEON:
+	case SKU_1_PANTHEON:
+	case SKU_2_PANTHEON:
+	case SKU_3_PANTHEON:
+	case SKU_4_PANTHEON:
+		snprintf(product, sizeof(product), "Pantheon"); break;
+	case SKU_0_VAYNE:
+	case SKU_1_VAYNE:
+	case SKU_2_VAYNE:
+		snprintf(product, sizeof(product), "Vayne"); break;
+	case SKU_0_AKALI:
+	case SKU_1_AKALI:
+		snprintf(product, sizeof(product), "Akali"); break;
+	case SKU_0_AKALI360:
+	case SKU_1_AKALI360:
+		snprintf(product, sizeof(product), "Akali360"); break;
+	case SKU_0_BARD:
+	case SKU_1_BARD:
+	case SKU_2_BARD:
+	case SKU_3_BARD:
+		snprintf(product, sizeof(product), "Bard"); break;
+	case SKU_0_EKKO:
+	case SKU_1_EKKO:
+	case SKU_2_EKKO:
+	case SKU_3_EKKO:
+		snprintf(product, sizeof(product), "Ekko"); break;
+	case SKU_0_SONA:
+	case SKU_1_SONA:
+		snprintf(product, sizeof(product), "Sona"); break;
+	case SKU_0_SYNDRA:
+	case SKU_1_SYNDRA:
+	case SKU_2_SYNDRA:
+	case SKU_3_SYNDRA:
+	case SKU_4_SYNDRA:
+	case SKU_5_SYNDRA:
+	case SKU_6_SYNDRA:
+	case SKU_7_SYNDRA:
+		snprintf(product, sizeof(product), "Syndra"); break;
+	default:
+		snprintf(product, sizeof(product), "Nami"); break;
+	}
+	return product;
 }
 
 const char *mainboard_vbt_filename(void)
@@ -212,6 +250,10 @@ const char *mainboard_vbt_filename(void)
 	case SKU_1_BARD:
 	case SKU_2_BARD:
 	case SKU_3_BARD:
+	case SKU_4_BARD:
+	case SKU_5_BARD:
+	case SKU_6_BARD:
+	case SKU_7_BARD:
 		return "vbt-bard.bin";
 	default:
 		return "vbt.bin";
@@ -234,10 +276,10 @@ void variant_devtree_update(void)
 	uint32_t sku_id = variant_board_sku();
 	uint32_t i;
 	int oem_index;
-	struct device *root = SA_DEV_ROOT;
-	config_t *cfg = root->chip_info;
 	uint8_t pl2_id = PL2_ID_DEFAULT;
 	struct device *spi_fpmcu = PCH_DEV_GSPI1;
+
+	config_t *cfg = config_of_soc();
 
 	switch (sku_id) {
 	case SKU_0_SONA:
@@ -251,7 +293,7 @@ void variant_devtree_update(void)
 	case SKU_6_SYNDRA:
 	case SKU_7_SYNDRA:
 		pl2_id = PL2_ID_SONA_SYNDRA;
-		/* fallthrough */
+		__fallthrough;
 	case SKU_0_VAYNE:
 	case SKU_1_VAYNE:
 	case SKU_2_VAYNE:
@@ -267,10 +309,18 @@ void variant_devtree_update(void)
 	case SKU_1_BARD:
 	case SKU_2_BARD:
 	case SKU_3_BARD:
+	case SKU_4_BARD:
+	case SKU_5_BARD:
+	case SKU_6_BARD:
+	case SKU_7_BARD:
 	case SKU_0_EKKO:
 	case SKU_1_EKKO:
 	case SKU_2_EKKO:
 	case SKU_3_EKKO:
+	case SKU_4_EKKO:
+	case SKU_5_EKKO:
+	case SKU_6_EKKO:
+	case SKU_7_EKKO:
 		pl2_id = PL2_ID_BARD_EKKO;
 		cfg->usb2_ports[5].enable = 0;
 		cfg->usb2_ports[7].enable = 0;
@@ -281,8 +331,11 @@ void variant_devtree_update(void)
 		break;
 	}
 
+	struct soc_power_limits_config *soc_conf;
+	soc_conf = &cfg->power_limits_config;
+
 	/* Update PL2 based on SKU. */
-	cfg->tdp_pl2_override = get_pl2(pl2_id);
+	soc_conf->tdp_pl2_override = get_pl2(pl2_id);
 
 	/* Overwrite settings for different projects based on OEM ID*/
 	oem_index = find_sku_mapping(read_oem_id());
@@ -296,5 +349,38 @@ void variant_devtree_update(void)
 				sku_overwrite_mapping[oem_index].ac_loadline[i];
 		cfg->domain_vr_config[i].dc_loadline =
 				sku_overwrite_mapping[oem_index].dc_loadline[i];
+	}
+}
+
+void variant_final(void)
+{
+	uint32_t sku_id = variant_board_sku();
+
+	switch (sku_id) {
+	case SKU_0_BARD:
+	case SKU_1_BARD:
+	case SKU_2_BARD:
+	case SKU_3_BARD:
+	case SKU_4_BARD:
+	case SKU_5_BARD:
+	case SKU_6_BARD:
+	case SKU_7_BARD:
+	case SKU_0_EKKO:
+	case SKU_1_EKKO:
+	case SKU_2_EKKO:
+	case SKU_3_EKKO:
+	case SKU_4_EKKO:
+	case SKU_5_EKKO:
+	case SKU_6_EKKO:
+	case SKU_7_EKKO:
+		/* Enable FPMCU late in the boot process to achieve
+		 * ~150ms of power off time in total.
+		 */
+		gpio_output(GPP_B11, 1);	/* PCH_FP_PWR_EN */
+		mdelay(3);
+		gpio_output(GPP_C9, 1);		/* FP_RST_ODL */
+		break;
+	default:
+		break;
 	}
 }

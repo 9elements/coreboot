@@ -1,26 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi_device.h>
-#include <arch/acpigen.h>
+#include <acpi/acpi_device.h>
+#include <acpi/acpigen.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/path.h>
 #include <device/spi.h>
 #include <spi-generic.h>
-#include <stdint.h>
 #include <string.h>
 #include "chip.h"
 
@@ -29,10 +15,10 @@ static int spi_acpi_get_bus(const struct device *dev)
 	struct device *spi_dev;
 	struct device_operations *ops;
 
-	if (!dev->bus || !dev->bus->dev)
+	if (!dev->upstream || !dev->upstream->dev)
 		return -1;
 
-	spi_dev = dev->bus->dev;
+	spi_dev = dev->upstream->dev;
 	ops = spi_dev->ops;
 
 	if (ops && ops->ops_spi_bus &&
@@ -46,10 +32,10 @@ static bool spi_acpi_add_gpios_to_crs(struct drivers_spi_acpi_config *config)
 {
 	/*
 	 * Return false if:
-	 * 1. Request to explicitly disable export of GPIOs in CRS, or
+	 * 1. GPIOs are exported via a power resource, or
 	 * 2. Both reset and enable GPIOs are not provided.
 	 */
-	if (config->disable_gpio_export_in_crs ||
+	if (config->has_power_resource ||
 	    ((config->reset_gpio.pin_count == 0) &&
 	     (config->enable_gpio.pin_count == 0)))
 		return false;
@@ -71,7 +57,7 @@ static int spi_acpi_write_gpio(struct acpi_gpio *gpio, int *curr_index)
 	return ret;
 }
 
-static void spi_acpi_fill_ssdt_generator(struct device *dev)
+static void spi_acpi_fill_ssdt_generator(const struct device *dev)
 {
 	struct drivers_spi_acpi_config *config = dev->chip_info;
 	const char *scope = acpi_device_scope(dev);
@@ -91,7 +77,7 @@ static void spi_acpi_fill_ssdt_generator(struct device *dev)
 	int reset_gpio_index = -1;
 	int enable_gpio_index = -1;
 
-	if (!dev->enabled || !scope)
+	if (!scope)
 		return;
 
 	if (spi_acpi_get_bus(dev) == -1) {
@@ -139,7 +125,7 @@ static void spi_acpi_fill_ssdt_generator(struct device *dev)
 
 	/* Wake capabilities */
 	if (config->wake) {
-		acpigen_write_name_integer("_S0W", 4);
+		acpigen_write_name_integer("_S0W", ACPI_DEVICE_SLEEP_D3_HOT);
 		acpigen_write_PRW(config->wake, 3);
 	};
 
@@ -153,15 +139,15 @@ static void spi_acpi_fill_ssdt_generator(struct device *dev)
 		if (irq_gpio_index >= 0)
 			acpi_dp_add_gpio(dsd, "irq-gpios", path,
 					 irq_gpio_index, 0,
-					 config->irq_gpio.polarity);
+					 config->irq_gpio.active_low);
 		if (reset_gpio_index >= 0)
 			acpi_dp_add_gpio(dsd, "reset-gpios", path,
 					 reset_gpio_index, 0,
-					 config->reset_gpio.polarity);
+					 config->reset_gpio.active_low);
 		if (enable_gpio_index >= 0)
 			acpi_dp_add_gpio(dsd, "enable-gpios", path,
 					 enable_gpio_index, 0,
-					 config->enable_gpio.polarity);
+					 config->enable_gpio.active_low);
 		acpi_dp_write(dsd);
 	}
 
@@ -202,11 +188,10 @@ static const char *spi_acpi_name(const struct device *dev)
 }
 
 static struct device_operations spi_acpi_ops = {
-	.read_resources		  = DEVICE_NOOP,
-	.set_resources		  = DEVICE_NOOP,
-	.enable_resources	  = DEVICE_NOOP,
-	.acpi_name		  = spi_acpi_name,
-	.acpi_fill_ssdt_generator = spi_acpi_fill_ssdt_generator,
+	.read_resources		= noop_read_resources,
+	.set_resources		= noop_set_resources,
+	.acpi_name		= spi_acpi_name,
+	.acpi_fill_ssdt		= spi_acpi_fill_ssdt_generator,
 };
 
 static void spi_acpi_enable(struct device *dev)
@@ -215,6 +200,6 @@ static void spi_acpi_enable(struct device *dev)
 }
 
 struct chip_operations drivers_spi_acpi_ops = {
-	CHIP_NAME("SPI Device")
+	.name = "SPI Device",
 	.enable_dev = spi_acpi_enable
 };

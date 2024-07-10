@@ -1,17 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stddef.h>
+#include <stdint.h>
 #include <console/console.h>
 #include <string.h>
 
@@ -19,15 +8,12 @@
 #include "usb_ch9.h"
 #include "ehci.h"
 
-#define dprintk printk
-
 #define USB_HUB_PORT_CONNECTION		0
 #define USB_HUB_PORT_ENABLED		1
 #define USB_HUB_PORT_RESET		4
 #define USB_HUB_PORT_POWER		8
 #define USB_HUB_C_PORT_CONNECTION	16
 #define USB_HUB_C_PORT_RESET		20
-
 
 static int hub_port_status(const char *buf, int feature)
 {
@@ -83,7 +69,6 @@ static int dbgp_hub_enable(struct ehci_dbg_port *ehci_debug, unsigned char hub_a
 		USB_REQ_CLEAR_FEATURE, USB_HUB_C_PORT_CONNECTION, port, NULL, 0);
 	if (ret < 0)
 		goto err;
-
 
 	/* Set PORT_RESET, poll for C_PORT_RESET. */
 	ret = dbgp_control_msg(ehci_debug, hub_addr,
@@ -157,13 +142,13 @@ debug_dev_retry:
 		if (dbgp_desc.bLength == sizeof(dbgp_desc) && dbgp_desc.bDescriptorType == USB_DT_DEBUG)
 			goto debug_dev_found;
 		else
-			dprintk(BIOS_INFO, "Invalid debug device descriptor.\n");
+			printk(BIOS_INFO, "Invalid debug device descriptor.\n");
 	}
 	if (devnum == 0) {
 		devnum = USB_DEBUG_DEVNUM;
 		goto debug_dev_retry;
 	} else {
-		dprintk(BIOS_INFO, "Could not find attached debug device.\n");
+		printk(BIOS_INFO, "Could not find attached debug device.\n");
 		return -1;
 	}
 debug_dev_found:
@@ -174,12 +159,12 @@ debug_dev_found:
 			USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 			USB_REQ_SET_ADDRESS, USB_DEBUG_DEVNUM, 0, NULL, 0);
 		if (ret < 0) {
-			dprintk(BIOS_INFO, "Could not move attached device to %d.\n",
+			printk(BIOS_INFO, "Could not move attached device to %d.\n",
 				USB_DEBUG_DEVNUM);
 			return -2;
 		}
 		devnum = USB_DEBUG_DEVNUM;
-		dprintk(BIOS_INFO, "EHCI debug device renamed to 127.\n");
+		printk(BIOS_INFO, "EHCI debug device renamed to 127.\n");
 	}
 
 	/* Enable the debug interface */
@@ -187,10 +172,10 @@ debug_dev_found:
 		USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 		USB_REQ_SET_FEATURE, USB_DEVICE_DEBUG_MODE, 0, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "Could not enable EHCI debug device.\n");
+		printk(BIOS_INFO, "Could not enable EHCI debug device.\n");
 		return -3;
 	}
-	dprintk(BIOS_INFO, "EHCI debug interface enabled.\n");
+	printk(BIOS_INFO, "EHCI debug interface enabled.\n");
 
 	pipe[DBGP_CONSOLE_EPOUT].endpoint = dbgp_desc.bDebugOutEndpoint;
 	pipe[DBGP_CONSOLE_EPIN].endpoint = dbgp_desc.bDebugInEndpoint;
@@ -202,7 +187,7 @@ debug_dev_found:
 small_write:
 	ret = dbgp_bulk_write_x(&pipe[DBGP_CONSOLE_EPOUT], "USB\r\n",5);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "dbgp_bulk_write failed: %d\n", ret);
+		printk(BIOS_INFO, "dbgp_bulk_write failed: %d\n", ret);
 		if (!configured) {
 			/* Send Set Configure request to device. This is required for FX2
 			   (CY7C68013) to transfer from USB state Addressed to Configured,
@@ -216,7 +201,74 @@ small_write:
 		}
 		return -4;
 	}
-	dprintk(BIOS_INFO, "Test write done\n");
+	printk(BIOS_INFO, "Test write done\n");
+	return 0;
+}
+
+/* Refer to USB CDC PSTN Subclass specification section 6.3 */
+#define CDC_SET_LINE_CODING_REQUEST 0x20
+struct cdc_line_coding {
+	u32 baudrate;
+	u8 stop_bits;
+	u8 parity;
+	u8 data_bits;
+} __packed;
+
+static int probe_for_ch347(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pipe)
+{
+	int ret;
+	u8 devnum = 0;
+	u8 uart_if = 2; /* CH347 UART 1 */
+
+	/* Move the device to 127 if it isn't already there */
+	ret = dbgp_control_msg(ehci_debug, devnum,
+		USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
+		USB_REQ_SET_ADDRESS, USB_DEBUG_DEVNUM, 0, NULL, 0);
+	if (ret < 0) {
+		printk(BIOS_INFO, "Could not move attached device to %d.\n",
+			USB_DEBUG_DEVNUM);
+			return -2;
+	}
+	devnum = USB_DEBUG_DEVNUM;
+	printk(BIOS_INFO, "EHCI debug device renamed to %d.\n", devnum);
+
+	/* Send Set Configure request to device.  */
+	ret = dbgp_control_msg(ehci_debug, devnum,
+		USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
+		USB_REQ_SET_CONFIGURATION, 1, 0, NULL, 0);
+	if (ret < 0) {
+		printk(BIOS_INFO, "CH347 set configuration failed.\n");
+		return -2;
+	}
+
+	struct cdc_line_coding line_coding = {
+		.baudrate = CONFIG_USBDEBUG_DONGLE_WCH_CH347_BAUD,
+		.stop_bits = 0, /* 1 stop bit */
+		.parity = 0, /* No parity */
+		.data_bits = 8
+	};
+
+	ret = dbgp_control_msg(ehci_debug, devnum,
+		USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
+		CDC_SET_LINE_CODING_REQUEST, 0, uart_if, &line_coding, sizeof(line_coding));
+	if (ret < 0) {
+		printk(BIOS_INFO, "CDC SET_LINE_CODING failed.\n");
+		return -3;
+	}
+
+	/* Modes 0, 1, and 3 all have UART 1 on endpoint 4 in common */
+	pipe[DBGP_CONSOLE_EPOUT].endpoint = 0x04;
+	pipe[DBGP_CONSOLE_EPIN].endpoint = 0x84;
+
+	ack_set_configuration(pipe, devnum, 1000);
+
+	/* Perform a small write. */
+	ret = dbgp_bulk_write_x(&pipe[DBGP_CONSOLE_EPOUT], "USB\r\n", 5);
+	if (ret < 0) {
+		printk(BIOS_INFO, "dbgp_bulk_write failed: %d\n", ret);
+		return -4;
+	}
+	printk(BIOS_INFO, "Test write done\n");
 	return 0;
 }
 
@@ -264,19 +316,19 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 		USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 		USB_REQ_SET_ADDRESS, USB_DEBUG_DEVNUM, 0, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "Could not move attached device to %d.\n",
+		printk(BIOS_INFO, "Could not move attached device to %d.\n",
 			USB_DEBUG_DEVNUM);
 			return -2;
 	}
 	devnum = USB_DEBUG_DEVNUM;
-	dprintk(BIOS_INFO, "EHCI debug device renamed to %d.\n", devnum);
+	printk(BIOS_INFO, "EHCI debug device renamed to %d.\n", devnum);
 
 	/* Send Set Configure request to device.  */
 	ret = dbgp_control_msg(ehci_debug, devnum,
 		USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
 		USB_REQ_SET_CONFIGURATION, 1, 0, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "FTDI set configuration failed.\n");
+		printk(BIOS_INFO, "FTDI set configuration failed.\n");
 		return -2;
 	}
 
@@ -284,7 +336,7 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 		USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_DIR_OUT,
 		FTDI_SIO_SET_BITMODE_REQUEST, 0, uart_if, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "FTDI SET_BITMODE failed.\n");
+		printk(BIOS_INFO, "FTDI SET_BITMODE failed.\n");
 		return -3;
 	}
 	ft232h_baud(&baud_value, &baud_index,
@@ -294,7 +346,7 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 		FTDI_SIO_SET_BAUDRATE_REQUEST,
 		baud_value, baud_index | uart_if, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "FTDI SET_BAUDRATE failed.\n");
+		printk(BIOS_INFO, "FTDI SET_BAUDRATE failed.\n");
 		return -3;
 	}
 	ret = dbgp_control_msg(ehci_debug, devnum,
@@ -302,7 +354,7 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 		FTDI_SIO_SET_DATA_REQUEST,
 		0x0008, uart_if, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "FTDI SET_DATA failed.\n");
+		printk(BIOS_INFO, "FTDI SET_DATA failed.\n");
 		return -3;
 	}
 	ret = dbgp_control_msg(ehci_debug, devnum,
@@ -310,7 +362,7 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 		FTDI_SIO_SET_FLOW_CTRL_REQUEST,
 		0x0000, uart_if, NULL, 0);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "FTDI SET_FLOW_CTRL failed.\n");
+		printk(BIOS_INFO, "FTDI SET_FLOW_CTRL failed.\n");
 		return -3;
 	}
 
@@ -322,10 +374,10 @@ static int probe_for_ftdi(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pi
 	/* Perform a small write. */
 	ret = dbgp_bulk_write_x(&pipe[DBGP_CONSOLE_EPOUT], "USB\r\n", 5);
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "dbgp_bulk_write failed: %d\n", ret);
+		printk(BIOS_INFO, "dbgp_bulk_write failed: %d\n", ret);
 		return -4;
 	}
-	dprintk(BIOS_INFO, "Test write done\n");
+	printk(BIOS_INFO, "Test write done\n");
 	return 0;
 }
 
@@ -344,11 +396,13 @@ int dbgp_probe_gadget(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pipe)
 
 	if (CONFIG(USBDEBUG_DONGLE_FTDI_FT232H)) {
 		ret = probe_for_ftdi(ehci_debug, pipe);
+	} else if (CONFIG(USBDEBUG_DONGLE_WCH_CH347)) {
+		ret = probe_for_ch347(ehci_debug, pipe);
 	} else {
 		ret = probe_for_debug_descriptor(ehci_debug, pipe);
 	}
 	if (ret < 0) {
-		dprintk(BIOS_INFO, "Could not enable debug dongle.\n");
+		printk(BIOS_INFO, "Could not enable debug dongle.\n");
 		return ret;
 	}
 

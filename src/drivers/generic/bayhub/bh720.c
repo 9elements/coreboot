@@ -1,31 +1,61 @@
-/*
- * Driver for BayHub Technology BH720 PCI to eMMC 5.0 HS200 bridge
- *
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+/* Driver for BayHub Technology BH720 PCI to eMMC 5.0 HS200 bridge */
 
 #include <console/console.h>
 #include <device/device.h>
+#include <device/mmio.h>
 #include <device/path.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
 #include <device/pci_ids.h>
+#include <acpi/acpigen.h>
+#include <acpi/acpigen_pci.h>
 #include "chip.h"
 #include "bh720.h"
 
-__attribute__((weak)) void board_bh720(struct device *dev)
+#define BH720_ACPI_NAME	"BHUB"
+
+static u32 bh720_read_pcr(u32 sdbar, u32 addr)
 {
+	write32p(sdbar + BH720_MEM_RW_ADR, BH720_MEM_RW_READ | addr);
+	return read32p(sdbar + BH720_MEM_RW_DATA);
+}
+
+static void bh720_write_pcr(u32 sdbar, u32 addr, u32 data)
+{
+	write32p(sdbar + BH720_MEM_RW_DATA, data);
+	write32p(sdbar + BH720_MEM_RW_ADR, BH720_MEM_RW_WRITE | addr);
+}
+
+static void bh720_rmw_pcr(u32 sdbar, u32 addr, u32 clear, u32 set)
+{
+	u32 data = bh720_read_pcr(sdbar, addr);
+	data &= ~clear;
+	data |= set;
+	bh720_write_pcr(sdbar, addr, data);
+}
+
+static void bh720_program_hs200_mode(struct device *dev)
+{
+	u32 sdbar = pci_read_config32(dev, PCI_BASE_ADDRESS_1);
+
+	/* Enable Memory Access Function */
+	write32p(sdbar + BH720_MEM_ACCESS_EN, 0x40000000);
+	bh720_write_pcr(sdbar, 0xd0, 0x80000000);
+
+	/* Set EMMC VCCQ 1.8V PCR 0x308[4] */
+	bh720_rmw_pcr(sdbar, BH720_PCR_EMMC_SETTING, 0, BH720_PCR_EMMC_SETTING_1_8V);
+
+	/* Set Base clock to 200MHz(PCR 0x304[31:16] = 0x2510) */
+	bh720_rmw_pcr(sdbar, BH720_PCR_DrvStrength_PLL, 0xffff << 16, 0x2510 << 16);
+
+	/* Use PLL Base clock PCR 0x3E4[22] = 1 */
+	bh720_rmw_pcr(sdbar, BH720_PCR_CSR, 0, BH720_PCR_CSR_EMMC_MODE_SEL);
+
+	/* Disable Memory Access */
+	bh720_write_pcr(sdbar, 0xd0, 0x80000001);
+	write32p(sdbar + BH720_MEM_ACCESS_EN, 0x80000000);
 }
 
 static void bh720_init(struct device *dev)
@@ -56,38 +86,85 @@ static void bh720_init(struct device *dev)
 		       pci_read_config32(dev, BH720_LINK_CTRL));
 	}
 
-	board_bh720(dev);
+	if (config && !config->disable_hs200_mode)
+		bh720_program_hs200_mode(dev);
+
+	if (config && config->vih_tuning_value) {
+		/* Tune VIH */
+		u32 bh720_pcr_data;
+		pci_write_config32(dev, BH720_PROTECT,
+			BH720_PROTECT_OFF | BH720_PROTECT_LOCK_OFF);
+		bh720_pcr_data = pci_read_config32(dev, BH720_PCR_DrvStrength_PLL);
+		bh720_pcr_data &= 0xFFFFFF00;
+		bh720_pcr_data |= config->vih_tuning_value;
+		pci_write_config32(dev, BH720_PCR_DrvStrength_PLL, bh720_pcr_data);
+		pci_write_config32(dev, BH720_PROTECT,
+			BH720_PROTECT_ON | BH720_PROTECT_LOCK_ON);
+	}
 }
 
-static struct pci_operations pci_ops = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
+static void bh720_fill_ssdt(const struct device *dev)
+{
+	if (dev->path.type != DEVICE_PATH_PCI) {
+		return;
+	}
+
+	const char *scope = acpi_device_scope(dev);
+	const char *name = acpi_device_name(dev);
+	if (!scope || !name)
+		return;
+
+	/* Device */
+	acpigen_write_scope(scope);
+	acpigen_write_device(name);
+
+	acpigen_write_ADR_pci_device(dev);
+	acpigen_write_STA(acpi_device_status(dev));
+
+	/* Card */
+	acpigen_write_device("CARD");
+	acpigen_write_ADR(0x08); //eMMC is always on address 0x8
+
+	/*
+	 * Method (_RMV, 0, NotSerialized) { Return (0) }
+	 */
+	acpigen_write_method("_RMV", 0); /* Method */
+	acpigen_emit_byte(RETURN_OP);
+	acpigen_write_byte(0);
+	acpigen_pop_len(); /* Method */
+
+	acpigen_pop_len(); /* Card */
+
+	acpigen_pop_len(); /* Device */
+	acpigen_pop_len(); /* Scope */
+}
+
+static const char *bh720_acpi_name(const struct device *dev)
+{
+	return BH720_ACPI_NAME;
+}
 
 static struct device_operations bh720_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
-	.ops_pci		= &pci_ops,
+	.ops_pci		= &pci_dev_ops_pci,
 	.init			= bh720_init,
+	.acpi_name		= bh720_acpi_name,
+	.acpi_fill_ssdt		= bh720_fill_ssdt
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_O2_BH720,
+	PCI_DID_O2_BH720,
 	0
 };
 
 static const struct pci_driver bayhub_bh720 __pci_driver = {
 	.ops		= &bh720_ops,
-	.vendor		= PCI_VENDOR_ID_O2,
+	.vendor		= PCI_VID_O2,
 	.devices	= pci_device_ids,
 };
 
-static void bh720_enable(struct device *dev)
-{
-	dev->ops = &bh720_ops;
-}
-
-struct chip_operations bayhub_bh720_ops = {
-	CHIP_NAME("BayHub Technology BH720 PCI to eMMC 5.0 HS200 bridge")
-	.enable_dev = bh720_enable,
+struct chip_operations drivers_generic_bayhub_ops = {
+	.name = "BayHub Technology BH720 PCI to eMMC 5.0 HS200 bridge",
 };

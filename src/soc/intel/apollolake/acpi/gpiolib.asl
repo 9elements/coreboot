@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Scope (\_SB)
 {
@@ -19,7 +6,7 @@ Scope (\_SB)
 	Method (GPC0, 0x1, Serialized)
 	{
 		/* Arg0 - GPIO DW0 address */
-		Store (Arg0, Local0)
+		Local0 = Arg0
 		OperationRegion (PDW0, SystemMemory, Local0, 4)
 		Field (PDW0, AnyAcc, NoLock, Preserve) {
 			TEMP, 32
@@ -32,19 +19,19 @@ Scope (\_SB)
 	{
 		/* Arg0 - GPIO DW0 address */
 		/* Arg1 - Value for DW0 register */
-		Store (Arg0, Local0)
+		Local0 = Arg0
 		OperationRegion (PDW0, SystemMemory, Local0, 4)
 		Field (PDW0, AnyAcc, NoLock, Preserve) {
 			TEMP,32
 		}
-		Store (Arg1, TEMP)
+		TEMP = Arg1
 	}
 
 	/* Get Pad Configuration DW1 register value */
 	Method (GPC1, 0x1, Serialized)
 	{
 		/* Arg0 - GPIO DW0 address */
-		Store (Add (Arg0, 0x4), Local0)
+		Local0 = Arg0 + 4
 		OperationRegion (PDW1, SystemMemory, Local0, 4)
 		Field (PDW1, AnyAcc, NoLock, Preserve) {
 			TEMP, 32
@@ -57,12 +44,12 @@ Scope (\_SB)
 	{
 		/* Arg0 - GPIO DW0 address */
 		/* Arg1 - Value for DW1 register */
-		Store (Add (Arg0, 0x4), Local0)
+		Local0 = Arg0 + 4
 		OperationRegion (PDW1, SystemMemory, Local0, 4)
 		Field(PDW1, AnyAcc, NoLock, Preserve) {
 			TEMP,32
 		}
-		Store (Arg1, TEMP)
+		TEMP = Arg1
 	}
 
 	/* Get DW0 address of a given pad */
@@ -70,11 +57,9 @@ Scope (\_SB)
 	{
 		/* Arg0 - GPIO portid */
 		/* Arg1 - GPIO pad offset relative to the community */
-		Store (0, Local1)
-		Or( Or (ShiftLeft (Arg0, 16), CONFIG_PCR_BASE_ADDRESS),
-					Local1, Local1)
-		Or( Add (PAD_CFG_BASE, Multiply (Arg1, Multiply (
-			GPIO_NUM_PAD_CFG_REGS, 4))), Local1, Local1)
+		Local1 = 0
+		Local1 |= (Arg0 << 16) | CONFIG_PCR_BASE_ADDRESS
+		Local1 |= (PAD_CFG_BASE + Arg1 * GPIO_NUM_PAD_CFG_REGS * 4)
 		Return (Local1)
 	}
 
@@ -82,7 +67,7 @@ Scope (\_SB)
 	Method (CHSA, 0x1, Serialized)
 	{
 		/* Arg0 - GPIO pad offset relative to the community */
-		Add (HOSTSW_OWN_REG_0, Multiply (Divide (Arg0, 32), 4), Local1)
+		Local1 = HOSTSW_OWN_REG_0 + Arg0 / 32 * 4
 		Return (Local1)
 	}
 
@@ -91,10 +76,9 @@ Scope (\_SB)
 	{
 		/* Arg0 - GPIO portid */
 		/* Arg1 - GPIO pad offset relative to the community */
-		Store (CHSA (Arg1), Local1)
 
-		OperationRegion (SHO0, SystemMemory, Or ( Or
-			(CONFIG_PCR_BASE_ADDRESS, ShiftLeft (Arg0, 16)), Local1), 4)
+		OperationRegion (SHO0, SystemMemory, CONFIG_PCR_BASE_ADDRESS |
+			(Arg0 << 16) | CHSA (Arg1), 4)
 		Field (SHO0, AnyAcc, NoLock, Preserve) {
 			TEMP, 32
 		}
@@ -107,13 +91,12 @@ Scope (\_SB)
 		/* Arg0 - GPIO portid */
 		/* Arg1 - GPIO pad offset relative to the community */
 		/* Arg2 - Value for Host own register */
-		Store (CHSA (Arg1), Local1)
 
-		OperationRegion (SHO0, SystemMemory, Or ( Or
-			(CONFIG_PCR_BASE_ADDRESS, ShiftLeft (Arg0, 16)), Local1), 4)
+		OperationRegion (SHO0, SystemMemory, CONFIG_PCR_BASE_ADDRESS |
+			(Arg0 << 16) | CHSA (Arg1), 4)
 		Field (SHO0, AnyAcc, NoLock, Preserve) {
 			TEMP, 32
 		}
-		Store (Arg2, TEMP)
+		TEMP = Arg2
 	}
 }

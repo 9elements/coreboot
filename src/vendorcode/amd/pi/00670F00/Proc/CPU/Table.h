@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: BSD-3-Clause */
+
 /* $NoKeywords:$ */
 /**
  * @file
@@ -317,7 +319,7 @@ typedef union {
 } PERFORMANCE_PROFILE_FEATS;
 
 // Initializer Values for Package Type
-#define PACKAGE_TYPE_ALL              0XFFFF       ///< Package Type apply all packages
+#define PACKAGE_TYPE_ALL              0xFFFF       ///< Package Type apply all packages
 
 // Core Range Initializer values.
 #define COUNT_RANGE_LOW            0ul

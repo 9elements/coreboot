@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Rudolf Marek <r.marek@assembler.cz>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/iommu.h>
+#include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <device/pci_ids.h>
-#include <device/pci_ops.h>
 #include <lib.h>
 
 static void iommu_read_resources(struct device *dev)
@@ -26,34 +13,39 @@ static void iommu_read_resources(struct device *dev)
 	/* Get the normal pci resources of this device */
 	pci_dev_read_resources(dev);
 
-	/* Add an extra subtractive resource for both memory and I/O. */
-	res = new_resource(dev, 0x44);
-	res->size = 512 * 1024;
+	/* IOMMU MMIO registers */
+	res = new_resource(dev, IOMMU_CAP_BASE_LO);
+	res->size = 512 * KiB;
 	res->align = log2(res->size);
 	res->gran = log2(res->size);
 	res->limit = 0xffffffff;	/* 4G */
 	res->flags = IORESOURCE_MEM;
 }
 
-static struct pci_operations lops_pci = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
 
-static struct device_operations iommu_ops = {
+static void iommu_enable_resources(struct device *dev)
+{
+	uint32_t base = pci_read_config32(dev, IOMMU_CAP_BASE_LO);
+	base |= IOMMU_ENABLE;
+	pci_write_config32(dev, IOMMU_CAP_BASE_LO, base);
+	printk(BIOS_DEBUG, "%s -> mmio enable: %08X", __func__,
+	       pci_read_config32(dev, IOMMU_CAP_BASE_LO));
+	pci_dev_enable_resources(dev);
+}
+
+#if CONFIG(HAVE_ACPI_TABLES)
+static const char *iommu_acpi_name(const struct device *dev)
+{
+	return "IOMM";
+}
+#endif
+
+struct device_operations amd_iommu_ops = {
 	.read_resources = iommu_read_resources,
 	.set_resources = pci_dev_set_resources,
-	.enable_resources = pci_dev_enable_resources,
-	.ops_pci = &lops_pci,
-};
-
-static const unsigned short pci_device_ids[] = {
-	PCI_DEVICE_ID_AMD_15H_MODEL_303F_NB_IOMMU,
-	PCI_DEVICE_ID_AMD_15H_MODEL_707F_NB_IOMMU,
-	0
-};
-
-static const struct pci_driver iommu_driver __pci_driver = {
-	.ops = &iommu_ops,
-	.vendor = PCI_VENDOR_ID_AMD,
-	.devices = pci_device_ids,
+	.enable_resources = iommu_enable_resources,
+	.ops_pci = &pci_dev_ops_pci,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_name = iommu_acpi_name,
+#endif
 };

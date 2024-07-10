@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/cache.h>
 #include <device/mmio.h>
@@ -32,8 +18,7 @@ static void *load_ipq_blob(const char *file_name)
 	void *blob_dest;
 	size_t blob_size;
 
-	blob_mbn = cbfs_boot_map_with_leak(file_name, CBFS_TYPE_RAW,
-						&blob_size);
+	blob_mbn = cbfs_map(file_name, &blob_size);
 	if (!blob_mbn)
 		return NULL;
 
@@ -42,7 +27,7 @@ static void *load_ipq_blob(const char *file_name)
 	    (blob_mbn->mbn_total_size > blob_size))
 		return NULL;
 
-	blob_dest = (void *) blob_mbn->mbn_destination;
+	blob_dest = (void *)blob_mbn->mbn_destination;
 	if (blob_mbn->mbn_destination) {
 		/* Copy the blob to the appropriate memory location. */
 		memcpy(blob_dest, blob_mbn + 1, blob_mbn->mbn_total_size);
@@ -56,8 +41,6 @@ static void *load_ipq_blob(const char *file_name)
 	 */
 	return blob_mbn + 1;
 }
-
-#ifdef __PRE_RAM__
 
 #define DDR_VERSION() ((const char *)0x2a03f600)
 #define MAX_DDR_VERSION_SIZE 48
@@ -89,8 +72,6 @@ int initialize_dram(void)
 	return 0;
 }
 
-#else  /* __PRE_RAM__ */
-
 void start_tzbsp(void)
 {
 	void *tzbsp = load_ipq_blob("tz.mbn");
@@ -118,7 +99,7 @@ void start_rpm(void)
 		return;
 	}
 
-	load_addr = (u32) load_ipq_blob("rpm.mbn");
+	load_addr = (u32)load_ipq_blob("rpm.mbn");
 	if (!load_addr)
 		die("could not find or map RPM code\n");
 
@@ -152,4 +133,3 @@ void start_rpm(void)
 	       (rpm_version >> 16) & 0xff,
 	       rpm_version & 0xffff);
 }
-#endif  /* !__PRE_RAM__ */

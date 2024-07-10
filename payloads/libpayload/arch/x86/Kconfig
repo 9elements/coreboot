@@ -1,5 +1,6 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (c) 2012 Google Inc.
 ##
@@ -27,12 +28,11 @@
 ## SUCH DAMAGE.
 ##
 
-if ARCH_X86
-
-config ARCH_SPECIFIC_OPTIONS # dummy
-	def_bool y
+config ARCH_X86
 	select LITTLE_ENDIAN
 	select IO_ADDRESS_SPACE
+
+if ARCH_X86
 
 config ENABLE_APIC
 	bool "Enables the Local APIC"
@@ -52,6 +52,5 @@ config DIE_ON_UNKNOWN_INTERRUPT
 	bool "Die if an unknown user defined interrupt is encountered"
 
 endchoice
-
 
 endif

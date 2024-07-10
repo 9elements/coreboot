@@ -1,26 +1,4 @@
-/* Copyright 2003 Tungsten Graphics, Inc., Cedar Park, Texas.
- * All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sub license, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial portions
- * of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
- * IN NO EVENT SHALL TUNGSTEN GRAPHICS AND/OR ITS SUPPLIERS BE LIABLE FOR
- * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- */
+/* SPDX-License-Identifier: MIT */
 
 #ifndef _I915_REG_H_
 #define _I915_REG_H_
@@ -37,7 +15,7 @@
  * The Bridge device's PCI config space has information about the
  * fb aperture size and the amount of pre-reserved memory.
  * This is all handled in the intel-gtt.ko module. i915.ko only
- * cares about the vga bit for the vga rbiter.
+ * cares about the vga bit for the vga arbiter.
  */
 #define INTEL_GMCH_CTRL		0x52
 #define INTEL_GMCH_VGA_DISABLE  (1 << 1)
@@ -48,7 +26,6 @@
 #define    SNB_GMCH_GMS_MASK    0x1f
 #define    IVB_GMCH_GMS_SHIFT   4
 #define    IVB_GMCH_GMS_MASK    0xf
-
 
 /* PCI config space */
 
@@ -242,9 +219,9 @@
 #define MI_BATCH_BUFFER		MI_INSTR(0x30, 1)
 #define   MI_BATCH_NON_SECURE		(1)
 /* for snb/ivb/vlv this also means "batch in ppgtt" when ppgtt is enabled. */
-#define   MI_BATCH_NON_SECURE_I965 	(1<<8)
+#define   MI_BATCH_NON_SECURE_I965	(1<<8)
 #define   MI_BATCH_PPGTT_HSW		(1<<8)
-#define   MI_BATCH_NON_SECURE_HSW 	(1<<13)
+#define   MI_BATCH_NON_SECURE_HSW	(1<<13)
 #define MI_BATCH_BUFFER_START	MI_INSTR(0x31, 0)
 #define   MI_BATCH_GTT		    (2<<6) /* aliased with (1<<7) on gen4 */
 #define MI_SEMAPHORE_MBOX	MI_INSTR(0x16, 1) /* gen6+ */
@@ -317,7 +294,6 @@
 #define   PIPE_CONTROL_STALL_AT_SCOREBOARD		(1<<1)
 #define   PIPE_CONTROL_DEPTH_CACHE_FLUSH		(1<<0)
 #define   PIPE_CONTROL_GLOBAL_GTT (1<<2) /* in addr dword */
-
 
 /*
  * Reset registers
@@ -469,16 +445,6 @@
 #define   RING_WAIT_I8XX	(1<<0) /* gen2, PRBx_HEAD */
 #define   RING_WAIT		(1<<11) /* gen3+, PRBx_CTL */
 #define   RING_WAIT_SEMAPHORE	(1<<10) /* gen6+ */
-#if 0
-#define PRB0_TAIL	0x02030
-#define PRB0_HEAD	0x02034
-#define PRB0_START	0x02038
-#define PRB0_CTL	0x0203c
-#define PRB1_TAIL	0x02040 /* 915+ only */
-#define PRB1_HEAD	0x02044 /* 915+ only */
-#define PRB1_START	0x02048 /* 915+ only */
-#define PRB1_CTL	0x0204c /* 915+ only */
-#endif
 #define IPEIR_I965	0x02064
 #define IPEHR_I965	0x02068
 #define INSTDONE_I965	0x0206c
@@ -583,7 +549,6 @@
 #define   I915_BSD_USER_INTERRUPT                      (1<<25)
 #define EIR		0x020b0
 #define EMR		0x020b4
-#define ESR		0x020b8
 #define   GM45_ERROR_PAGE_TABLE				(1<<5)
 #define   GM45_ERROR_MEM_PRIV				(1<<4)
 #define   I915_ERROR_PAGE_TABLE				(1<<4)
@@ -823,7 +788,6 @@
 #define   ILK_FBCQ_DIS		(1<<22)
 #define	  ILK_PABSTRETCH_DIS	(1<<21)
 
-
 /*
  * Framebuffer compression for Sandybridge
  *
@@ -832,7 +796,6 @@
 #define SNB_DPFC_CTL_SA		0x100100
 #define   SNB_CPU_FENCE_ENABLE	(1<<29)
 #define DPFC_CPU_FENCE_OFFSET	0x100104
-
 
 /*
  * GPIO regs
@@ -1245,7 +1208,6 @@
 					 HSW_CXT_RENDER_SIZE(ctx_reg) + \
 					 GEN7_CXT_VFSTATE_SIZE(ctx_reg))
 
-
 /*
  * Overlay regs
  */
@@ -1285,7 +1247,6 @@
 #define _PIPEBSRC	0x6101c
 #define _BCLRPAT_B	0x61020
 #define _VSYNCSHIFT_B	0x61028
-
 
 #define HTOTAL(trans) _TRANSCODER(trans, _HTOTAL_A, _HTOTAL_B)
 #define HBLANK(trans) _TRANSCODER(trans, _HBLANK_A, _HBLANK_B)
@@ -1342,7 +1303,6 @@
 #define   ADPA_DPMS_SUSPEND	(1<<10)
 #define   ADPA_DPMS_STANDBY	(2<<10)
 #define   ADPA_DPMS_OFF		(3<<10)
-
 
 /* Hotplug control (945+ only) */
 #define PORT_HOTPLUG_EN		0x61110
@@ -1424,7 +1384,7 @@
 #define   SDVOC_GANG_MODE		(1 << 16)
 #define   SDVO_ENCODING_SDVO		(0x0 << 10)
 #define   SDVO_ENCODING_HDMI		(0x2 << 10)
-/** Requird for HDMI operation */
+/** Required for HDMI operation */
 #define   SDVO_NULL_PACKETS_DURING_VSYNC (1 << 9)
 #define   SDVO_COLOR_RANGE_16_235	(1 << 8)
 #define   SDVO_BORDER_ENABLE		(1 << 7)
@@ -1525,7 +1485,7 @@
 
 /* Video Data Island Packet control */
 #define VIDEO_DIP_DATA		0x61178
-/* Read the description of VIDEO_DIP_DATA (before Haswel) or VIDEO_DIP_ECC
+/* Read the description of VIDEO_DIP_DATA (before Haswell) or VIDEO_DIP_ECC
  * (Haswell and newer) to see which VIDEO_DIP_DATA byte corresponds to each byte
  * of the infoframe structure specified by CEA-861. */
 #define   VIDEO_DIP_DATA_SIZE	32
@@ -1670,7 +1630,7 @@
 #define BLC_HIST_CTL		0x61260
 
 /* New registers for PCH-split platforms. Safe where new bits show up, the
- * register layout machtes with gen4 BLC_PWM_CTL[12]. */
+ * register layout matches with gen4 BLC_PWM_CTL[12]. */
 #define BLC_PWM_CPU_CTL2	0x48250
 #define  BLC_PWM2_ENABLE        (1UL<<31)
 #define BLC_PWM_CPU_CTL		0x48254
@@ -1704,6 +1664,33 @@
 #define   BLM_PCH_OVERRIDE_ENABLE		(1 << 30)
 #define   BLM_PCH_POLARITY			(1 << 29)
 #define BLC_PWM_PCH_CTL2	0xc8254
+
+#define UTIL_PIN_CTL		0x48400
+#define   UTIL_PIN_ENABLE	(1 << 31)
+
+#define   UTIL_PIN_PIPE(x)	((x) << 29)
+#define   UTIL_PIN_PIPE_MASK	(3 << 29)
+#define   UTIL_PIN_MODE_PWM	(1 << 24)
+#define   UTIL_PIN_MODE_MASK	(0xf << 24)
+#define   UTIL_PIN_POLARITY	(1 << 22)
+
+/* BXT backlight register definition. */
+#define _BXT_BLC_PWM_CTL1			0xC8250
+#define   BXT_BLC_PWM_ENABLE			(1 << 31)
+#define   BXT_BLC_PWM_POLARITY			(1 << 29)
+#define _BXT_BLC_PWM_FREQ1			0xC8254
+#define _BXT_BLC_PWM_DUTY1			0xC8258
+
+#define _BXT_BLC_PWM_CTL2			0xC8350
+#define _BXT_BLC_PWM_FREQ2			0xC8354
+#define _BXT_BLC_PWM_DUTY2			0xC8358
+
+#define BXT_BLC_PWM_CTL(controller)    _PIPE(controller,		\
+					_BXT_BLC_PWM_CTL1, _BXT_BLC_PWM_CTL2)
+#define BXT_BLC_PWM_FREQ(controller)   _PIPE(controller, \
+					_BXT_BLC_PWM_FREQ1, _BXT_BLC_PWM_FREQ2)
+#define BXT_BLC_PWM_DUTY(controller)   _PIPE(controller, \
+					_BXT_BLC_PWM_DUTY1, _BXT_BLC_PWM_DUTY2)
 
 /* TV port control */
 #define TV_CTL			0x68000
@@ -2050,7 +2037,7 @@
 /** Sets the rollover for the second subcarrier phase generation DDA */
 # define TV_SCDDA2_SIZE_MASK		0x7fff0000
 # define TV_SCDDA2_SIZE_SHIFT		16
-/** Sets the increent of the second subcarrier phase generation DDA */
+/** Sets the increment of the second subcarrier phase generation DDA */
 # define TV_SCDDA2_INC_MASK		0x00007fff
 # define TV_SCDDA2_INC_SHIFT		0
 
@@ -2058,7 +2045,7 @@
 /** Sets the rollover for the third subcarrier phase generation DDA */
 # define TV_SCDDA3_SIZE_MASK		0x7fff0000
 # define TV_SCDDA3_SIZE_SHIFT		16
-/** Sets the increent of the third subcarrier phase generation DDA */
+/** Sets the increment of the third subcarrier phase generation DDA */
 # define TV_SCDDA3_INC_MASK		0x00007fff
 # define TV_SCDDA3_INC_SHIFT		0
 
@@ -2813,7 +2800,6 @@
 #define _PIPEB_FRMCOUNT_GM45	0x71040
 #define _PIPEB_FLIPCOUNT_GM45	0x71044
 
-
 /* Display B control */
 #define _DSPBCNTR		0x71180
 #define   DISPPLANE_ALPHA_TRANS_ENABLE		(1<<15)
@@ -3015,7 +3001,6 @@
 #define  FDI_PLL_FREQ_CHANGE_REQUEST    (1<<24)
 #define  FDI_PLL_FREQ_LOCK_LIMIT_MASK   0xfff00
 #define  FDI_PLL_FREQ_DISABLE_COUNT_LIMIT_MASK  0xff
-
 
 #define _PIPEA_DATA_M1           0x60030
 #define  TU_SIZE(x)             (((x)-1) << 25) /* default size 64 */
@@ -3570,7 +3555,6 @@
 #define TRANS_CHICKEN2(pipe) _PIPE(pipe, _TRANSA_CHICKEN2, _TRANSB_CHICKEN2)
 #define  TRANS_CHICKEN2_TIMING_OVERRIDE		(1UL<<31)
 
-
 #define SOUTH_CHICKEN1		0xc2000
 #define  FDIA_PHASE_SYNC_SHIFT_OVR	19
 #define  FDIA_PHASE_SYNC_SHIFT_EN	18
@@ -3580,6 +3564,7 @@
 #define SOUTH_CHICKEN2		0xc2004
 #define  FDI_MPHY_IOSFSB_RESET_STATUS	(1<<13)
 #define  FDI_MPHY_IOSFSB_RESET_CTL	(1<<12)
+#define  LPT_PWM_GRANULARITY		(1<<5)
 #define  DPLS_EDP_PPS_FIX_DIS		(1<<0)
 
 #define _FDI_RXA_CHICKEN         0xc200c
@@ -3768,6 +3753,8 @@
 #define PIPEB_PP_DIVISOR        0x61310
 
 #define PCH_PP_STATUS		0xc7200
+#define  PANEL_POWER_CYCLE_ACTIVE	(1 << 27)
+
 #define PCH_PP_CONTROL		0xc7204
 #define  PANEL_UNLOCK_REGS	(0xabcd << 16)
 #define  PANEL_UNLOCK_MASK	(0xffff << 16)
@@ -4194,9 +4181,17 @@
 						   TRANS_DDI_FUNC_CTL_B)
 #define  TRANS_DDI_FUNC_ENABLE		(1UL<<31)
 /* Those bits are ignored by pipe EDP since it can only connect to DDI A */
-#define  TRANS_DDI_PORT_MASK		(7<<28)
-#define  TRANS_DDI_SELECT_PORT(x)	((x)<<28)
-#define  TRANS_DDI_PORT_NONE		(0<<28)
+#if CONFIG(INTEL_GMA_VERSION_2)
+#define  TRANS_DDI_PORT_SHIFT		27
+#define  TRANS_DDI_PORT_WIDTH		0xf
+#define  TRANS_DDI_SELECT_PORT(x)	(((x) + 1) << TRANS_DDI_PORT_SHIFT)
+#else
+#define  TRANS_DDI_PORT_SHIFT		28
+#define  TRANS_DDI_PORT_WIDTH		7
+#define  TRANS_DDI_SELECT_PORT(x)	((x) << TRANS_DDI_PORT_SHIFT)
+#endif
+#define  TRANS_DDI_PORT_MASK		(TRANS_DDI_PORT_WIDTH << TRANS_DDI_PORT_SHIFT)
+#define  TRANS_DDI_PORT_NONE		(0 << TRANS_DDI_PORT_SHIFT)
 #define  TRANS_DDI_MODE_SELECT_MASK	(7<<24)
 #define  TRANS_DDI_MODE_SELECT_HDMI	(0<<24)
 #define  TRANS_DDI_MODE_SELECT_DVI	(1<<24)

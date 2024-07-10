@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if VENDOR_COMPULAB
 
 choice
@@ -10,7 +12,6 @@ endchoice
 source "src/mainboard/compulab/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "CompuLab"
 
 endif # VENDOR_COMPULAB

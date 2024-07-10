@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google, Inc.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <stdint.h>
 #include <bootstate.h>
@@ -42,15 +29,14 @@ static FILE *previous_file = NULL;
 static FILE *fopen(const char *path, const char *mode)
 {
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "fopen %s with mode %s\n",
-		path, mode);
+	printk(BIOS_DEBUG, "%s %s with mode %s\n", __func__, path, mode);
 #endif
 	if (!current_file) {
 		current_file = cbmem_add(CBMEM_ID_COVERAGE, 32*1024);
 	} else {
 		previous_file = current_file;
 		current_file =
-			(FILE *)(ALIGN(((unsigned long)previous_file->data
+			(FILE *)(ALIGN_UP(((unsigned long)previous_file->data
 			+ previous_file->len), 16));
 	}
 
@@ -63,7 +49,7 @@ static FILE *fopen(const char *path, const char *mode)
 		current_file->filename = (char *)&current_file[1];
 		strcpy(current_file->filename, path);
 		current_file->data =
-			(char *)ALIGN(((unsigned long)current_file->filename
+			(char *)ALIGN_UP(((unsigned long)current_file->filename
 			+ strlen(path) + 1), 16);
 		current_file->offset = 0;
 		current_file->len = 0;
@@ -75,7 +61,7 @@ static FILE *fopen(const char *path, const char *mode)
 static int fclose(FILE *stream)
 {
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "fclose %s\n", stream->filename);
+	printk(BIOS_DEBUG, "%s %s\n", __func__, stream->filename);
 #endif
 	return 0;
 }
@@ -86,8 +72,8 @@ static int fseek(FILE *stream, long offset, int whence)
 	 * to a freshly opened file. */
 	gcc_assert(offset == 0 && whence == SEEK_SET);
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "fseek %s offset=%ld whence=%d\n",
-		stream->filename, offset, whence);
+	printk(BIOS_DEBUG, "%s %s offset=%ld whence=%d\n",
+		__func__, stream->filename, offset, whence);
 #endif
 	return 0;
 }
@@ -95,9 +81,9 @@ static int fseek(FILE *stream, long offset, int whence)
 static long ftell(FILE *stream)
 {
 	/* ftell should currently not be called */
-	gcc_assert(0);
+	BUG();
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "ftell %s\n", stream->filename);
+	printk(BIOS_DEBUG, "%s %s\n", __func__, stream->filename);
 #endif
 	return 0;
 }
@@ -105,8 +91,8 @@ static long ftell(FILE *stream)
 static size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "fread: ptr=%p size=%zd nmemb=%zd FILE*=%p\n",
-		ptr, size, nmemb, stream);
+	printk(BIOS_DEBUG, "%s: ptr=%p size=%zd nmemb=%zd FILE*=%p\n",
+		__func__, ptr, size, nmemb, stream);
 #endif
 	return 0;
 }
@@ -114,8 +100,8 @@ static size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 static size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 #if CONFIG(DEBUG_COVERAGE)
-	printk(BIOS_DEBUG, "fwrite: %zd * %zd bytes to file %s\n",
-		nmemb, size, stream->filename);
+	printk(BIOS_DEBUG, "%s: %zd * %zd bytes to file %s\n",
+		__func__, nmemb, size, stream->filename);
 #endif
 	// TODO check if file is last opened file and fail otherwise.
 

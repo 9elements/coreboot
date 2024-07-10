@@ -1,19 +1,5 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stdlib.h>
 #include <soc/addressmap.h>
 #include <soc/clock.h>
 #include <device/device.h>
@@ -40,7 +26,7 @@ int mipi_dphy_set_timing(struct tegra_dsi *dsi)
 	u32 tclkpost = ((DSI_PHY_TIMING_DIV(((70) + ((52) * (DSI_TBIT(freq)))),
 			freq)));
 	u32 tclkzero = (DSI_PHY_TIMING_DIV(260, freq));
-	u32 ttlpx = (DSI_PHY_TIMING_DIV(60, freq)) ;
+	u32 ttlpx = (DSI_PHY_TIMING_DIV(60, freq));
 	u32 tclkprepare = (DSI_PHY_TIMING_DIV(60, freq));
 	u32 tclkpre = 1; //min = 8*UI per mipi spec, tclk_pre=0 should be ok, but using 1 value
 	u32 twakeup = 0x7F; //min = 1ms

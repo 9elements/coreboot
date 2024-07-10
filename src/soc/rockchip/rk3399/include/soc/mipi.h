@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Rockchip Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __RK_MIPI_H
 #define __RK_MIPI_H
 
-#include <stdlib.h>
+#include <mipi/dsi.h>
 #include <types.h>
 
 struct rk_mipi_regs {
@@ -264,11 +251,6 @@ check_member(rk_mipi_regs, dsi_int_msk1, 0xc8);
 #define GEN_PLD_R_FULL			BIT(5)
 #define GEN_RD_CMD_BUSY			BIT(6)
 
-#define MIPI_DSI_DCS_SHORT_WRITE		0x05
-#define MIPI_DSI_DCS_SHORT_WRITE_PARAM		0x15
-#define MIPI_DSI_GENERIC_SHORT_WRITE_2_PARAM	0x23
-#define MIPI_DSI_DCS_LONG_WRITE			0x39
-
 #define MIPI_INIT_CMD(...) { \
 	.len = sizeof((char[]){__VA_ARGS__}), \
 	.data = (char[]){__VA_ARGS__} }
@@ -305,12 +287,6 @@ enum {
 enum rk_mipi_dsi_mode {
 	MIPI_DSI_CMD_MODE,
 	MIPI_DSI_VID_MODE,
-};
-
-enum {
-	MIPI_DCS_NOP = 0x00,
-	MIPI_DCS_EXIT_SLEEP_MODE = 0x11,
-	MIPI_DCS_SET_DISPLAY_ON = 0x29,
 };
 
 struct dphy_pll_parameter_map {

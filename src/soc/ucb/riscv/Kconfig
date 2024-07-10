@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_UCB_RISCV
 	select ARCH_RISCV_S
 	select ARCH_RISCV_U
@@ -6,8 +8,6 @@ config SOC_UCB_RISCV
 	select ARCH_VERSTAGE_RISCV
 	select ARCH_ROMSTAGE_RISCV
 	select ARCH_RAMSTAGE_RISCV
-	select GENERIC_UDELAY
-	select HAVE_MONOTONIC_TIMER
 	select RISCV_USE_ARCH_TIMER
 	bool
 	default n

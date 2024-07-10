@@ -1,5 +1,6 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (c) 2012 Google Inc.
 ##
@@ -27,11 +28,10 @@
 ## SUCH DAMAGE.
 ##
 
-if ARCH_ARM64
-
-config ARCH_SPECIFIC_OPTIONS # dummy
-	def_bool y
+config ARCH_ARM64
 	select LITTLE_ENDIAN
+
+if ARCH_ARM64
 
 config ARM64_A53_ERRATUM_843419
 	bool "Enable Cortex-A53 erratum 843419 linker workaround"

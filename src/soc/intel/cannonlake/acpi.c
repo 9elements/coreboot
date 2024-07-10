@@ -1,28 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2009 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017-2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
-#include <arch/acpigen.h>
+#include <acpi/acpi.h>
+#include <acpi/acpi_gnvs.h>
+#include <acpi/acpigen.h>
+#include <arch/ioapic.h>
 #include <arch/smp/mpspec.h>
-#include <cbmem.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/pci_ops.h>
-#include <ec/google/chromeec/ec.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/acpi.h>
@@ -33,9 +18,6 @@
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <soc/systemagent.h>
-#include <string.h>
-#include <vendorcode/google/chromeos/gnvs.h>
-#include <wrdd.h>
 
 #include "chip.h"
 
@@ -58,15 +40,6 @@ enum {
 	NUM_C_STATES
 };
 
-#define MWAIT_RES(state, sub_state)				\
-	{							\
-		.addrl = (((state) << 4) | (sub_state)),	\
-		.space_id = ACPI_ADDRESS_SPACE_FIXED,		\
-		.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,	\
-		.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,	\
-		.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,	\
-	}
-
 static const acpi_cstate_t cstate_map[NUM_C_STATES] = {
 	[C_STATE_C0] = {},
 	[C_STATE_C1] = {
@@ -80,47 +53,47 @@ static const acpi_cstate_t cstate_map[NUM_C_STATES] = {
 		.resource = MWAIT_RES(0, 1),
 	},
 	[C_STATE_C6_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C6_POWER,
 		.resource = MWAIT_RES(2, 0),
 	},
 	[C_STATE_C6_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C6_POWER,
 		.resource = MWAIT_RES(2, 1),
 	},
 	[C_STATE_C7_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 0),
 	},
 	[C_STATE_C7_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 1),
 	},
 	[C_STATE_C7S_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 2),
 	},
 	[C_STATE_C7S_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 3),
 	},
 	[C_STATE_C8] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(3),
 		.power = C8_POWER,
 		.resource = MWAIT_RES(4, 0),
 	},
 	[C_STATE_C9] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(4),
 		.power = C9_POWER,
 		.resource = MWAIT_RES(5, 0),
 	},
 	[C_STATE_C10] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(5),
 		.power = C10_POWER,
 		.resource = MWAIT_RES(6, 0),
 	},
@@ -138,14 +111,15 @@ static int cstate_set_s0ix[] = {
 	C_STATE_C10
 };
 
-acpi_cstate_t *soc_get_cstate_map(size_t *entries)
+const acpi_cstate_t *soc_get_cstate_map(size_t *entries)
 {
 	static acpi_cstate_t map[MAX(ARRAY_SIZE(cstate_set_s0ix),
 				ARRAY_SIZE(cstate_set_non_s0ix))];
 	int *set;
 	int i;
-	struct device *dev = SA_DEV_ROOT;
-	config_t *config = dev->chip_info;
+
+	config_t *config = config_of_soc();
+
 	int is_s0ix_enable = config->s0ix_enable;
 
 	if (is_s0ix_enable) {
@@ -157,7 +131,7 @@ acpi_cstate_t *soc_get_cstate_map(size_t *entries)
 	}
 
 	for (i = 0; i < *entries; i++) {
-		memcpy(&map[i], &cstate_map[set[i]], sizeof(acpi_cstate_t));
+		map[i] = cstate_map[set[i]];
 		map[i].ctype = i + 1;
 	}
 	return map;
@@ -165,88 +139,113 @@ acpi_cstate_t *soc_get_cstate_map(size_t *entries)
 
 void soc_power_states_generation(int core_id, int cores_per_package)
 {
-	struct device *dev = SA_DEV_ROOT;
-	config_t *config = dev->chip_info;
+	config_t *config = config_of_soc();
+
+	/* Generate P-state tables */
 	if (config->eist_enable)
-		/* Generate P-state tables */
 		generate_p_state_entries(core_id, cores_per_package);
 }
 
 void soc_fill_fadt(acpi_fadt_t *fadt)
 {
 	const uint16_t pmbase = ACPI_BASE_ADDRESS;
-	const struct device *dev = PCH_DEV_LPC;
-	const struct soc_intel_cannonlake_config *config = dev->chip_info;
+	const struct soc_intel_cannonlake_config *config;
+	config = config_of_soc();
 
-	if (!config->PmTimerDisabled) {
-		fadt->pm_tmr_blk = pmbase + PM1_TMR;
-		fadt->pm_tmr_len = 4;
-		fadt->x_pm_tmr_blk.space_id = 1;
-		fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
-		fadt->x_pm_tmr_blk.bit_offset = 0;
-		fadt->x_pm_tmr_blk.access_size = 0;
-		fadt->x_pm_tmr_blk.addrl = pmbase + PM1_TMR;
-		fadt->x_pm_tmr_blk.addrh = 0x0;
-	}
+	fadt->pm_tmr_blk = pmbase + PM1_TMR;
+	fadt->pm_tmr_len = 4;
+
+	fill_fadt_extended_pm_io(fadt);
 
 	if (config->s0ix_enable)
 		fadt->flags |= ACPI_FADT_LOW_PWR_IDLE_S0;
 }
-uint32_t soc_read_sci_irq_select(void)
+
+static struct min_sleep_state min_pci_sleep_states[] = {
+	{ SA_DEVFN_ROOT,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG0,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG1,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG2,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_IGD,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_TS,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_IPU,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_GNA,		ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UFS,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_ISH,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_XHCI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_USBOTG,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_CNViWIFI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_SDCARD,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C3,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_CSE,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SATA,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C4,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C5,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UART2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_EMMC,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_PCIE1,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE2,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE3,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE4,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE5,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE6,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE7,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE8,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE9,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE10,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE11,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE12,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE13,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE14,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE15,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE16,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE17,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE18,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE19,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE20,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE21,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE22,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE23,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE24,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_UART0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UART1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_LPC,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_P2SB,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_HDA,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SMBUS,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SPI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GBE,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_TRACEHUB,	ACPI_DEVICE_SLEEP_D3 },
+};
+
+struct min_sleep_state *soc_get_min_sleep_state_array(size_t *size)
 {
-	uintptr_t pmc_bar = soc_read_pmc_base();
-	return read32((void *)pmc_bar + IRQ_REG);
+	*size = ARRAY_SIZE(min_pci_sleep_states);
+	return min_pci_sleep_states;
 }
 
-void acpi_create_gnvs(struct global_nvs_t *gnvs)
+uint32_t soc_read_sci_irq_select(void)
 {
-	const struct device *dev = PCH_DEV_LPC;
-	const struct soc_intel_cannonlake_config *config = dev->chip_info;
+	return read32p(soc_read_pmc_base() + IRQ_REG);
+}
 
-	/* Set unknown wake source */
-	gnvs->pm1i = -1;
-
-	/* CPU core count */
-	gnvs->pcnt = dev_count_cpu();
-
-	if (CONFIG(CONSOLE_CBMEM))
-	/* Update the mem console pointer. */
-	gnvs->cbmc = (uintptr_t)cbmem_find(CBMEM_ID_CONSOLE);
-
-	if (CONFIG(CHROMEOS)) {
-		/* Initialize Verified Boot data */
-		chromeos_init_chromeos_acpi(&(gnvs->chromeos));
-		if (CONFIG(EC_GOOGLE_CHROMEEC)) {
-			gnvs->chromeos.vbt2 = google_ec_running_ro() ?
-				ACTIVE_ECFW_RO : ACTIVE_ECFW_RW;
-		} else
-			gnvs->chromeos.vbt2 = ACTIVE_ECFW_RO;
-	}
+void soc_fill_gnvs(struct global_nvs *gnvs)
+{
+	const struct soc_intel_cannonlake_config *config;
+	config = config_of_soc();
 
 	/* Enable DPTF based on mainboard configuration */
 	gnvs->dpte = config->dptf_enable;
 
-	/* Fill in the Wifi Region id */
-	gnvs->cid1 = wifi_regulatory_domain();
-
 	/* Set USB2/USB3 wake enable bitmaps. */
 	gnvs->u2we = config->usb2_wake_enable_bitmap;
 	gnvs->u3we = config->usb3_wake_enable_bitmap;
-}
-
-uint32_t acpi_fill_soc_wake(uint32_t generic_pm1_en,
-			    const struct chipset_power_state *ps)
-{
-	/*
-	 * WAK_STS bit is set when the system is in one of the sleep states
-	 * (via the SLP_EN bit) and an enabled wake event occurs. Upon setting
-	 * this bit, the PMC will transition the system to the ON state and
-	 * can only be set by hardware and can only be cleared by writing a one
-	 * to this bit position.
-	 */
-
-	generic_pm1_en |= WAK_STS | RTC_EN | PWRBTN_EN;
-	return generic_pm1_en;
 }
 
 int soc_madt_sci_irq_polarity(int sci)
@@ -254,50 +253,13 @@ int soc_madt_sci_irq_polarity(int sci)
 	return MP_IRQ_POLARITY_HIGH;
 }
 
-static int acpigen_soc_gpio_op(const char *op, unsigned int gpio_num)
-{
-	/* op (gpio_num) */
-	acpigen_emit_namestring(op);
-	acpigen_write_integer(gpio_num);
-	return 0;
-}
-
-static int acpigen_soc_get_gpio_state(const char *op, unsigned int gpio_num)
-{
-	/* Store (op (gpio_num), Local0) */
-	acpigen_write_store();
-	acpigen_soc_gpio_op(op, gpio_num);
-	acpigen_emit_byte(LOCAL0_OP);
-	return 0;
-}
-
-int acpigen_soc_read_rx_gpio(unsigned int gpio_num)
-{
-	return acpigen_soc_get_gpio_state("\\_SB.PCI0.GRXS", gpio_num);
-}
-
-int acpigen_soc_get_tx_gpio(unsigned int gpio_num)
-{
-	return acpigen_soc_get_gpio_state("\\_SB.PCI0.GTXS", gpio_num);
-}
-
-int acpigen_soc_set_tx_gpio(unsigned int gpio_num)
-{
-	return acpigen_soc_gpio_op("\\_SB.PCI0.STXS", gpio_num);
-}
-
-int acpigen_soc_clear_tx_gpio(unsigned int gpio_num)
-{
-	return acpigen_soc_gpio_op("\\_SB.PCI0.CTXS", gpio_num);
-}
-
 static unsigned long soc_fill_dmar(unsigned long current)
 {
-	struct device *const igfx_dev = dev_find_slot(0, SA_DEVFN_IGD);
+	struct device *const igfx_dev = pcidev_path_on_root(SA_DEVFN_IGD);
 	uint64_t gfxvtbar = MCHBAR64(GFXVTBAR) & VTBAR_MASK;
 	bool gfxvten = MCHBAR32(GFXVTBAR) & VTBAR_ENABLED;
-
-	if (igfx_dev && igfx_dev->enabled && gfxvtbar && gfxvten) {
+	const bool emit_igd = igfx_dev && igfx_dev->enabled && gfxvtbar && gfxvten;
+	if (emit_igd) {
 		unsigned long tmp = current;
 
 		current += acpi_create_dmar_drhd(current, 0, 0, gfxvtbar);
@@ -306,7 +268,7 @@ static unsigned long soc_fill_dmar(unsigned long current)
 		acpi_dmar_drhd_fixup(tmp, current);
 	}
 
-	struct device *const ipu_dev = dev_find_slot(0, SA_DEVFN_IPU);
+	struct device *const ipu_dev = pcidev_path_on_root(SA_DEVFN_IPU);
 	uint64_t ipuvtbar = MCHBAR64(IPUVTBAR) & VTBAR_MASK;
 	bool ipuvten = MCHBAR32(IPUVTBAR) & VTBAR_ENABLED;
 
@@ -327,8 +289,8 @@ static unsigned long soc_fill_dmar(unsigned long current)
 
 		current += acpi_create_dmar_drhd(current,
 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
-		current += acpi_create_dmar_ds_ioapic(current,
-				2, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
+		current += acpi_create_dmar_ds_ioapic_from_hw(current,
+				IO_APIC_ADDR, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
 				V_P2SB_CFG_IBDF_FUNC);
 		current += acpi_create_dmar_ds_msi_hpet(current,
 				0, V_P2SB_CFG_HBDF_BUS, V_P2SB_CFG_HBDF_DEV,
@@ -337,17 +299,20 @@ static unsigned long soc_fill_dmar(unsigned long current)
 		acpi_dmar_drhd_fixup(tmp, current);
 	}
 
-	/* Add RMRR entry */
-	const unsigned long tmp = current;
-	current += acpi_create_dmar_rmrr(current, 0,
-		sa_get_gsm_base(), sa_get_tolud_base() - 1);
-	current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
-	acpi_dmar_rmrr_fixup(tmp, current);
+	/* Add RMRR entry after all DRHD entries */
+	if (emit_igd) {
+		const unsigned long tmp = current;
+
+		current += acpi_create_dmar_rmrr(current, 0,
+			sa_get_gsm_base(), sa_get_tolud_base() - 1);
+		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
+		acpi_dmar_rmrr_fixup(tmp, current);
+	}
 
 	return current;
 }
 
-unsigned long sa_write_acpi_tables(struct device *dev, unsigned long current,
+unsigned long sa_write_acpi_tables(const struct device *dev, unsigned long current,
 				   struct acpi_rsdp *rsdp)
 {
 	acpi_dmar_t *const dmar = (acpi_dmar_t *)current;

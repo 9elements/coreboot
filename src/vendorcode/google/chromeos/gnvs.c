@@ -1,35 +1,24 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
+#include <acpi/acpigen.h>
+#include <bootstate.h>
 #include <types.h>
 #include <string.h>
 #include <stdlib.h>
 #include <cbfs.h>
 #include <cbmem.h>
 #include <console/console.h>
-#include <elog.h>
+#include <ec/google/chromeec/ec.h>
 #include <fmap.h>
 #include <security/vboot/vbnv.h>
 #include <security/vboot/vboot_common.h>
-#include <vboot_struct.h>
+#include <smbios.h>
 
 #include "chromeos.h"
 #include "gnvs.h"
 
-static chromeos_acpi_t *chromeos_acpi;
-static u32 me_hash_saved[8];
+static struct chromeos_acpi *chromeos_acpi;
 
 static size_t chromeos_vpd_region(const char *region, uintptr_t *base)
 {
@@ -43,17 +32,18 @@ static size_t chromeos_vpd_region(const char *region, uintptr_t *base)
 	return region_device_sz(&vpd);
 }
 
-void chromeos_init_chromeos_acpi(chromeos_acpi_t *init)
+static void chromeos_init_chromeos_acpi(void *unused)
 {
 	size_t vpd_size;
 	uintptr_t vpd_base = 0;
 
-	chromeos_acpi = init;
+	chromeos_acpi = cbmem_add(CBMEM_ID_ACPI_CNVS, sizeof(struct chromeos_acpi));
+	if (!chromeos_acpi)
+		return;
 
-	/* Copy saved ME hash into NVS */
-	memcpy(chromeos_acpi->mehh, me_hash_saved, sizeof(chromeos_acpi->mehh));
-
-	chromeos_ram_oops_init(chromeos_acpi);
+	/* Retain CNVS contents on S3 resume path. */
+	if (acpi_is_wakeup_s3())
+		return;
 
 	vpd_size = chromeos_vpd_region("RO_VPD", &vpd_base);
 	if (vpd_size && vpd_base) {
@@ -68,20 +58,47 @@ void chromeos_init_chromeos_acpi(chromeos_acpi_t *init)
 	}
 }
 
+BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_EXIT, chromeos_init_chromeos_acpi, NULL);
+
 void chromeos_set_me_hash(u32 *hash, int len)
 {
 	if ((len*sizeof(u32)) > sizeof(chromeos_acpi->mehh))
 		return;
 
-	/* Copy to NVS or save until it is ready */
+	/* Copy to NVS. */
 	if (chromeos_acpi)
-		/* This does never happen! */
 		memcpy(chromeos_acpi->mehh, hash, len*sizeof(u32));
-	else
-		memcpy(me_hash_saved, hash, len*sizeof(u32));
 }
 
-chromeos_acpi_t *chromeos_get_chromeos_acpi(void)
+void chromeos_set_ramoops(void *ram_oops, size_t size)
 {
-	return chromeos_acpi;
+	if (!chromeos_acpi)
+		return;
+
+	printk(BIOS_DEBUG, "Ramoops buffer: 0x%zx@%p.\n", size, ram_oops);
+	chromeos_acpi->ramoops_base = (uintptr_t)ram_oops;
+	chromeos_acpi->ramoops_len = size;
+}
+
+void smbios_type0_bios_version(uintptr_t address)
+{
+	if (!chromeos_acpi)
+		return;
+	/* Location of smbios_type0.bios_version() string filled with spaces. */
+	chromeos_acpi->vbt10 = address;
+}
+
+void acpi_fill_cnvs(void)
+{
+	const struct opregion cnvs_op = OPREGION("CNVS", SYSTEMMEMORY, (uintptr_t)chromeos_acpi,
+						 sizeof(*chromeos_acpi));
+
+	if (!chromeos_acpi)
+		return;
+
+	acpigen_write_scope("\\");
+	acpigen_write_opregion(&cnvs_op);
+	acpigen_pop_len();
+
+	chromeos_acpi_gpio_generate();
 }

@@ -1,13 +1,9 @@
-/*
- * Copyright 2016 The Chromium OS Authors. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file.
- *
- * This is a driver for a SPI interfaced TPM2 device.
+/* SPDX-License-Identifier: BSD-3-Clause */
+/* This is a driver for a SPI interfaced TPM2 device.
  *
  * It assumes that the required SPI interface has been initialized before the
- * driver is started. A 'sruct spi_slave' pointer passed at initialization is
- * used to direct traffic to the correct SPI interface. This dirver does not
+ * driver is started. A 'struct spi_slave' pointer passed at initialization is
+ * used to direct traffic to the correct SPI interface. This driver does not
  * provide a way to instantiate multiple TPM devices. Also, to keep things
  * simple, the driver unconditionally uses of TPM locality zero.
  *
@@ -15,41 +11,42 @@
  * Specification Revision 00.43".
  */
 
-#include <arch/early_variables.h>
 #include <assert.h>
 #include <commonlib/endian.h>
 #include <console/console.h>
 #include <delay.h>
+#include <drivers/tpm/cr50.h>
 #include <endian.h>
+#include <security/tpm/tis.h>
 #include <string.h>
 #include <timer.h>
-#include <security/tpm/tis.h>
+#include <types.h>
 
 #include "tpm.h"
-
-#define TPM_LOCALITY_0_SPI_BASE 0x00d40000
 
 /* Assorted TPM2 registers for interface type FIFO. */
 #define TPM_ACCESS_REG    (TPM_LOCALITY_0_SPI_BASE + 0)
 #define TPM_STS_REG       (TPM_LOCALITY_0_SPI_BASE + 0x18)
 #define TPM_DATA_FIFO_REG (TPM_LOCALITY_0_SPI_BASE + 0x24)
+#define TPM_INTF_ID_REG   (TPM_LOCALITY_0_SPI_BASE + 0x30)
 #define TPM_DID_VID_REG   (TPM_LOCALITY_0_SPI_BASE + 0xf00)
 #define TPM_RID_REG       (TPM_LOCALITY_0_SPI_BASE + 0xf04)
 #define TPM_FW_VER	  (TPM_LOCALITY_0_SPI_BASE + 0xf90)
+#define CR50_BOARD_CFG     (TPM_LOCALITY_0_SPI_BASE + 0xfe0)
 
 #define CR50_TIMEOUT_INIT_MS 30000 /* Very long timeout for TPM init */
 
 /* SPI slave structure for TPM device. */
-static struct spi_slave g_spi_slave CAR_GLOBAL;
+static struct spi_slave spi_slave;
 
 /* Cached TPM device identification. */
-static struct tpm2_info g_tpm_info CAR_GLOBAL;
+static struct tpm2_info tpm_info;
 
 /*
- * TODO(vbendeb): make CONFIG_DEBUG_TPM an int to allow different level of
+ * TODO(vbendeb): make CONFIG(DEBUG_TPM) an int to allow different level of
  * debug traces. Right now it is either 0 or 1.
  */
-static const int debug_level_ = CONFIG_DEBUG_TPM;
+static const int debug_level_ = CONFIG(DEBUG_TPM);
 
 /*
  * SPI frame header for TPM transactions is 4 bytes in size, it is described
@@ -61,96 +58,66 @@ typedef struct {
 
 void tpm2_get_info(struct tpm2_info *info)
 {
-	*info = car_get_var(g_tpm_info);
-}
-
-__weak int tis_plat_irq_status(void)
-{
-	static int warning_displayed CAR_GLOBAL;
-
-	if (!car_get_var(warning_displayed)) {
-		printk(BIOS_WARNING, "WARNING: tis_plat_irq_status() not implemented, wasting 10ms to wait on Cr50!\n");
-		car_set_var(warning_displayed, 1);
-	}
-	mdelay(10);
-
-	return 1;
-}
-
-/*
- * TPM may trigger a IRQ after finish processing previous transfer.
- * Waiting for this IRQ to sync TPM status.
- *
- * Returns 1 on success, 0 on failure (timeout).
- */
-static int tpm_sync(void)
-{
-	struct stopwatch sw;
-
-	stopwatch_init_msecs_expire(&sw, 10);
-	while (!tis_plat_irq_status()) {
-		if (stopwatch_expired(&sw)) {
-			printk(BIOS_ERR, "Timeout wait for TPM IRQ!\n");
-			return 0;
-		}
-	}
-	return 1;
+	*info = tpm_info;
 }
 
 /*
  * Each TPM2 SPI transaction starts the same: CS is asserted, the 4 byte
  * header is sent to the TPM, the master waits til TPM is ready to continue.
- *
- * Returns 1 on success, 0 on failure (TPM SPI flow control timeout.)
  */
-static int start_transaction(int read_write, size_t bytes, unsigned addr)
+static enum cb_err start_transaction(int read_write, size_t bytes, unsigned int addr)
 {
-	spi_frame_header header;
+	spi_frame_header header, header_resp;
 	uint8_t byte;
 	int i;
+	int ret;
 	struct stopwatch sw;
-	static int tpm_sync_needed CAR_GLOBAL;
-	static struct stopwatch wake_up_sw CAR_GLOBAL;
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
-	/*
-	 * First Cr50 access in each coreboot stage where TPM is used will be
-	 * prepended by a wake up pulse on the CS line.
-	 */
-	int wakeup_needed = 1;
+	static int tpm_sync_needed;
+	static struct stopwatch wake_up_sw;
 
-	/* Wait for TPM to finish previous transaction if needed */
-	if (car_get_var(tpm_sync_needed)) {
-		tpm_sync();
+	if (CONFIG(TPM_GOOGLE)) {
 		/*
-		 * During the first invocation of this function on each stage
-		 * this if () clause code does not run (as tpm_sync_needed
-		 * value is zero), during all following invocations the
-		 * stopwatch below is guaranteed to be started.
+		 * First Cr50 access in each coreboot stage where TPM is used will be
+		 * prepended by a wake up pulse on the CS line.
 		 */
-		if (!stopwatch_expired(car_get_var_ptr(&wake_up_sw)))
-			wakeup_needed = 0;
-	} else {
-		car_set_var(tpm_sync_needed, 1);
-	}
+		int wakeup_needed = 1;
 
-	if (wakeup_needed) {
-		/* Just in case Cr50 is asleep. */
-		spi_claim_bus(spi_slave);
-		udelay(1);
-		spi_release_bus(spi_slave);
-		udelay(100);
-	}
+		/* Wait for TPM to finish previous transaction if needed */
+		if (tpm_sync_needed) {
+			if (cr50_wait_tpm_ready() != CB_SUCCESS)
+				printk(BIOS_ERR, "Timeout waiting for TPM IRQ!\n");
 
-	/*
-	 * The Cr50 on H1 does not go to sleep for 1 second after any
-	 * SPI slave activity, let's be conservative and limit the
-	 * window to 900 ms.
-	 */
-	stopwatch_init_msecs_expire(car_get_var_ptr(&wake_up_sw), 900);
+			/*
+			 * During the first invocation of this function on each stage
+			 * this if () clause code does not run (as tpm_sync_needed
+			 * value is zero), during all following invocations the
+			 * stopwatch below is guaranteed to be started.
+			 */
+			if (!stopwatch_expired(&wake_up_sw))
+				wakeup_needed = 0;
+		} else {
+			tpm_sync_needed = 1;
+		}
+
+		if (wakeup_needed) {
+			/* Just in case Cr50 is asleep. */
+			spi_claim_bus(&spi_slave);
+			udelay(1);
+			spi_release_bus(&spi_slave);
+			udelay(100);
+		}
+
+		/*
+		 * The Cr50 on H1 does not go to sleep for 1 second after any
+		 * SPI slave activity, let's be conservative and limit the
+		 * window to 900 ms.
+		 */
+		stopwatch_init_msecs_expire(&wake_up_sw, 900);
+	}
 
 	/*
 	 * The first byte of the frame header encodes the transaction type
-	 * (read or write) and transfer size (set to lentgh - 1), limited to
+	 * (read or write) and transfer size (set to length - 1), limited to
 	 * 64 bytes.
 	 */
 	header.body[0] = (read_write ? 0x80 : 0) | 0x40 | (bytes - 1);
@@ -160,14 +127,14 @@ static int start_transaction(int read_write, size_t bytes, unsigned addr)
 		header.body[i + 1] = (addr >> (8 * (2 - i))) & 0xff;
 
 	/* CS assert wakes up the slave. */
-	spi_claim_bus(spi_slave);
+	spi_claim_bus(&spi_slave);
 
 	/*
 	 * The TCG TPM over SPI specification introduces the notion of SPI
 	 * flow control (Section "6.4.5 Flow Control").
 	 *
 	 * Again, the slave (TPM device) expects each transaction to start
-	 * with a 4 byte header trasmitted by master. The header indicates if
+	 * with a 4 byte header transmitted by master. The header indicates if
 	 * the master needs to read or write a register, and the register
 	 * address.
 	 *
@@ -179,31 +146,46 @@ static int start_transaction(int read_write, size_t bytes, unsigned addr)
 	 * the last clock of the byte) is set to 1.
 	 *
 	 * Due to some SPI controllers' shortcomings (Rockchip comes to
-	 * mind...) we trasmit the 4 byte header without checking the byte
+	 * mind...) we transmit the 4 byte header without checking the byte
 	 * transmitted by the TPM during the transaction's last byte.
 	 *
 	 * We know that cr50 is guaranteed to set the flow control bit to 0
-	 * during the header transfer, but real TPM2 might be fast enough not
-	 * to require to stall the master, this would present an issue.
+	 * during the header transfer. Real TPM2 are fast enough to not require
+	 * to stall the master. They might still use this feature, so test the
+	 * last bit after shifting in the address bytes.
 	 * crosbug.com/p/52132 has been opened to track this.
 	 */
-	spi_xfer(spi_slave, header.body, sizeof(header.body), NULL, 0);
+
+	header_resp.body[3] = 0;
+	if (CONFIG(TPM_GOOGLE))
+		ret = spi_xfer(&spi_slave, header.body, sizeof(header.body), NULL, 0);
+	else
+		ret = spi_xfer(&spi_slave, header.body, sizeof(header.body),
+			       header_resp.body, sizeof(header_resp.body));
+	if (ret) {
+		printk(BIOS_ERR, "SPI-TPM: transfer error\n");
+		spi_release_bus(&spi_slave);
+		return CB_ERR;
+	}
+
+	if (header_resp.body[3] & 1)
+		return CB_SUCCESS;
 
 	/*
 	 * Now poll the bus until TPM removes the stall bit. Give it up to 100
-	 * ms to sort it out - it could be saving stuff in nvram at some
-	 * point.
+	 * ms to sort it out - it could be saving stuff in nvram at some point.
 	 */
 	stopwatch_init_msecs_expire(&sw, 100);
 	do {
 		if (stopwatch_expired(&sw)) {
 			printk(BIOS_ERR, "TPM flow control failure\n");
-			spi_release_bus(spi_slave);
-			return 0;
+			spi_release_bus(&spi_slave);
+			return CB_ERR;
 		}
-		spi_xfer(spi_slave, NULL, 0, &byte, 1);
+		spi_xfer(&spi_slave, NULL, 0, &byte, 1);
 	} while (!(byte & 1));
-	return 1;
+
+	return CB_SUCCESS;
 }
 
 /*
@@ -214,11 +196,10 @@ static void trace_dump(const char *prefix, uint32_t reg,
 		       size_t bytes, const uint8_t *buffer,
 		       int force)
 {
-	static char prev_prefix CAR_GLOBAL;
-	static unsigned prev_reg CAR_GLOBAL;
-	static int current_char CAR_GLOBAL;
+	static char prev_prefix;
+	static unsigned int prev_reg;
+	static int current_char;
 	const int BYTES_PER_LINE = 32;
-	int *current_char_ptr = car_get_var_ptr(&current_char);
 
 	if (!force) {
 		if (!debug_level_)
@@ -232,12 +213,11 @@ static void trace_dump(const char *prefix, uint32_t reg,
 	 * Do not print register address again if the last dump print was for
 	 * that register.
 	 */
-	if ((car_get_var(prev_prefix) != *prefix) ||
-		(car_get_var(prev_reg) != reg)) {
-		car_set_var(prev_prefix, *prefix);
-		car_set_var(prev_reg, reg);
+	if (prev_prefix != *prefix || (prev_reg != reg)) {
+		prev_prefix = *prefix;
+		prev_reg = reg;
 		printk(BIOS_DEBUG, "\n%s %2.2x:", prefix, reg);
-		*current_char_ptr = 0;
+		current_char = 0;
 	}
 
 	if ((reg != TPM_DATA_FIFO_REG) && (bytes == 4)) {
@@ -251,15 +231,15 @@ static void trace_dump(const char *prefix, uint32_t reg,
 
 		/*
 		 * Data read from or written to FIFO or not in 4 byte
-		 * quantiites is printed byte at a time.
+		 * quantities is printed byte at a time.
 		 */
 		for (i = 0; i < bytes; i++) {
-			if (*current_char_ptr &&
-				!(*current_char_ptr % BYTES_PER_LINE)) {
+			if (current_char &&
+				!(current_char % BYTES_PER_LINE)) {
 				printk(BIOS_DEBUG, "\n     ");
-				*current_char_ptr = 0;
+				current_char = 0;
 			}
-			(*current_char_ptr)++;
+			(current_char)++;
 			printk(BIOS_DEBUG, " %2.2x", buffer[i]);
 		}
 	}
@@ -271,8 +251,7 @@ static void trace_dump(const char *prefix, uint32_t reg,
  */
 static void write_bytes(const void *buffer, size_t bytes)
 {
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
-	spi_xfer(spi_slave, buffer, bytes, NULL, 0);
+	spi_xfer(&spi_slave, buffer, bytes, NULL, 0);
 }
 
 /*
@@ -281,57 +260,51 @@ static void write_bytes(const void *buffer, size_t bytes)
  */
 static void read_bytes(void *buffer, size_t bytes)
 {
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
-	spi_xfer(spi_slave, NULL, 0, buffer, bytes);
+	spi_xfer(&spi_slave, NULL, 0, buffer, bytes);
 }
 
 /*
  * To write a register, start transaction, transfer data to the TPM, deassert
  * CS when done.
- *
- * Returns one to indicate success, zero to indicate failure.
  */
-static int tpm2_write_reg(unsigned reg_number, const void *buffer, size_t bytes)
+static enum cb_err tpm2_write_reg(unsigned int reg_number, const void *buffer, size_t bytes)
 {
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
 	trace_dump("W", reg_number, bytes, buffer, 0);
-	if (!start_transaction(false, bytes, reg_number))
-		return 0;
+	if (start_transaction(false, bytes, reg_number) != CB_SUCCESS)
+		return CB_ERR;
 	write_bytes(buffer, bytes);
-	spi_release_bus(spi_slave);
-	return 1;
+	spi_release_bus(&spi_slave);
+	return CB_SUCCESS;
 }
 
 /*
  * To read a register, start transaction, transfer data from the TPM, deassert
  * CS when done.
  *
- * Returns one to indicate success, zero to indicate failure. In case of
- * failure zero out the user buffer.
+ * In case of failure zero out the user buffer.
  */
-static int tpm2_read_reg(unsigned reg_number, void *buffer, size_t bytes)
+static enum cb_err tpm2_read_reg(unsigned int reg_number, void *buffer, size_t bytes)
 {
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
-	if (!start_transaction(true, bytes, reg_number)) {
+	if (start_transaction(true, bytes, reg_number) != CB_SUCCESS) {
 		memset(buffer, 0, bytes);
-		return 0;
+		return CB_ERR;
 	}
 	read_bytes(buffer, bytes);
-	spi_release_bus(spi_slave);
+	spi_release_bus(&spi_slave);
 	trace_dump("R", reg_number, bytes, buffer, 0);
-	return 1;
+	return CB_SUCCESS;
 }
 
 /*
  * Status register is accessed often, wrap reading and writing it into
  * dedicated functions.
  */
-static int read_tpm_sts(uint32_t *status)
+static enum cb_err read_tpm_sts(uint32_t *status)
 {
 	return tpm2_read_reg(TPM_STS_REG, status, sizeof(*status));
 }
 
-static int write_tpm_sts(uint32_t status)
+static enum cb_err __must_check write_tpm_sts(uint32_t status)
 {
 	return tpm2_write_reg(TPM_STS_REG, &status, sizeof(status));
 }
@@ -360,12 +333,12 @@ static uint8_t tpm2_read_access_reg(void)
 static void tpm2_write_access_reg(uint8_t cmd)
 {
 	/* Writes to access register can set only 1 bit at a time. */
-	assert (!(cmd & (cmd - 1)));
+	assert(!(cmd & (cmd - 1)));
 
 	tpm2_write_reg(TPM_ACCESS_REG, &cmd, sizeof(cmd));
 }
 
-static int tpm2_claim_locality(void)
+static enum cb_err tpm2_claim_locality(void)
 {
 	uint8_t access;
 	struct stopwatch sw;
@@ -401,36 +374,37 @@ static int tpm2_claim_locality(void)
 			break;
 		}
 
-		printk(BIOS_INFO, "TPM ready after %ld ms\n",
+		printk(BIOS_INFO, "TPM ready after %lld ms\n",
 		       stopwatch_duration_msecs(&sw));
 
-		return 1;
+		return CB_SUCCESS;
 	} while (!stopwatch_expired(&sw));
 
 	printk(BIOS_ERR,
-	       "Failed to claim locality 0 after %ld ms, status: %#x\n",
+	       "Failed to claim locality 0 after %lld ms, status: %#x\n",
 	       stopwatch_duration_msecs(&sw), access);
 
-	return 0;
+	return CB_ERR;
 }
 
 /* Device/vendor ID values of the TPM devices this driver supports. */
 static const uint32_t supported_did_vids[] = {
-	0x00281ae0  /* H1 based Cr50 security chip. */
+	0x00281ae0,  /* H1 based Cr50 security chip. */
+	0x504a6666,  /* H1D3C based Ti50 security chip. */
+	0x0000104a   /* ST33HTPH2E32 */
 };
 
-int tpm2_init(struct spi_slave *spi_if)
+tpm_result_t tpm2_init(struct spi_slave *spi_if)
 {
-	uint32_t did_vid, status;
+	uint32_t did_vid, status, intf_id;
 	uint8_t cmd;
 	int retries;
-	struct tpm2_info *tpm_info = car_get_var_ptr(&g_tpm_info);
-	struct spi_slave *spi_slave = car_get_var_ptr(&g_spi_slave);
 
-	memcpy(spi_slave, spi_if, sizeof(*spi_if));
+	memcpy(&spi_slave, spi_if, sizeof(*spi_if));
 
-	/* clear any pending IRQs */
-	tis_plat_irq_status();
+	/* Clear any pending IRQs. */
+	if (CONFIG(TPM_GOOGLE))
+		cr50_plat_irq_status();
 
 	/*
 	 * 150 ms should be enough to synchronize with the TPM even under the
@@ -459,24 +433,42 @@ int tpm2_init(struct spi_slave *spi_if)
 	if (!retries) {
 		printk(BIOS_ERR, "\n%s: Failed to connect to the TPM\n",
 		       __func__);
-		return -1;
+		return TPM_CB_FAIL;
 	}
 
 	printk(BIOS_INFO, " done!\n");
 
-	if (ENV_VERSTAGE || ENV_BOOTBLOCK)
+	/* Google TPMs haven't always been 100% accurate in reflecting the spec (particularly
+	 * on older versions) and are always TPM 2.0. */
+	if (!CONFIG(TPM_GOOGLE)) {
+		if (tpm2_read_reg(TPM_INTF_ID_REG, &intf_id, sizeof(intf_id)) != CB_SUCCESS) {
+			printk(BIOS_ERR, "\n%s: Failed to read interface ID register\n",
+			       __func__);
+			return TPM_CB_FAIL;
+		}
+		if ((be32toh(intf_id) & 0xF) == 0xF) {
+			printk(BIOS_DEBUG, "\n%s: Not a TPM2 device\n", __func__);
+			return TPM_CB_FAIL;
+		}
+	}
+
+	// FIXME: Move this to tpm_setup()
+	if (tpm_first_access_this_boot())
 		/*
 		 * Claim locality 0, do it only during the first
 		 * initialization after reset.
 		 */
-		if (!tpm2_claim_locality())
-			return -1;
+		if (tpm2_claim_locality() != CB_SUCCESS)
+			return TPM_CB_FAIL;
 
-	read_tpm_sts(&status);
+	if (read_tpm_sts(&status) != CB_SUCCESS) {
+		printk(BIOS_ERR, "Reading status reg failed\n");
+		return TPM_CB_FAIL;
+	}
 	if ((status & TPM_STS_FAMILY_MASK) != TPM_STS_FAMILY_TPM_2_0) {
 		printk(BIOS_ERR, "unexpected TPM family value, status: %#x\n",
 		       status);
-		return -1;
+		return TPM_CB_FAIL;
 	}
 
 	/*
@@ -484,60 +476,31 @@ int tpm2_init(struct spi_slave *spi_if)
 	 * structure.
 	 */
 	tpm2_read_reg(TPM_RID_REG, &cmd, sizeof(cmd));
-	tpm_info->vendor_id = did_vid & 0xffff;
-	tpm_info->device_id = did_vid >> 16;
-	tpm_info->revision = cmd;
+	tpm_info.vendor_id = did_vid & 0xffff;
+	tpm_info.device_id = did_vid >> 16;
+	tpm_info.revision = cmd;
 
 	printk(BIOS_INFO, "Connected to device vid:did:rid of %4.4x:%4.4x:%2.2x\n",
-	       tpm_info->vendor_id, tpm_info->device_id, tpm_info->revision);
+	       tpm_info.vendor_id, tpm_info.device_id, tpm_info.revision);
 
-	/* Let's report device FW version if available. */
-	if (tpm_info->vendor_id == 0x1ae0) {
-		int chunk_count = 0;
-		size_t chunk_size;
-		/*
-		 * let's read 50 bytes at a time; leave room for the trailing
-		 * zero.
-		 */
-		char vstr[51];
-
-		chunk_size = sizeof(vstr) - 1;
-
-		printk(BIOS_INFO, "Firmware version: ");
-
-		/*
-		 * Does not really matter what's written, this just makes sure
-		 * the version is reported from the beginning.
-		 */
-		tpm2_write_reg(TPM_FW_VER, &chunk_size, 1);
-
-		/* Print it out in sizeof(vstr) - 1 byte chunks. */
-		vstr[chunk_size] = 0;
-		do {
-			tpm2_read_reg(TPM_FW_VER, vstr, chunk_size);
-			printk(BIOS_INFO, "%s", vstr);
-
-			/*
-			 * While string is not over, and is no longer than 300
-			 * characters.
-			 */
-		} while (vstr[chunk_size - 1] &&
-			 (chunk_count++ < (300 / chunk_size)));
-
-		printk(BIOS_INFO, "\n");
+	/* Do some GSC-specific things here. */
+	if (CONFIG(TPM_GOOGLE)) {
+		if (tpm_first_access_this_boot()) {
+			/* This is called for the side-effect of printing the firmware version
+			   string */
+			cr50_get_firmware_version(NULL);
+                        cr50_set_board_cfg();
+		}
 	}
-	return 0;
+	return TPM_SUCCESS;
 }
 
 /*
  * This is in seconds, certain TPM commands, like key generation, can take
  * long time to complete.
- *
- * Returns one to indicate success, zero (not yet implemented) to indicate
- * failure.
  */
 #define MAX_STATUS_TIMEOUT 120
-static int wait_for_status(uint32_t status_mask, uint32_t status_expected)
+static enum cb_err wait_for_status(uint32_t status_mask, uint32_t status_expected)
 {
 	uint32_t status;
 	struct stopwatch sw;
@@ -546,14 +509,14 @@ static int wait_for_status(uint32_t status_mask, uint32_t status_expected)
 	do {
 		udelay(1000);
 		if (stopwatch_expired(&sw)) {
-			printk(BIOS_ERR, "failed to get expected status %x\n",
+			printk(BIOS_ERR, "failed to get expected status %#x\n",
 			       status_expected);
-			return false;
+			return CB_ERR;
 		}
 		read_tpm_sts(&status);
 	} while ((status & status_mask) != status_expected);
 
-	return 1;
+	return CB_SUCCESS;
 }
 
 enum fifo_transfer_direction {
@@ -571,9 +534,9 @@ union fifo_transfer_buffer {
  * Transfer requested number of bytes to or from TPM FIFO, accounting for the
  * current burst count value.
  */
-static void fifo_transfer(size_t transfer_size,
-			  union fifo_transfer_buffer buffer,
-			  enum fifo_transfer_direction direction)
+static enum cb_err __must_check fifo_transfer(size_t transfer_size,
+					   union fifo_transfer_buffer buffer,
+					   enum fifo_transfer_direction direction)
 {
 	size_t transaction_size;
 	size_t burst_count;
@@ -594,18 +557,23 @@ static void fifo_transfer(size_t transfer_size,
 		 */
 		transaction_size = MIN(transaction_size, 64);
 
-		if (direction == fifo_receive)
-			tpm2_read_reg(TPM_DATA_FIFO_REG,
-				      buffer.rx_buffer + handled_so_far,
-				      transaction_size);
-		else
-			tpm2_write_reg(TPM_DATA_FIFO_REG,
-				       buffer.tx_buffer + handled_so_far,
-				       transaction_size);
+		if (direction == fifo_receive) {
+			if (tpm2_read_reg(TPM_DATA_FIFO_REG,
+					  buffer.rx_buffer + handled_so_far,
+					  transaction_size) != CB_SUCCESS)
+				return CB_ERR;
+		} else {
+			if (tpm2_write_reg(TPM_DATA_FIFO_REG,
+					   buffer.tx_buffer + handled_so_far,
+					   transaction_size) != CB_SUCCESS)
+				return CB_ERR;
+		}
 
 		handled_so_far += transaction_size;
 
 	} while (handled_so_far != transfer_size);
+
+	return CB_SUCCESS;
 }
 
 size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
@@ -619,10 +587,9 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	uint8_t *rsp_body = tpm2_response;
 	union fifo_transfer_buffer fifo_buffer;
 	const int HEADER_SIZE = 6;
-	struct tpm2_info *tpm_info = car_get_var_ptr(&g_tpm_info);
 
 	/* Do not try using an uninitialized TPM. */
-	if (!tpm_info->vendor_id)
+	if (!tpm_info.vendor_id)
 		return 0;
 
 	/* Skip the two byte tag, read the size field. */
@@ -639,7 +606,10 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	}
 
 	/* Let the TPM know that the command is coming. */
-	write_tpm_sts(TPM_STS_COMMAND_READY);
+	if (write_tpm_sts(TPM_STS_COMMAND_READY) != CB_SUCCESS) {
+		printk(BIOS_ERR, "TPM_STS_COMMAND_READY failed\n");
+		return 0;
+	}
 
 	/*
 	 * TPM commands and responses written to and read from the FIFO
@@ -653,14 +623,21 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	 * burst count or the maximum PDU size, whatever is smaller.
 	 */
 	fifo_buffer.tx_buffer = cmd_body;
-	fifo_transfer(command_size, fifo_buffer, fifo_transmit);
+	if (fifo_transfer(command_size, fifo_buffer, fifo_transmit) != CB_SUCCESS) {
+		printk(BIOS_ERR, "fifo_transfer %zd command bytes failed\n",
+		       command_size);
+		return 0;
+	}
 
 	/* Now tell the TPM it can start processing the command. */
-	write_tpm_sts(TPM_STS_GO);
+	if (write_tpm_sts(TPM_STS_GO) != CB_SUCCESS) {
+		printk(BIOS_ERR, "TPM_STS_GO failed\n");
+		return 0;
+	}
 
 	/* Now wait for it to report that the response is ready. */
 	expected_status_bits = TPM_STS_VALID | TPM_STS_DATA_AVAIL;
-	if (!wait_for_status(expected_status_bits, expected_status_bits)) {
+	if (wait_for_status(expected_status_bits, expected_status_bits) != CB_SUCCESS) {
 		/*
 		 * If timed out, which should never happen, let's at least
 		 * print out the offending command.
@@ -699,7 +676,11 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	 */
 	bytes_to_go = payload_size - 1 - HEADER_SIZE;
 	fifo_buffer.rx_buffer = rsp_body + HEADER_SIZE;
-	fifo_transfer(bytes_to_go, fifo_buffer, fifo_receive);
+	if (fifo_transfer(bytes_to_go, fifo_buffer, fifo_receive) != CB_SUCCESS) {
+		printk(BIOS_ERR, "fifo_transfer %zd receive bytes failed\n",
+		       bytes_to_go);
+		return 0;
+	}
 
 	/* Verify that there is still data to read. */
 	read_tpm_sts(&status);
@@ -716,7 +697,7 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	if (debug_level_)
 		printk(BIOS_DEBUG, "\n");
 
-	/* Verify that 'data available' is not asseretd any more. */
+	/* Verify that 'data available' is not asserted any more. */
 	read_tpm_sts(&status);
 	if ((status & expected_status_bits) != TPM_STS_VALID) {
 		printk(BIOS_ERR, "unexpected final status %#x\n", status);
@@ -724,7 +705,20 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 	}
 
 	/* Move the TPM back to idle state. */
-	write_tpm_sts(TPM_STS_COMMAND_READY);
+	if (write_tpm_sts(TPM_STS_COMMAND_READY) != CB_SUCCESS) {
+		printk(BIOS_ERR, "TPM_STS_COMMAND_READY failed\n");
+		return 0;
+	}
 
 	return payload_size;
+}
+
+enum cb_err tis_vendor_write(unsigned int addr, const void *buffer, size_t bytes)
+{
+	return tpm2_write_reg(addr, buffer, bytes);
+}
+
+enum cb_err tis_vendor_read(unsigned int addr, void *buffer, size_t bytes)
+{
+	return tpm2_read_reg(addr, buffer, bytes);
 }

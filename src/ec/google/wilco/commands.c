@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <ec/acpi/ec.h>
@@ -192,8 +179,8 @@ struct err_code_entry {
  */
 static const enum ec_err_code default_ec_err = DLED_ROM;
 static const struct err_code_entry post_code_err_map[] = {
-	{ .post_code = POST_RAM_FAILURE, .ec_err = DLED_MEMORY, },
-	{ .post_code = POST_VIDEO_FAILURE, .ec_err = DLED_PANEL, },
+	{ .post_code = POSTCODE_RAM_FAILURE, .ec_err = DLED_MEMORY, },
+	{ .post_code = POSTCODE_VIDEO_FAILURE, .ec_err = DLED_PANEL, },
 };
 
 /* Records the most recent post code during boot */
@@ -223,4 +210,30 @@ void die_notify(void)
 
 	wilco_ec_mailbox(WILCO_EC_MSG_DEFAULT, KB_ERR_CODE,
 			 &err_code, 1, NULL, 0);
+}
+
+/*
+ * EC CPU ID data struct
+ * MBOX[2] = 0xFF
+ * MBOX[3] = CPUID_Low
+ * MBOX[4] = CPUID_Mid
+ * MBOX[5] = CPUID_High
+ * MBOX[6] = CPU_Core
+ * MBOX[7] = GPU_Core
+ * MBOX[8] = Reserved
+ */
+int wilco_ec_set_cpuid(uint32_t cpuid, uint8_t cpu_cores, uint8_t gpu_cores)
+{
+	uint8_t cpu_id[7] = {0}, i;
+
+	cpu_id[0] = 0xff;
+	for (i = 1; i < 4; i++) {
+		cpu_id[i] = cpuid & 0xff;
+		cpuid = cpuid >> 8;
+	}
+	cpu_id[4] = cpu_cores;
+	cpu_id[5] = gpu_cores;
+
+	return wilco_ec_mailbox(WILCO_EC_MSG_DEFAULT, KB_CPU_ID, cpu_id,
+				ARRAY_SIZE(cpu_id), NULL, 0);
 }

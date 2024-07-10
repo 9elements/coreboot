@@ -1,27 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <bootstate.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
+#include <cpu/intel/smm_reloc.h>
+#include <device/mmio.h>
+#include <intelblocks/oc_wdt.h>
 #include <intelblocks/pmclib.h>
-#include <intelblocks/smm.h>
 #include <intelblocks/systemagent.h>
 #include <soc/pm.h>
+#include <soc/pmc.h>
 
 void smm_southbridge_clear_state(void)
 {
@@ -39,7 +26,37 @@ void smm_southbridge_clear_state(void)
 	pmc_clear_all_gpe_status();
 }
 
-void smm_southbridge_enable(uint16_t pm1_events)
+static void configure_periodic_smi_interval(void)
+{
+	uint32_t gen_pmcon;
+	uint32_t gen_pmcon_reg;
+
+	if (CONFIG(PERIODIC_SMI_RATE_SELECTION_IN_GEN_PMCON_B))
+		gen_pmcon_reg = GEN_PMCON_B;
+	else
+		gen_pmcon_reg = GEN_PMCON_A;
+
+	/*
+	 * Periodic SMIs have +/- 1 second error, to be safe add few seconds
+	 * more. Also we do not allow timeouts lower than 70s by Kconfig
+	 * definition, so we need to handle one case.
+	 */
+	gen_pmcon = read32p(soc_read_pmc_base() + gen_pmcon_reg);
+	gen_pmcon &= ~PER_SMI_SEL_MASK;
+	gen_pmcon |= SMI_RATE_64S;
+	write32p(soc_read_pmc_base() + gen_pmcon_reg, gen_pmcon);
+
+	/*
+	 * We don't know when SMI timer is started or even if this is
+	 * architecturally defined, but in worst case we may get SMI 64
+	 * seconds (+ any error) from now, which may be more than OC watchdog
+	 * timeout since it was last kicked, so we should kick it here, just
+	 * in case.
+	 */
+	oc_wdt_reload();
+}
+
+static void smm_southbridge_enable(uint16_t pm1_events)
 {
 	uint32_t smi_params = ENABLE_SMI_PARAMS;
 
@@ -63,38 +80,32 @@ void smm_southbridge_enable(uint16_t pm1_events)
 	 *  - on writes to SLP_EN (sleep states)
 	 *  - on writes to GBL_RLS (bios commands)
 	 *  - on eSPI events, unless disabled (does nothing on LPC systems)
+	 *  - on TCO events (TIMEOUT, case intrusion, ...), if enabled
+	 *  - periodically, if watchdog feeding through SMI is enabled
 	 * No SMIs:
 	 *  - on microcontroller writes (io 0x62/0x66)
-	 *  - on TCO events
 	 */
 	if (CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_ESPI_DISABLE))
 		smi_params &= ~ESPI_SMI_EN;
+
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_TCO_ENABLE))
+		smi_params |= TCO_SMI_EN;
+
+	if (CONFIG(SOC_INTEL_COMMON_OC_WDT_RELOAD_IN_PERIODIC_SMI)) {
+		smi_params |= PERIODIC_EN;
+		configure_periodic_smi_interval();
+	}
 
 	/* Enable SMI generation: */
 	pmc_enable_smi(smi_params);
 }
 
-void smm_setup_structures(void *gnvs, void *tcg, void *smi1)
+void global_smi_enable(void)
 {
-	/*
-	 * Issue SMI to set the gnvs pointer in SMM.
-	 * tcg and smi1 are unused.
-	 *
-	 * EAX = APM_CNT_GNVS_UPDATE
-	 * EBX = gnvs pointer
-	 * EDX = APM_CNT
-	 */
-	asm volatile (
-		"outb %%al, %%dx\n\t"
-		: /* ignore result */
-		: "a" (APM_CNT_GNVS_UPDATE),
-		  "b" ((u32)gnvs),
-		  "d" (APM_CNT)
-	);
+	smm_southbridge_enable(PWRBTN_EN | GBL_EN);
 }
 
-void smm_region_info(void **start, size_t *size)
+void global_smi_enable_no_pwrbtn(void)
 {
-	*start = (void *)sa_get_tseg_base();
-	*size = sa_get_tseg_size();
+	smm_southbridge_enable(GBL_EN);
 }

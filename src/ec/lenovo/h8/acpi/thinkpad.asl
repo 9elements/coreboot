@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (c) 2011 Sven Schnelle <svens@stackframe.org>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (HKEY)
 {
@@ -22,7 +8,7 @@ Device (HKEY)
 	External (\HKBL, IntObj)
 	External (\HUWB, IntObj)
 
-	Name (_HID, EisaId ("IBM0068"))
+	Name (_HID, EisaId (CONFIG_THINKPADEC_HKEY_EISAID))
 
 	Name (BTN, 0)
 
@@ -48,35 +34,35 @@ Device (HKEY)
 	/* Retrieve event. */
 	Method (MHKP, 0, NotSerialized)
 	{
-		Store (BTN, Local0)
-		If (LNotEqual (Local0, Zero)) {
-			Store (Zero, BTN)
-			Add (Local0, 0x1000, Local0)
+		Local0 = BTN
+		If (Local0 != 0) {
+			BTN = 0
+			Local0 += 0x1000
 			Return (Local0)
 		}
-		Store (BTAB, Local0)
-		If (LNotEqual (Local0, Zero)) {
-			Store (Zero, BTAB)
-			Add (Local0, 0x5000, Local0)
+		Local0 = BTAB
+		If (Local0 != 0) {
+			BTAB = 0
+			Local0 += 0x5000
 			Return (Local0)
 		}
-		Return (Zero)
+		Return (0)
 	}
 
 	/* Report event  */
 	Method (RHK, 1, NotSerialized) {
-		ShiftLeft (One, Subtract (Arg0, 1), Local0)
-		If (And (EMSK, Local0)) {
-			Store (Arg0, BTN)
+		Local0 = 1 << (Arg0 - 1)
+		If (EMSK & Local0) {
+			BTN = Arg0
 			Notify (HKEY, 0x80)
 		}
 	}
 
 	/* Report tablet  */
 	Method (RTAB, 1, NotSerialized) {
-		ShiftLeft (One, Subtract (Arg0, 1), Local0)
-		If (And (ETAB, Local0)) {
-			Store (Arg0, BTAB)
+		Local0 = 1 << (Arg0 - 1)
+		If (ETAB & Local0) {
+			BTAB = Arg0
 			Notify (HKEY, 0x80)
 		}
 	}
@@ -84,32 +70,32 @@ Device (HKEY)
 	/* Enable/disable all events.  */
 	Method (MHKC, 1, NotSerialized) {
 		If (Arg0) {
-			Store (DHKN, EMSK)
-			Store (Ones, ETAB)
+			EMSK = DHKN
+			ETAB = Ones
 		}
 		Else
 		{
-			Store (Zero, EMSK)
-			Store (Zero, ETAB)
+			EMSK = 0
+			ETAB = 0
 		}
-		Store (Arg0, EN)
+		EN = Arg0
 	}
 
 	/* Enable/disable event.  */
 	Method (MHKM, 2, NotSerialized) {
-		If (LLessEqual (Arg0, 0x20)) {
-			ShiftLeft (One, Subtract (Arg0, 1), Local0)
+		If (Arg0 <= 0x20) {
+			Local0 = 1 << (Arg0 - 1)
 			If (Arg1)
 			{
-				Or (DHKN, Local0, DHKN)
+				DHKN |= Local0
 			}
 			Else
 			{
-				And (DHKN, Not (Local0), DHKN)
+				DHKN = DHKN & ~Local0
 			}
 			If (EN)
 			{
-				Store (DHKN, EMSK)
+				EMSK = DHKN
 			}
 		}
 	}
@@ -123,13 +109,13 @@ Device (HKEY)
 	/* Report tablet mode switch state */
 	Method (MHKG, 0, NotSerialized)
 	{
-		Return (ShiftLeft(TBSW, 3))
+		Return (TBSW << 3)
 	}
 
 	/* Mute audio */
 	Method (SSMS, 1, NotSerialized)
 	{
-		Store(Arg0, ALMT)
+		ALMT = Arg0
 	}
 
 	/* Control mute microphone LED */
@@ -173,15 +159,15 @@ Device (HKEY)
 	 */
 	Method (GBDC, 0)
 	{
-		Store (One, HAST)
+		HAST = 1
 
 		If (HBDC) {
-			Store(One, Local0)
+			Local0 = 1
 			If(\_SB.PCI0.LPCB.EC.BTEB)
 			{
-				Or(Local0, 2, Local0)
+				Local0 |= 2
 			}
-			Or(Local0, ShiftLeft(WBDC, 2), Local0)
+			Local0 |= WBDC << 2
 			Return (Local0)
 		} Else {
 			Return (0)
@@ -195,13 +181,13 @@ Device (HKEY)
 	 */
 	Method (SBDC, 1)
 	{
-		Store (One, HAST)
+		HAST = 1
 
 		If (HBDC) {
-			ShiftRight (And(Arg0, 2), 1, Local0)
-			Store (Local0, \_SB.PCI0.LPCB.EC.BTEB)
-			ShiftRight (And(Arg0, 4), 2, Local0)
-			Store (Local0, WBDC)
+			Local0 = (Arg0 & 2) >> 1
+			\_SB.PCI0.LPCB.EC.BTEB = Local0
+			Local0 = (Arg0 & 4) >> 2
+			WBDC = Local0
 		}
 	}
 
@@ -215,15 +201,15 @@ Device (HKEY)
 	 */
 	Method (GWAN, 0)
 	{
-		Store (One, HAST)
+		HAST = 1
 
 		If (HWAN) {
-			Store(One, Local0)
+			Local0 = 1
 			If(\_SB.PCI0.LPCB.EC.WWEB)
 			{
-				Or(Local0, 2, Local0)
+				Local0 |= 2
 			}
-			Or(Local0, ShiftLeft(WWAN, 2), Local0)
+			Local0 |= WWAN << 2
 			Return (Local0)
 		} Else {
 			Return (0)
@@ -237,12 +223,12 @@ Device (HKEY)
 	 */
 	Method (SWAN, 1)
 	{
-		Store (One, HAST)
+		HAST = 1
 
 		If (HWAN) {
-			ShiftRight (And(Arg0, 2), 1, Local0)
-			Store (Local0, \_SB.PCI0.LPCB.EC.WWEB)
-			ShiftRight (And(Arg0, 4), 2, WWAN)
+			Local0 = (Arg0 & 2) >> 1
+			\_SB.PCI0.LPCB.EC.WWEB = Local0
+			WWAN = (Arg0 & 4) >> 2
 		}
 	}
 
@@ -255,9 +241,9 @@ Device (HKEY)
 	Method (MLCG, 1)
 	{
 		If (HKBL) {
-			Store (0x200, Local0)
+			Local0 = 0x200
 			/* FIXME: Support 2bit brightness control */
-			Or (Local0, \_SB.PCI0.LPCB.EC.KBLT, Local0)
+			Local0 |= \_SB.PCI0.LPCB.EC.KBLT
 			Return (Local0)
 		} Else {
 			Return (0)
@@ -272,7 +258,7 @@ Device (HKEY)
 	{
 		If (HKBL) {
 			/* FIXME: Support 2bit brightness control */
-			Store (And(Arg0, 1), \_SB.PCI0.LPCB.EC.WWEB)
+			\_SB.PCI0.LPCB.EC.WWEB = Arg0 & 1
 		}
 	}
 
@@ -284,10 +270,10 @@ Device (HKEY)
 	Method (GUWB, 0)
 	{
 		If (HUWB) {
-			Store (One, Local0)
+			Local0 = 1
 			If(\_SB.PCI0.LPCB.EC.UWBE)
 			{
-				Or(Local0, 2, Local0)
+				Local0 |= 2
 			}
 			Return (Local0)
 		} Else {
@@ -302,8 +288,8 @@ Device (HKEY)
 	Method (SUWB, 1)
 	{
 		If (HUWB) {
-			ShiftRight (And(Arg0, 2), 1, Local0)
-			Store (Local0, \_SB.PCI0.LPCB.EC.UWBE)
+			Local0 = (Arg0 & 2) >> 1
+			\_SB.PCI0.LPCB.EC.UWBE = Local0
 		}
 	}
 
@@ -313,12 +299,12 @@ Device (HKEY)
 	Method (WAKE, 1)
 	{
 		If (HAST) {
-			Store (WBDC, \_SB.PCI0.LPCB.EC.BTEB)
-			Store (WWAN, \_SB.PCI0.LPCB.EC.WWEB)
+			\_SB.PCI0.LPCB.EC.BTEB = WBDC
+			\_SB.PCI0.LPCB.EC.WWEB = WWAN
 		}
 	}
 
-	#if CONFIG(H8_HAS_BAT_TRESHOLDS_IMPL)
+	#if CONFIG(H8_HAS_BAT_THRESHOLDS_IMPL)
 	#include "thinkpad_bat_thresholds.asl"
 	#endif
 }

@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if VENDOR_UP
 
 choice
@@ -10,7 +12,6 @@ endchoice
 source "src/mainboard/up/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "UP"
 
-endif
+endif # VENDOR_UP

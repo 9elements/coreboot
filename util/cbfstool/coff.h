@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #define DOS_MAGIC 0x5a4d
 typedef struct {
@@ -38,6 +25,7 @@ typedef struct {
 
 #define MACHINE_TYPE_X86 0x014c
 #define MACHINE_TYPE_X64 0x8664
+#define MACHINE_TYPE_ARM64 0xAA64
 typedef struct {
 	uint8_t  signature[4];
 	uint16_t machine;

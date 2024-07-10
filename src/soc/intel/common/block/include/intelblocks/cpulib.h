@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- * Copyright (C) 2018 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_INTEL_COMMON_BLOCK_CPULIB_H
 #define SOC_INTEL_COMMON_BLOCK_CPULIB_H
 
-#include <stdint.h>
+#include <types.h>
 
 /*
  * Set PERF_CTL MSR (0x199) P_Req with
@@ -25,6 +11,21 @@
  */
 void cpu_set_max_ratio(void);
 
+/* Get CPU bus frequency in MHz */
+u32 cpu_get_bus_frequency(void);
+
+/* Get CPU's max non-turbo ratio */
+u8 cpu_get_max_non_turbo_ratio(void);
+
+/* Check if CPU is hybrid CPU or not */
+bool cpu_is_hybrid_supported(void);
+
+/*
+ * Returns type of CPU that executing the function. It returns 0x20
+ * if CPU is atom, otherwise 0x40 if CPU is CORE. The API must be called
+ * if CPU is hybrid.
+ */
+uint8_t cpu_get_cpu_type(void);
 /*
  * Get the TDP Nominal Ratio from MSR 0x648 Bits 7:0.
  */
@@ -111,10 +112,16 @@ void cpu_burst_mode(bool burst_mode_status);
 void cpu_set_eist(bool eist_status);
 
 /*
- * Set Bit 6 (ENABLE_IA_UNTRUSTED_MODE) of MSR 0x120
- * UCODE_PCR_POWER_MISC MSR to enter IA Untrusted Mode.
+ * SoC specific implementation:
+ *
+ * Check CPU security level using ENABLE_IA_UNTRUSTED_MODE of CPU MSR.
+ * If bit is set, meaning CPU has dropped its security level by entering
+ * into `untrusted mode`. Otherwise, it's in `trusted mode`.
  */
-void cpu_enable_untrusted_mode(void *unused);
+bool cpu_soc_is_in_untrusted_mode(void);
+
+/* SoC function to set the BIOS DONE MSR. */
+void cpu_soc_bios_done(void);
 
 /*
  * This function fills in the number of Cores(physical) and Threads(virtual)
@@ -147,6 +154,9 @@ uint32_t cpu_get_min_ratio(void);
  */
 uint32_t cpu_get_max_ratio(void);
 
+/* Thermal throttle activation offset */
+void configure_tcc_thermal_target(void);
+
 /*
  * cpu_get_power_max calculates CPU TDP in mW
  */
@@ -160,5 +170,59 @@ uint32_t cpu_get_max_turbo_ratio(void);
 
 /* Configure Machine Check Architecture support */
 void mca_configure(void);
+
+/* Lock chipset memory registers to protect SMM */
+void cpu_lt_lock_memory(void);
+
+/* Get a supported PRMRR size in bytes with respect to users choice */
+int get_valid_prmrr_size(void);
+
+/*
+ * Enable the emulated ACPI timer in case it's not available or to allow
+ * disabling the PM ACPI timer (PM1_TMR) for power saving.
+ */
+void enable_pm_timer_emulation(void);
+
+/*
+ * Initialize core PRMRR
+ *
+ * Read the BSP PRMRR snapshot and apply on the rest of the core threads
+ */
+void init_core_prmrr(void);
+
+/*
+ * Set TME core activate MSR
+ *
+ * Write zero to TME core activate MSR will translate the TME_ACTIVATE[MK_TME_KEYID_BITS]
+ * value into PMH mask register.
+ * TME_ACTIVATE[MK_TME_KEYID_BITS] = MSR 0x982 Bits[32-35]
+ */
+void set_tme_core_activate(void);
+
+/*
+ * This function checks if the CPU supports SGX feature.
+ * Returns true if SGX feature is supported otherwise false.
+ */
+bool is_sgx_supported(void);
+
+/*
+ * This function checks if the CPU supports Key Locker feature.
+ * Returns true if Key Locker feature is supported otherwise false.
+ */
+bool is_keylocker_supported(void);
+
+/*
+ * This function prevents the Three Strike Counter from incrementing.
+ * It helps to collect more useful CPU traces for debugging.
+ */
+void disable_three_strike_error(void);
+
+/*
+ * This function stops the Three Strike event from signaling and prevent
+ * the Three Strike Counter from incrementing.
+ * This is the new MSR introduces starting from Intel Meteor Lake-C0 (QS) stepping SoC
+ * It helps to collect more useful CPU traces for debugging.
+ */
+void disable_signaling_three_strike_event(void);
 
 #endif	/* SOC_INTEL_COMMON_BLOCK_CPULIB_H */

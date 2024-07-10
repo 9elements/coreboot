@@ -1,38 +1,35 @@
-#!/bin/sh
-# This file is part of the coreboot project.
+#!/usr/bin/env sh
 #
-# Copyright 2015 Google Inc.
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0-only
+
 # DESCR: Checkpatch on .c, .h, & Kconfig files in the tree
 
-LC_ALL=C export LC_ALL
+LINTDIR="$(
+  cd -- "$(dirname "$0")" > /dev/null 2>&1 || return
+  pwd -P
+)"
+
+# shellcheck source=helper_functions.sh
+. "${LINTDIR}/helper_functions.sh"
 
 # GNU BRE syntax list of files to examine
 INCLUDED_FILES='.*\.[ch]\|Kconfig.*$'
 
 EXCLUDED_DIRS="^payloads/libpayload/util/kconfig\|\
 ^payloads/libpayload/curses/PDCurses\|\
+^src/vendorcode/wuffs\|\
+^util/coreboot-configurator\|\
 ^util/crossgcc/patches\|\
 ^util/inteltool\|\
 ^util/kconfig\|\
 ^util/superiotool\|\
-^src/vendorcode\|\
 ^Documentation"
 
 opts="--max-line-length 96"
 
 # default: test src and util
 if [ "$1" = "" ]; then
-	INCLUDED_DIRS="src util"
+	INCLUDED_DIRS="src util tests"
 # special mode: take diff from stdin, but exclude the dirs
 elif [ "$1" = "diff" ]; then
 	args=$( echo $EXCLUDED_DIRS | \
@@ -46,7 +43,7 @@ fi
 
 # We want word splitting here, so disable the shellcheck warnings
 # shellcheck disable=SC2046,SC2086
-FILELIST=$( git ls-files $INCLUDED_DIRS | \
+FILELIST=$( ${FIND_FILES} $INCLUDED_DIRS | \
 		grep $INCLUDED_FILES | \
 		grep -v $EXCLUDED_DIRS )
 

@@ -1,7 +1,6 @@
-/* Copyright (c) 2013 The Chromium OS Authors. All rights reserved.
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file.
- *
+/* SPDX-License-Identifier: BSD-3-Clause */
+
+/*
  * Some TPM constants and type definitions for standalone compilation for use
  * in the firmware
  */
@@ -9,7 +8,7 @@
 #define TCG1_TSS_STRUCTURES_H_
 
 #include <stdint.h>
-#include "../common/tss_common.h"
+#include <security/tpm/tss_errors.h>
 
 #define TPM_MAX_COMMAND_SIZE 4096
 #define TPM_LARGE_ENOUGH_COMMAND_SIZE 256  /* saves space in the firmware */
@@ -22,13 +21,13 @@
 #define TPM_NV_PER_READ_STCLEAR (((uint32_t)1)<<31)
 #define TPM_NV_PER_WRITE_STCLEAR (((uint32_t)1)<<14)
 
-#define TPM_TAG_RQU_COMMAND       ((uint16_t) 0xc1)
-#define TPM_TAG_RQU_AUTH1_COMMAND ((uint16_t) 0xc2)
-#define TPM_TAG_RQU_AUTH2_COMMAND ((uint16_t) 0xc3)
+#define TPM_TAG_RQU_COMMAND       ((uint16_t)0xc1)
+#define TPM_TAG_RQU_AUTH1_COMMAND ((uint16_t)0xc2)
+#define TPM_TAG_RQU_AUTH2_COMMAND ((uint16_t)0xc3)
 
-#define TPM_TAG_RSP_COMMAND       ((uint16_t) 0xc4)
-#define TPM_TAG_RSP_AUTH1_COMMAND ((uint16_t) 0xc5)
-#define TPM_TAG_RSP_AUTH2_COMMAND ((uint16_t) 0xc6)
+#define TPM_TAG_RSP_COMMAND       ((uint16_t)0xc4)
+#define TPM_TAG_RSP_AUTH1_COMMAND ((uint16_t)0xc5)
+#define TPM_TAG_RSP_AUTH2_COMMAND ((uint16_t)0xc6)
 
 typedef uint8_t TSS_BOOL;
 typedef uint16_t TPM_STRUCTURE_TAG;

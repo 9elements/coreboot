@@ -1,20 +1,7 @@
 #!/usr/bin/env perl
+#
+# SPDX-License-Identifier: GPL-2.0-only
 
-#
-# This file is part of the coreboot project.
-#
-# Copyright (C) 2015 Martin L Roth <gaumless@gmail.com>
-# Copyright (C) 2015-2016 Google, Inc.
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
 # perltidy -l=123
 
 package kconfig_lint;
@@ -38,6 +25,7 @@ my $show_note_output        = 0;      # flag to show minor notes text
 my $print_full_output       = 0;      # flag to print wholeconfig output
 my $output_file             = "-";    # filename of output - set stdout by default
 my $dont_use_git_grep       = 0;
+my $include_site_local      = 0;
 
 # Globals
 my $top_dir        = ".";             # Directory where Kconfig is run
@@ -47,8 +35,8 @@ my $warnings_found = 0;
 my $exclude_dirs_and_files =
   '^build/\|^coreboot-builds/\|^configs/\|^util/\|^\.git/\|^payloads\|^Documentation\|^3rdparty'
   . '\|' .                            # directories to exclude when searching for used symbols
-  '\.config\|\.txt$\|\.tex$\|\.tags\|/kconfig.h'; #files to exclude when looking for symbols
-my $payload_files_to_check='payloads/Makefile.inc payloads/external/Makefile.inc';
+  '\.config\|\.txt$\|\.tex$\|\.tags\|/kconfig.h\|\.fmd'; #files to exclude when looking for symbols
+my $payload_files_to_check='payloads/Makefile.mk payloads/external/Makefile.mk';
 my $config_file = "";                 # name of config file to load symbol values from.
 my @wholeconfig;                      # document the entire kconfig structure
 my %loaded_files;                     # list of each Kconfig file loaded
@@ -58,7 +46,7 @@ my %used_symbols;                     # structure of symbols used in the tree, a
 my @collected_symbols;                #
 my %selected_symbols;                 # list of symbols that are enabled by a select statement
 
-my $exclude_unused = '_SPECIFIC_OPTIONS|SOUTH_BRIDGE_OPTIONS';
+my $exclude_unused = '_SPECIFIC_OPTIONS';
 
 Main();
 
@@ -71,7 +59,15 @@ Main();
 #-------------------------------------------------------------------------------
 sub Main {
 
-    check_arguments();
+	check_arguments();
+	if ( !($dont_use_git_grep || `git rev-parse --is-inside-work-tree`) ) {
+		$dont_use_git_grep = 1;
+		print STDERR "\nGit grep unavailable, falling back to regular grep...\n";
+	}
+    if ( !$include_site_local) {
+        $exclude_dirs_and_files = "^site-local\|" . $exclude_dirs_and_files;
+    }
+
     open( STDOUT, "> $output_file" ) or die "Can't open $output_file for output: $!\n";
 
     if ( defined $top_dir ) {
@@ -295,8 +291,9 @@ sub check_config_macro {
                         show_error( "CONFIG($symbol) used at $file:$lineno."
                               . "  CONFIG() is only valid for type 'bool', not '$symbols{$symbol}{type}'." );
                     }
-                }
-                else {
+                } elsif ($symbol =~ /\S+##\S+/ ) {
+                    show_warning( "C preprocessor macro CONFIG_$symbol found at $file:$lineno." );
+                } else {
                     show_error("CONFIG() used on unknown value ($symbol) at $file:$lineno.");
                 }
             }
@@ -345,7 +342,7 @@ sub check_config_macro {
                     $line = $1 . $3;
                     if ( exists $symbols{$symbol} ) {
                         if ( $symbols{$symbol}{type} eq "bool" ) {
-                            show_warning( "Naked reference to CONFIG_$symbol used at $file:$lineno."
+                            show_error( "Naked reference to CONFIG_$symbol used at $file:$lineno."
                                 . "  A 'bool' Kconfig should always be accessed through CONFIG($symbol)." );
                         }
                     } else {
@@ -383,6 +380,12 @@ sub check_defaults {
 
                 # Make sure there's a type set for the symbol
                 next if (!defined $symbols{$sym}{type});
+
+                # Symbols created/used inside a choice must not have a default set. The default is set by the choice itself.
+                if ($symbols{$sym}{choice}) {
+                    show_error("Defining a default for symbol '$sym' at $filename:$line_no, used inside choice at "
+                               . "$symbols{$sym}{choice}, is not allowed.");
+                }
 
                 # skip good defaults
                 if (! ((($symbols{$sym}{type} eq "hex") && ($symbols{$sym}{$sym_num}{default}{$def_num}{default} =~ /^0x/)) ||
@@ -530,6 +533,7 @@ sub build_and_parse_kconfig_tree {
     my $inside_config = "";    # set to symbol name of the config section
     my @inside_menu   = ();    # stack of menu names
     my $inside_choice = "";
+    my $choice_symbol = "";
     my $configs_inside_choice;
     my %fileinfo;
 
@@ -617,9 +621,10 @@ sub build_and_parse_kconfig_tree {
                 my $symbol = $1;
                 add_symbol( $symbol, \@inside_menu, $filename, $line_no, \@inside_if );
                 handle_type( "bool", $symbol, $filename, $line_no );
+		$choice_symbol = $symbol;
             }
             $inside_config         = "";
-            $inside_choice         = "$filename $line_no";
+            $inside_choice         = "$filename:$line_no";
             $configs_inside_choice = 0;
 
             # Kconfig verifies that choice blocks have a prompt
@@ -633,10 +638,12 @@ sub build_and_parse_kconfig_tree {
             }
 
             $inside_choice = "";
-            if ( $configs_inside_choice == 0 ) {
-                show_error("choice block has no symbols at $filename:$line_no.");
+            if (( $configs_inside_choice == 0 ) &&
+	        ( $choice_symbol eq "" )) {
+                show_error("unnamed choice block has no symbols at $filename:$line_no.");
             }
             $configs_inside_choice = 0;
+	    $choice_symbol="";
         }
 
         # [optional]
@@ -728,9 +735,12 @@ sub build_and_parse_kconfig_tree {
 
         # source <prompt>
         elsif ( $line =~ /^\s*source\s+"?([^"\s]+)"?\s*(?>#.*)?$/ ) {
-            my @newfile = load_kconfig_file( $1, $filename, $line_no, 0, $filename, $line_no );
-            unshift( @config_to_parse, @newfile );
+            my $input_file = $1;
             $parseline[0]{text} = "# '$line'\n";
+            if ( $line !~ "site-local" || $include_site_local ) {
+                my @newfile = load_kconfig_file( $input_file, $filename, $line_no, 0, $filename, $line_no );
+                unshift( @config_to_parse, @newfile );
+            }
         }
         elsif (
             ( $line =~ /^\s*#/ ) ||    #comments
@@ -805,25 +815,12 @@ sub add_symbol {
     #initialize the symbol or increment the use count.
     if ( ( !exists $symbols{$symbol} ) || ( !exists $symbols{$symbol}{count} ) ) {
         $symbols{$symbol}{count} = 0;
-        if ($inside_choice) {
-            $symbols{$symbol}{choice} = 1;
-        }
-        else {
-            $symbols{$symbol}{choice} = 0;
-        }
+        # remember the location of the choice (or "")
+        $symbols{$symbol}{choice} = $inside_choice;
     }
     else {
         $symbols{$symbol}{count}++;
-
-        if ( $inside_choice && !$symbols{$symbol}{choice} ) {
-            show_error( "$symbol entry at $filename:$line_no has already been created inside a choice block "
-                  . "at $symbols{$symbol}{0}{file}:$symbols{$symbol}{0}{line_no}." );
-        }
-        elsif ( !$inside_choice && $symbols{$symbol}{choice} ) {
-            show_error( "$symbol entry at $filename:$line_no has already been created outside a choice block "
-                  . "at $symbols{$symbol}{0}{file}:$symbols{$symbol}{0}{line_no}." );
-        }
-        elsif ( $inside_choice && $symbols{$symbol}{choice} ) {
+        if ( $inside_choice && $symbols{$symbol}{choice} ) {
             show_error( "$symbol entry at $filename:$line_no has already been created inside another choice block "
                   . "at $symbols{$symbol}{0}{file}:$symbols{$symbol}{0}{line_no}." );
         }
@@ -956,62 +953,74 @@ sub handle_if_line {
 }
 
 #-------------------------------------------------------------------------------
-# handle_expressions - log which symbols are being used
+# handle_symbol - log which symbols are being used
+#-------------------------------------------------------------------------------
+sub handle_symbol {
+    my ( $symbol, $filename, $line_no ) = @_;
+
+    #filter constant symbols first
+    if ( $symbol =~ /^[yn]$/ ) {                    # constant y/n
+        return;
+    }
+    if ( $symbol =~ /^-?(?:0x)?\p{XDigit}+$/ ) {    # int/hex values
+        return;
+    }
+    if ( $symbol =~ /^"[^"]*"$/ ) {                 # string values
+        return;
+    }
+
+    if ( $symbol =~ /^([A-Za-z0-9_]+)$/ ) {         # actual symbol
+        add_referenced_symbol( $1, $filename, $line_no, 'expression' );
+    }
+    else {
+        show_error("Unrecognized expression: expected symbol, "
+                    . "found '$symbol' in $filename line $line_no.");
+    }
+}
+
+#-------------------------------------------------------------------------------
+# handle_expressions - find symbols in expressions
 #-------------------------------------------------------------------------------
 sub handle_expressions {
     my ( $exprline, $inside_config, $filename, $line_no ) = @_;
 
-    return unless ($exprline);
+    my $strip = qr/\s*(.*[^\s]+)\s*/;
 
-    #filter constant symbols first
-    if ( $exprline =~ /^\s*"?([yn])"?\s*$/ ) {    # constant y/n
-        return;
-    }
-    elsif ( $exprline =~ /^\s*"?((?:-)\d+)"?\s*$/ ) {    # int values
-        return;
-    }
-    elsif ( $exprline =~ /^\s*"?((?:-)?(?:0x)?\p{XDigit})+"?\s*$/ ) {    # hex values
-        return;
-    }
-    elsif ( $exprline =~ /^\s*("[^"]*")\s*$/ ) {                         # String values
-        return;
-    }
-    elsif ( $exprline =~ /^\s*([A-Za-z0-9_]+)\s*$/ ) {                   # <symbol>                             (1)
-        add_referenced_symbol( $1, $filename, $line_no, 'expression' );
-    }
-    elsif ( $exprline =~ /^\s*!(.+)$/ ) {                                # '!' <expr>                           (5)
+    my $parens = qr/(\((?:[^\(\)]++|(?-1))*\))/;
+    my $quotes = qr/"[^"]*"/;
+    my $balanced = qr/((?:$parens|$quotes|[^\(\)"])+)/;
 
+    if ( $exprline =~ /^\s*$balanced\s*(?:\|\||&&)\s*(.+)$/ ) {
+        # <expr> '||' <expr>, <expr> '&&' <expr>                  (8)(7)
+        my ( $lhs, $rhs ) = ( $1, $3 );
+        handle_expressions( $lhs, $inside_config, $filename, $line_no );
+        handle_expressions( $rhs, $inside_config, $filename, $line_no );
+    }
+    elsif ( $exprline =~ /^\s*!(.+)$/ ) {
+        # '!' <expr>                                                 (6)
         handle_expressions( $1, $inside_config, $filename, $line_no );
     }
-    elsif ( $exprline =~ /^\s*\(([^)]+)\)\s*$/ ) {                       # '(' <expr> ')'                       (4)
+    elsif ( $exprline =~ /^\s*$parens\s*$/ ) {
+        # '(' <expr> ')'                                             (5)
+        $exprline =~ /^\s*\((.*)\)\s*$/;
         handle_expressions( $1, $inside_config, $filename, $line_no );
     }
-    elsif ( $exprline =~ /^\s*(.+)\s*!=\s*(.+)\s*$/ ) {                  # <symbol> '!=' <symbol>               (3)
-        handle_expressions( $1, $inside_config, $filename, $line_no );
-        handle_expressions( $2, $inside_config, $filename, $line_no );
+    elsif ( $exprline =~ /^\s*($quotes|[^"\s]+)\s*(?:[<>]=?|!=)$strip$/ ) {
+        # <symbol> '<' <symbol>, <symbol> '!=' <symbol>, etc.     (4)(3)
+        my ( $lhs, $rhs ) = ( $1, $2 );
+        handle_symbol( $lhs, $filename, $line_no );
+        handle_symbol( $rhs, $filename, $line_no );
     }
-    elsif ( $exprline =~ /^\s*(.+)\s*=\s*(.+)\s*$/ ) {                   # <symbol> '=' <symbol>                (2)
-        handle_expressions( $1, $inside_config, $filename, $line_no );
-        handle_expressions( $2, $inside_config, $filename, $line_no );
+    elsif ( $exprline =~ /^\s*($quotes|[^"\s]+)\s*=$strip$/ ) {
+        # <symbol> '=' <symbol>                                      (2)
+        my ( $lhs, $rhs ) = ( $1, $2 );
+        handle_symbol( $lhs, $filename, $line_no );
+        handle_symbol( $rhs, $filename, $line_no );
     }
-    elsif ( $exprline =~ /^\s*([^(]+|\(.+\))\s*&&\s*(.+)\s*$/ ) {        # <expr> '&&' <expr>                   (6)
-        handle_expressions( $1, $inside_config, $filename, $line_no );
-        handle_expressions( $2, $inside_config, $filename, $line_no );
+    elsif ( $exprline =~ /^$strip$/ ) {
+        # <symbol>                                                   (1)
+        handle_symbol( $1, $filename, $line_no );
     }
-    elsif ( $exprline =~ /^\s*([^(]+|\(.+\))\s*\|\|\s*(.+)\s*$/ ) {      # <expr> '||' <expr>                   (7)
-        handle_expressions( $1, $inside_config, $filename, $line_no );
-        handle_expressions( $2, $inside_config, $filename, $line_no );
-    }
-
-    # work around kconfig spec violation for now - paths not in quotes
-    elsif ( $exprline =~ /^\s*([A-Za-z0-9_\-\/]+)\s*$/ ) {               # <symbol>                             (1)
-        return;
-    }
-    else {
-        show_error("Unrecognized expression '$exprline' in $filename line $line_no.");
-    }
-
-    return;
 }
 
 #-------------------------------------------------------------------------------
@@ -1213,9 +1222,11 @@ sub load_kconfig_file {
     my @dir_file_data;
 
     #recursively handle coreboot's new source glob operator
-    if ( $input_file =~ /^(.*?)\/\*\/(.*)$/ ) {
+    if ( $input_file =~ /^(.*?)\/(\w*)\*(\w*)\/(.*)$/ ) {
         my $dir_prefix = $1;
-        my $dir_suffix = $2;
+        my $dir_glob_prefix = $2;
+        my $dir_glob_suffix = $3;
+        my $dir_suffix = $4;
         if ( -d "$dir_prefix" ) {
 
             opendir( D, "$dir_prefix" ) || die "Can't open directory '$dir_prefix'\n";
@@ -1225,7 +1236,8 @@ sub load_kconfig_file {
             while ( my $directory = shift @dirlist ) {
 
                 #ignore non-directory files
-                if ( ( -d "$dir_prefix/$directory" ) && !( $directory =~ /^\..*/ ) ) {
+                if ( ( -d "$dir_prefix/$directory" ) && !( $directory =~ /^\..*/ )
+                     && ( $directory =~ /\Q$dir_glob_prefix\E.*\Q$dir_glob_suffix\E/ ) ) {
                     push @dir_file_data,
                       load_kconfig_file( "$dir_prefix/$directory/$dir_suffix",
                         $input_file, $loadline, 1, $loadfile, $loadline );
@@ -1313,7 +1325,7 @@ sub print_wholeconfig {
 
     return unless $print_full_output;
 
-    for ( my $i = 0 ; $i < $#wholeconfig ; $i++ ) {
+    for ( my $i = 0 ; $i <= $#wholeconfig ; $i++ ) {
         my $line = $wholeconfig[$i];
         chop( $line->{text} );
 
@@ -1352,6 +1364,7 @@ sub check_arguments {
         'path=s'         => \$top_dir,
         'c|config=s'     => \$config_file,
         'G|no_git_grep'  => \$dont_use_git_grep,
+        'S|site_local'   => \$include_site_local,
     );
 
     if ($suppress_error_output) {
@@ -1375,6 +1388,7 @@ sub usage {
     print " --path=dir          Path to top level kconfig\n";
     print " -c|--config=file    Filename of config file to load\n";
     print " -G|--no_git_grep    Use standard grep tools instead of git grep\n";
+    print " -S|--site_local     Include the site-local directory\n";
 
     exit(0);
 }

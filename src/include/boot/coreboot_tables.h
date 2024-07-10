@@ -1,8 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef COREBOOT_TABLES_H
 #define COREBOOT_TABLES_H
 
 #include <commonlib/coreboot_tables.h>
 #include <stddef.h>
+#include <stdint.h>
+
 /* function prototypes for building the coreboot table */
 
 /*
@@ -15,9 +19,10 @@ void fill_lb_gpios(struct lb_gpios *gpios);
 void lb_add_gpios(struct lb_gpios *gpios, const struct lb_gpio *gpio_table,
 		  size_t count);
 
-void uart_fill_lb(void *data);
-void lb_add_serial(struct lb_serial *serial, void *data);
+enum cb_err fill_lb_serial(struct lb_serial *serial);
 void lb_add_console(uint16_t consoletype, void *data);
+
+enum cb_err fill_lb_pcie(struct lb_pcie *pcie);
 
 /* Define this in mainboard.c to add board-specific table entries. */
 void lb_board(struct lb_header *header);
@@ -38,5 +43,8 @@ void lb_table_add_macs_from_vpd(struct lb_header *header);
 void lb_table_add_serialno_from_vpd(struct lb_header *header);
 
 struct lb_record *lb_new_record(struct lb_header *header);
+
+/* Add VBOOT VBNV offsets. */
+void lb_table_add_vbnv_cmos(struct lb_header *header);
 
 #endif /* COREBOOT_TABLES_H */

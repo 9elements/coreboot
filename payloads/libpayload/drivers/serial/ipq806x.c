@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Chromium OS authors
+ * Copyright (c) 2014 ChromiumOS authors
  */
 
 #include <libpayload.h>
@@ -235,7 +235,7 @@ static unsigned int msm_boot_uart_dm_reset(void *base)
 }
 
 /*
- * msm_boot_uart_dm_init - initilaizes UART controller
+ * msm_boot_uart_dm_init - Initializes UART controller
  * @uart_dm_base: UART controller base address
  */
 static unsigned int msm_boot_uart_dm_init(void  *uart_dm_base)
@@ -340,12 +340,12 @@ int serial_getchar(void)
 	return byte;
 }
 
-/* For simplicity sake let's rely on coreboot initalizing the UART. */
+/* For simplicity's sake, let's rely on coreboot initializing the UART. */
 void serial_console_init(void)
 {
-	struct cb_serial *sc_ptr = lib_sysinfo.serial;
+	struct cb_serial *sc_ptr = phys_to_virt(lib_sysinfo.cb_serial);
 
-	if (!sc_ptr)
+	if (!lib_sysinfo.cb_serial)
 		return;
 
 	base_uart_addr = (void *) sc_ptr->baseaddr;

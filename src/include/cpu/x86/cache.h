@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2004 Eric W. Biederman
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef CPU_X86_CACHE
 #define CPU_X86_CACHE
@@ -21,29 +8,19 @@
 #define CR0_CacheDisable	(CR0_CD)
 #define CR0_NoWriteThrough	(CR0_NW)
 
+#define CPUID_FEATURE_CLFLUSH_BIT 19
+#define CPUID_FEATURE_SELF_SNOOP_BIT 27
+
 #if !defined(__ASSEMBLER__)
 
-/*
- * Need two versions because ROMCC chokes on certain clobbers:
- * cache.h:29.71: cache.h:60.24: earlymtrr.c:117.23: romstage.c:144.33:
- * 0x1559920 asm        Internal compiler error: lhs 1 regcm == 0
- */
-
-#if defined(__GNUC__)
+#include <arch/cpuid.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 static inline void wbinvd(void)
 {
 	asm volatile ("wbinvd" ::: "memory");
 }
-
-#else
-
-static inline void wbinvd(void)
-{
-	asm volatile ("wbinvd");
-}
-
-#endif
 
 static inline void invd(void)
 {
@@ -54,6 +31,9 @@ static inline void clflush(void *addr)
 {
 	asm volatile ("clflush (%0)"::"r" (addr));
 }
+
+bool clflush_supported(void);
+void clflush_region(const uintptr_t start, const size_t size);
 
 /* The following functions require the __always_inline due to AMD
  * function STOP_CAR_AND_CPU that disables cache as
@@ -67,26 +47,26 @@ static inline void clflush(void *addr)
  */
 static __always_inline void enable_cache(void)
 {
-	unsigned long cr0;
-	cr0 = read_cr0();
-	cr0 &= ~(CR0_CD | CR0_NW);
-	write_cr0(cr0);
+	write_cr0(read_cr0() & ~(CR0_CD | CR0_NW));
+}
+
+/*
+ * Cache flushing is the most time-consuming step when programming the MTRRs.
+ * However, if the processor supports cache self-snooping (ss), we can skip
+ * this step and save time.
+ */
+static __always_inline bool self_snooping_supported(void)
+{
+	return (cpuid_edx(1) >> CPUID_FEATURE_SELF_SNOOP_BIT) & 1;
 }
 
 static __always_inline void disable_cache(void)
 {
 	/* Disable and write back the cache */
-	unsigned long cr0;
-	cr0 = read_cr0();
-	cr0 |= CR0_CD;
-	wbinvd();
-	write_cr0(cr0);
-	wbinvd();
+	write_cr0(read_cr0() | CR0_CD);
+	if (!self_snooping_supported())
+		wbinvd();
 }
-
-#if !defined(__PRE_RAM__)
-void x86_enable_cache(void);
-#endif
 
 #endif /* !__ASSEMBLER__ */
 #endif /* CPU_X86_CACHE */

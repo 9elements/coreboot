@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011, 2017 Advanced Micro Devices, Inc.
- * Copyright (C) 2013 Sage Electronic Engineering, LLC
- * Copyright (C) 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/device.h>
 #include <device/pci_def.h>
@@ -21,7 +6,6 @@
 #include <console/console.h>
 #include <soc/southbridge.h>
 #include <soc/pci_devs.h>
-#include <stdlib.h>
 #include <amdblocks/agesawrapper.h>
 #include <amdblocks/dimm_spd.h>
 #include <amdblocks/car.h>
@@ -53,7 +37,6 @@ AGESA_STATUS agesa_fch_initenv(uint32_t Func, uintptr_t FchData,
 							void *ConfigPtr)
 {
 	AMD_CONFIG_PARAMS *StdHeader = ConfigPtr;
-	const struct device *dev = pcidev_path_on_root(SATA_DEVFN);
 
 	if (StdHeader->Func == AMD_INIT_ENV) {
 		FCH_DATA_BLOCK *FchParams_env = (FCH_DATA_BLOCK *)FchData;
@@ -68,7 +51,7 @@ AGESA_STATUS agesa_fch_initenv(uint32_t Func, uintptr_t FchData,
 
 		/* SATA configuration */
 		FchParams_env->Sata.SataClass = CONFIG_STONEYRIDGE_SATA_MODE;
-		if (dev && dev->enabled) {
+		if (is_dev_enabled(DEV_PTR(sata))) {
 			switch ((SATA_CLASS)CONFIG_STONEYRIDGE_SATA_MODE) {
 			case SataRaid:
 			case SataAhci:
@@ -82,8 +65,9 @@ AGESA_STATUS agesa_fch_initenv(uint32_t Func, uintptr_t FchData,
 				FchParams_env->Sata.SataIdeMode = TRUE;
 				break;
 			}
-		} else
+		} else {
 			FchParams_env->Sata.SataIdeMode = FALSE;
+		}
 
 		/* Platform updates */
 		platform_FchParams_env(FchParams_env);
@@ -102,7 +86,7 @@ AGESA_STATUS agesa_ReadSpd(uint32_t Func, uintptr_t Data, void *ConfigPtr)
 	DEVTREE_CONST struct soc_amd_stoneyridge_config *conf;
 	AGESA_READ_SPD_PARAMS *info = ConfigPtr;
 
-	if (!ENV_ROMSTAGE)
+	if (!ENV_RAMINIT)
 		return AGESA_UNSUPPORTED;
 
 	dev = pcidev_path_on_root(DCT_DEVFN);

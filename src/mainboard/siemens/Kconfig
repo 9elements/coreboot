@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if VENDOR_SIEMENS
 
 choice
@@ -10,7 +12,6 @@ endchoice
 source "src/mainboard/siemens/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "Siemens"
 
 endif # VENDOR_SIEMENS

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef DEVICE_PATH_H
 #define DEVICE_PATH_H
 
@@ -19,6 +21,9 @@ enum device_path_type {
 	DEVICE_PATH_SPI,
 	DEVICE_PATH_USB,
 	DEVICE_PATH_MMIO,
+	DEVICE_PATH_GPIO,
+	DEVICE_PATH_MDIO,
+	DEVICE_PATH_GICC_V3,
 
 	/*
 	 * When adding path types to this table, please also update the
@@ -42,6 +47,9 @@ enum device_path_type {
 		"DEVICE_PATH_SPI",		\
 		"DEVICE_PATH_USB",		\
 		"DEVICE_PATH_MMIO",		\
+		"DEVICE_PATH_GPIO",		\
+		"DEVICE_PATH_MDIO",		\
+		"DEVICE_PATH_GICC_V3",		\
 }
 
 struct domain_path {
@@ -67,11 +75,13 @@ struct spi_path {
 };
 
 struct apic_path {
+	unsigned int initial_lapicid;
 	unsigned int apic_id;
 	unsigned int package_id;
 	unsigned int node_id;
 	unsigned int core_id;
 	unsigned int thread_id;
+	unsigned char core_type;
 };
 
 struct ioapic_path {
@@ -104,6 +114,20 @@ struct mmio_path {
 	uintptr_t addr;
 };
 
+struct gpio_path {
+	unsigned int id;
+};
+
+struct mdio_path {
+	unsigned int addr;
+};
+
+struct gicc_v3_path {
+	unsigned long long mpidr;
+	unsigned int vgic_mi;
+	unsigned int pi_gsiv;
+};
+
 struct device_path {
 	enum device_path_type type;
 	union {
@@ -120,11 +144,13 @@ struct device_path {
 		struct spi_path		spi;
 		struct usb_path		usb;
 		struct mmio_path	mmio;
+		struct gpio_path	gpio;
+		struct mdio_path	mdio;
+		struct gicc_v3_path	gicc_v3;
 	};
 };
 
-
-#define DEVICE_PATH_MAX 30
+#define DEVICE_PATH_MAX 40
 #define BUS_PATH_MAX (DEVICE_PATH_MAX+10)
 
 extern const char *dev_path_name(enum device_path_type type);

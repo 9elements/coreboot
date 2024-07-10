@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2010 coresystems GmbH
  *
@@ -47,7 +46,7 @@ typedef struct {
 #define RH_INST(dev) ((rh_inst_t*)(dev)->data)
 
 static void
-ehci_rh_destroy (usbdev_t *dev)
+ehci_rh_destroy(usbdev_t *dev)
 {
 	int port;
 
@@ -60,12 +59,12 @@ ehci_rh_destroy (usbdev_t *dev)
 		}
 	}
 
-        free (RH_INST(dev)->devices);
-        free (RH_INST(dev));
+	free(RH_INST(dev)->devices);
+	free(RH_INST(dev));
 }
 
 static void
-ehci_rh_hand_over_port (usbdev_t *dev, int port)
+ehci_rh_hand_over_port(usbdev_t *dev, int port)
 {
 	usb_debug("giving up port %x, it's USB1\n", port+1);
 
@@ -90,14 +89,14 @@ ehci_rh_hand_over_port (usbdev_t *dev, int port)
 }
 
 static void
-ehci_rh_scanport (usbdev_t *dev, int port)
+ehci_rh_scanport(usbdev_t *dev, int port)
 {
 	usb_speed port_speed;
 
-	if (RH_INST(dev)->devices[port]!=-1) {
+	if (RH_INST(dev)->devices[port] !=  -1) {
 		usb_debug("Unregister device at port %x\n", port+1);
 		usb_detach_device(dev->controller, RH_INST(dev)->devices[port]);
-		RH_INST(dev)->devices[port]=-1;
+		RH_INST(dev)->devices[port] =  -1;
 	}
 	/* device connected, handle */
 	if (RH_INST(dev)->ports[port] & P_CURR_CONN_STATUS) {
@@ -154,10 +153,10 @@ ehci_rh_scanport (usbdev_t *dev, int port)
 }
 
 static int
-ehci_rh_report_port_changes (usbdev_t *dev)
+ehci_rh_report_port_changes(usbdev_t *dev)
 {
 	int i;
-	for (i=0; i<RH_INST(dev)->n_ports; i++) {
+	for (i = 0; i < RH_INST(dev)->n_ports; i++) {
 		if (RH_INST(dev)->ports[i] & P_CONN_STATUS_CHANGE)
 			return i;
 	}
@@ -165,16 +164,15 @@ ehci_rh_report_port_changes (usbdev_t *dev)
 }
 
 static void
-ehci_rh_poll (usbdev_t *dev)
+ehci_rh_poll(usbdev_t *dev)
 {
 	int port;
-	while ((port = ehci_rh_report_port_changes (dev)) != -1)
-		ehci_rh_scanport (dev, port);
+	while ((port = ehci_rh_report_port_changes(dev)) != -1)
+		ehci_rh_scanport(dev, port);
 }
 
-
 void
-ehci_rh_init (usbdev_t *dev)
+ehci_rh_init(usbdev_t *dev)
 {
 	int i;
 	dev->destroy = ehci_rh_destroy;
@@ -194,7 +192,7 @@ ehci_rh_init (usbdev_t *dev)
 			& HCS_PORT_POWER_CONTROL) {
 		usb_debug("host controller has port power control, "
 				"giving power to all ports.\n");
-		for (i=0; i < RH_INST(dev)->n_ports; i++)
+		for (i = 0; i < RH_INST(dev)->n_ports; i++)
 			RH_INST(dev)->ports[i] |= P_PP;
 	}
 	mdelay(20); // ehci spec 2.3.9
@@ -203,7 +201,7 @@ ehci_rh_init (usbdev_t *dev)
 	dev->address = 0;
 	dev->hub = -1;
 	dev->port = -1;
-	for (i=0; i < RH_INST(dev)->n_ports; i++) {
+	for (i = 0; i < RH_INST(dev)->n_ports; i++) {
 		RH_INST(dev)->devices[i] = -1;
 		ehci_rh_scanport(dev, i);
 	}

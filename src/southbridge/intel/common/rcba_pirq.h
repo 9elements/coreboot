@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2012 The Chromium OS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOUTHBRIDGE_INTEL_COMMON_RCBA_PIRQ_H
 #define SOUTHBRIDGE_INTEL_COMMON_RCBA_PIRQ_H
+
+#include <device/device.h>
 
 /*
  * The DnnIR registers use common RCBA offsets across these chipsets:
@@ -36,5 +24,8 @@
 #define D21IR		0x3164	/* 16bit */
 #define D20IR		0x3160	/* 16bit */
 #define D19IR		0x3168	/* 16bit */
+
+/* Generate an ACPI _PRT table for chipsets that use PIRQs exclusively */
+void intel_acpi_gen_def_acpi_pirq(const struct device *dev);
 
 #endif /* SOUTHBRIDGE_INTEL_COMMON_RCBA_PIRQ_H */

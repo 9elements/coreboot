@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008-2010 coresystems GmbH
  *
@@ -33,8 +32,8 @@
 #include <pci.h>
 #include <usb/usb.h>
 
-hci_t *uhci_pci_init (pcidev_t addr);
+hci_t *uhci_pci_init(pcidev_t addr);
 
-void uhci_rh_init (usbdev_t *dev);
+void uhci_rh_init(usbdev_t *dev);
 
 #endif

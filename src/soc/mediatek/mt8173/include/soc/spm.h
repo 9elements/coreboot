@@ -1,22 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __SOC_MEDIATEK_MT8173_SPM_H__
 #define __SOC_MEDIATEK_MT8173_SPM_H__
 
 #include <soc/addressmap.h>
+#include <soc/mtcmos.h>
 #include <stddef.h>
 
 enum {
@@ -24,8 +12,10 @@ enum {
 };
 
 enum {
+	DISP_PWR_STA_MASK	= 0x1 << 3,
 	DISP_SRAM_PDN_MASK	= 0xf << 8,
 	DISP_SRAM_ACK_MASK	= 0x1 << 12,
+	AUDIO_PWR_STA_MASK	= 0x1 << 24,
 	AUDIO_SRAM_PDN_MASK	= 0xf << 8,
 	AUDIO_SRAM_ACK_MASK	= 0xf << 12,
 };
@@ -162,5 +152,23 @@ struct mtk_spm_regs {
 check_member(mtk_spm_regs, sleep_ca15_wfi_en[3], 0xf1c);
 
 static struct mtk_spm_regs *const mtk_spm = (void *)SPM_BASE;
+
+static const struct power_domain_data disp[] = {
+	{
+		.pwr_con = &mtk_spm->dis_pwr_con,
+		.pwr_sta_mask = DISP_PWR_STA_MASK,
+		.sram_pdn_mask = DISP_SRAM_PDN_MASK,
+		.sram_ack_mask = DISP_SRAM_ACK_MASK,
+	},
+};
+
+static const struct power_domain_data audio[] = {
+	{
+		.pwr_con = &mtk_spm->audio_pwr_con,
+		.pwr_sta_mask = AUDIO_PWR_STA_MASK,
+		.sram_pdn_mask = AUDIO_SRAM_PDN_MASK,
+		.sram_ack_mask = AUDIO_SRAM_ACK_MASK,
+	},
+};
 
 #endif  /* __SOC_MEDIATEK_MT8173_SPM_H__ */

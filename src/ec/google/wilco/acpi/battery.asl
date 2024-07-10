@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Mutex (BATM, 0)
 
@@ -24,7 +10,7 @@ Method (ESTA, 1, Serialized)
 	} ElseIf (Arg0 == 2) {
 		Local0 = R (P3B2)
 	} Else {
-		Local0 = Zero
+		Local0 = 0
 	}
 
 	/* Indicate battery is present */
@@ -55,8 +41,8 @@ Method (BSTR, 1, Serialized)
 	W (SSEL, Arg0)
 
 	/* Fill buffer until NUL or max string length is read */
-	Name (IBUF, Buffer (Local0 + One) {})
-	For (Local1 = Zero, Local1 < Local0, Local1++) {
+	Name (IBUF, Buffer (Local0 + 1) {})
+	For (Local1 = 0, Local1 < Local0, Local1++) {
 		Local2 = R (BSBS)
 		If (!Local2) {
 			Break
@@ -67,7 +53,7 @@ Method (BSTR, 1, Serialized)
 	/* Truncate and NUL terminate */
 	Local1++
 	Name (OBUF, Buffer (Local1) {})
-	OBUF = Concatenate (IBUF, Zero)
+	OBUF = Concatenate (IBUF, 0)
 
 	Return (OBUF)
 }

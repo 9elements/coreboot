@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (MBRS)
 {
@@ -49,26 +36,26 @@ Device (MBRS)
 		CreateQWordField (MSBF, \_SB.MBRS._Y1C._MAX, MEMM)
 		CreateQWordField (MSBF, \_SB.MBRS._Y1C._LEN, LELM)
 
-		And (\_SB.PCI0.RLAR, 0x03FF, Local1)
-		Increment (Local1)
-		If (LGreater (Local1, 0x40))
+		Local1 = \_SB.PCI0.RLAR & 0x03FF
+		Local1++
+		If (Local1 > 0x40)
 		{
-			ShiftLeft (Local1, 0x1A, LELM)
+			LELM = Local1 << 0x1A
 		}
 
 
 		CreateDWordField (MSBF, \_SB.MBRS._Y1D._MIN, MS00)
 		CreateDWordField (MSBF, \_SB.MBRS._Y1D._MAX, MS01)
 		CreateDWordField (MSBF, \_SB.MBRS._Y1D._LEN, MEM2)
-		And (\_SB.PCI0.TOLM, 0xF800, Local1)
-		ShiftRight (Local1, 0x04, Local1)
-		Decrement (Local1)
-		If (LGreater (Local1, 0x10))
+		Local1 = \_SB.PCI0.TOLM & 0xF800
+		Local1 >>= 4
+		Local1--
+		If (Local1 > 0x10)
 		{
-			Subtract (Local1, 0x0F, Local1)
-			Store (ShiftLeft (Local1, 0x14), MEM2)
-			Store (0x01000000, MS00)
-			Store (MS00, MS01)
+			Local1 -= 0x0F
+			MEM2 = Local1 << 0x14
+			MS00 = 0x01000000
+			MS01 = MS00
 		}
 
 		Return (MSBF)

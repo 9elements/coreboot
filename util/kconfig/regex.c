@@ -24,7 +24,9 @@
   #pragma alloca
 #endif
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 /* We need this for `regex.h', and perhaps for the Emacs include files.  */
 #include <sys/types.h>
@@ -3096,7 +3098,6 @@ typedef union
 
 
 /* Free everything we malloc.  */
-#ifdef REGEX_MALLOC
 #define FREE_VAR(var) if (var) free (var); var = NULL
 #define FREE_VARIABLES()						\
   do {									\
@@ -3111,10 +3112,6 @@ typedef union
     FREE_VAR (reg_dummy);						\
     FREE_VAR (reg_info_dummy);						\
   } while (0)
-#else /* not REGEX_MALLOC */
-/* Some MIPS systems (at least) want this to free alloca'd storage.  */
-#define FREE_VARIABLES() alloca (0)
-#endif /* not REGEX_MALLOC */
 
 
 /* These values must meet several constraints.  They must not be valid

@@ -1,30 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <stdint.h>
-#include <edid.h>
-#include <stdlib.h>
-#include <boot/coreboot_tables.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <pc80/vga.h>
 #include <pc80/vga_io.h>
+#include <framebuffer_info.h>
 
 static int width  = CONFIG_DRIVERS_EMULATION_QEMU_BOCHS_XRES;
 static int height = CONFIG_DRIVERS_EMULATION_QEMU_BOCHS_YRES;
@@ -188,36 +171,36 @@ enum
 #define CIRRUS_HIDDEN_DAC_888COLOR 0xc5
 
 static void
-write_hidden_dac (uint8_t data)
+write_hidden_dac(uint8_t data)
 {
-	inb (0x3c8);
-	inb (0x3c6);
-	inb (0x3c6);
-	inb (0x3c6);
-	inb (0x3c6);
-	outb (data, 0x3c6);
+	inb(0x3c8);
+	inb(0x3c6);
+	inb(0x3c6);
+	inb(0x3c6);
+	inb(0x3c6);
+	outb(data, 0x3c6);
 }
 
 static void cirrus_init_linear_fb(struct device *dev)
 {
 	uint8_t cr_ext, cr_overlay;
-	unsigned pitch = (width * 4) / VGA_CR_PITCH_DIVISOR;
+	unsigned int pitch = (width * 4) / VGA_CR_PITCH_DIVISOR;
 	uint8_t sr_ext = 0, hidden_dac = 0;
-	unsigned vdisplay_end = height - 2;
-	unsigned line_compare = 0x3ff;
+	unsigned int vdisplay_end = height - 2;
+	unsigned int line_compare = 0x3ff;
 	uint8_t overflow, cell_height_reg;
-	unsigned horizontal_end = width / VGA_CR_WIDTH_DIVISOR;
-	unsigned horizontal_total = horizontal_end + 40;
-	unsigned horizontal_blank_start = horizontal_end;
-	unsigned horizontal_sync_pulse_start = horizontal_end + 3;
-	unsigned horizontal_sync_pulse_end = 0;
+	unsigned int horizontal_end = width / VGA_CR_WIDTH_DIVISOR;
+	unsigned int horizontal_total = horizontal_end + 40;
+	unsigned int horizontal_blank_start = horizontal_end;
+	unsigned int horizontal_sync_pulse_start = horizontal_end + 3;
+	unsigned int horizontal_sync_pulse_end = 0;
 
-	unsigned horizontal_blank_end = 0;
-	unsigned vertical_blank_start = height + 1;
-	unsigned vertical_blank_end = 0;
-	unsigned vertical_sync_start = height + 3;
-	unsigned vertical_sync_end = 0;
-	unsigned vertical_total = height + 40;
+	unsigned int horizontal_blank_end = 0;
+	unsigned int vertical_blank_start = height + 1;
+	unsigned int vertical_blank_end = 0;
+	unsigned int vertical_sync_start = height + 3;
+	unsigned int vertical_sync_end = 0;
+	unsigned int vertical_total = height + 40;
 
 	/* find lfb pci bar */
 	addr = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
@@ -225,22 +208,22 @@ static void cirrus_init_linear_fb(struct device *dev)
 	printk(BIOS_DEBUG, "QEMU VGA: cirrus framebuffer @ %x (pci bar 0)\n",
 	       addr);
 
-	vga_misc_write (VGA_IO_MISC_COLOR);
+	vga_misc_write(VGA_IO_MISC_COLOR);
 
-	vga_sr_write (VGA_SR_MEMORY_MODE,
+	vga_sr_write(VGA_SR_MEMORY_MODE,
 		      VGA_SR_MEMORY_MODE_NORMAL);
 
-	vga_sr_write (VGA_SR_MAP_MASK_REGISTER,
+	vga_sr_write(VGA_SR_MAP_MASK_REGISTER,
 		      (1 << VGA_TEXT_TEXT_PLANE)
 		      | (1 << VGA_TEXT_ATTR_PLANE));
 
-	vga_sr_write (VGA_SR_CLOCKING_MODE,
+	vga_sr_write(VGA_SR_CLOCKING_MODE,
 		      VGA_SR_CLOCKING_MODE_8_DOT_CLOCK);
 
 	vga_palette_disable();
 
 	/* Disable CR0-7 write protection.  */
-	vga_cr_write (VGA_CR_VSYNC_END, 0);
+	vga_cr_write(VGA_CR_VSYNC_END, 0);
 
 	overflow = ((vertical_total >> VGA_CR_OVERFLOW_VERT_TOTAL1_SHIFT)
 		    & VGA_CR_OVERFLOW_VERT_TOTAL1_MASK)
@@ -265,65 +248,58 @@ static void cirrus_init_linear_fb(struct device *dev)
 		| ((line_compare >> VGA_CR_CELL_HEIGHT_LINE_COMPARE_SHIFT)
 		   & VGA_CR_CELL_HEIGHT_LINE_COMPARE_MASK);
 
-	vga_cr_write (VGA_CR_HTOTAL, horizontal_total - 1);
-	vga_cr_write (VGA_CR_HORIZ_END, horizontal_end - 1);
-	vga_cr_write (VGA_CR_HBLANK_START, horizontal_blank_start - 1);
-	vga_cr_write (VGA_CR_HBLANK_END, horizontal_blank_end);
-	vga_cr_write (VGA_CR_HORIZ_SYNC_PULSE_START,
+	vga_cr_write(VGA_CR_HTOTAL, horizontal_total - 1);
+	vga_cr_write(VGA_CR_HORIZ_END, horizontal_end - 1);
+	vga_cr_write(VGA_CR_HBLANK_START, horizontal_blank_start - 1);
+	vga_cr_write(VGA_CR_HBLANK_END, horizontal_blank_end);
+	vga_cr_write(VGA_CR_HORIZ_SYNC_PULSE_START,
 		      horizontal_sync_pulse_start);
-	vga_cr_write (VGA_CR_HORIZ_SYNC_PULSE_END,
+	vga_cr_write(VGA_CR_HORIZ_SYNC_PULSE_END,
 		      horizontal_sync_pulse_end);
-	vga_cr_write (VGA_CR_VERT_TOTAL, vertical_total & 0xff);
-	vga_cr_write (VGA_CR_OVERFLOW, overflow);
-	vga_cr_write (VGA_CR_CELL_HEIGHT, cell_height_reg);
-	vga_cr_write (VGA_CR_VSYNC_START, vertical_sync_start & 0xff);
-	vga_cr_write (VGA_CR_VSYNC_END, vertical_sync_end & 0x0f);
-	vga_cr_write (VGA_CR_VDISPLAY_END, vdisplay_end & 0xff);
-	vga_cr_write (VGA_CR_PITCH, pitch & 0xff);
-	vga_cr_write (VGA_CR_VERTICAL_BLANK_START, vertical_blank_start & 0xff);
-	vga_cr_write (VGA_CR_VERTICAL_BLANK_END, vertical_blank_end & 0xff);
-	vga_cr_write (VGA_CR_LINE_COMPARE, line_compare & 0xff);
+	vga_cr_write(VGA_CR_VERT_TOTAL, vertical_total & 0xff);
+	vga_cr_write(VGA_CR_OVERFLOW, overflow);
+	vga_cr_write(VGA_CR_CELL_HEIGHT, cell_height_reg);
+	vga_cr_write(VGA_CR_VSYNC_START, vertical_sync_start & 0xff);
+	vga_cr_write(VGA_CR_VSYNC_END, vertical_sync_end & 0x0f);
+	vga_cr_write(VGA_CR_VDISPLAY_END, vdisplay_end & 0xff);
+	vga_cr_write(VGA_CR_PITCH, pitch & 0xff);
+	vga_cr_write(VGA_CR_VERTICAL_BLANK_START, vertical_blank_start & 0xff);
+	vga_cr_write(VGA_CR_VERTICAL_BLANK_END, vertical_blank_end & 0xff);
+	vga_cr_write(VGA_CR_LINE_COMPARE, line_compare & 0xff);
 
-	vga_gr_write (VGA_GR_MODE, VGA_GR_MODE_256_COLOR | VGA_GR_MODE_READ_MODE1);
-	vga_gr_write (VGA_GR_GR6, VGA_GR_GR6_GRAPHICS_MODE);
+	vga_gr_write(VGA_GR_MODE, VGA_GR_MODE_256_COLOR | VGA_GR_MODE_READ_MODE1);
+	vga_gr_write(VGA_GR_GR6, VGA_GR_GR6_GRAPHICS_MODE);
 
-	vga_sr_write (VGA_SR_MEMORY_MODE, VGA_SR_MEMORY_MODE_NORMAL);
+	vga_sr_write(VGA_SR_MEMORY_MODE, VGA_SR_MEMORY_MODE_NORMAL);
 
-	vga_cr_write (CIRRUS_CR_EXTENDED_DISPLAY,
+	vga_cr_write(CIRRUS_CR_EXTENDED_DISPLAY,
 		      (pitch >> CIRRUS_CR_EXTENDED_DISPLAY_PITCH_SHIFT)
 		      & CIRRUS_CR_EXTENDED_DISPLAY_PITCH_MASK);
 
-	vga_cr_write (VGA_CR_MODE, VGA_CR_MODE_TIMING_ENABLE
+	vga_cr_write(VGA_CR_MODE, VGA_CR_MODE_TIMING_ENABLE
 		      | VGA_CR_MODE_BYTE_MODE
 		      | VGA_CR_MODE_NO_HERCULES | VGA_CR_MODE_NO_CGA);
 
-	vga_cr_write (VGA_CR_START_ADDR_LOW_REGISTER, 0);
-	vga_cr_write (VGA_CR_START_ADDR_HIGH_REGISTER, 0);
+	vga_cr_write(VGA_CR_START_ADDR_LOW_REGISTER, 0);
+	vga_cr_write(VGA_CR_START_ADDR_HIGH_REGISTER, 0);
 
-	cr_ext = vga_cr_read (CIRRUS_CR_EXTENDED_DISPLAY);
+	cr_ext = vga_cr_read(CIRRUS_CR_EXTENDED_DISPLAY);
 	cr_ext &= ~(CIRRUS_CR_EXTENDED_DISPLAY_START_MASK1
 		    | CIRRUS_CR_EXTENDED_DISPLAY_START_MASK2);
-	vga_cr_write (CIRRUS_CR_EXTENDED_DISPLAY, cr_ext);
+	vga_cr_write(CIRRUS_CR_EXTENDED_DISPLAY, cr_ext);
 
-	cr_overlay = vga_cr_read (CIRRUS_CR_EXTENDED_OVERLAY);
+	cr_overlay = vga_cr_read(CIRRUS_CR_EXTENDED_OVERLAY);
 	cr_overlay &= ~(CIRRUS_CR_EXTENDED_OVERLAY_DISPLAY_START_MASK);
-	vga_cr_write (CIRRUS_CR_EXTENDED_OVERLAY, cr_overlay);
+	vga_cr_write(CIRRUS_CR_EXTENDED_OVERLAY, cr_overlay);
 
 	sr_ext = CIRRUS_SR_EXTENDED_MODE_LFB_ENABLE
 		| CIRRUS_SR_EXTENDED_MODE_ENABLE_EXT
 		| CIRRUS_SR_EXTENDED_MODE_32BPP;
 	hidden_dac = CIRRUS_HIDDEN_DAC_888COLOR;
-	vga_sr_write (CIRRUS_SR_EXTENDED_MODE, sr_ext);
-	write_hidden_dac (hidden_dac);
+	vga_sr_write(CIRRUS_SR_EXTENDED_MODE, sr_ext);
+	write_hidden_dac(hidden_dac);
 
-
-	struct edid edid;
-	edid.mode.ha = width;
-	edid.mode.va = height;
-	edid.panel_bits_per_color = 8;
-	edid.panel_bits_per_pixel = 24;
-	edid_set_framebuffer_bits_per_pixel(&edid, 32, 0);
-	set_vbe_mode_info_valid(&edid, addr);
+	fb_add_framebuffer_info(addr, width, height, 4 * width, 32);
 }
 
 static void cirrus_init_text_mode(struct device *dev)
@@ -345,7 +321,6 @@ static struct device_operations qemu_cirrus_graph_ops = {
 	.set_resources	  = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init		  = cirrus_init,
-	.scan_bus	  = 0,
 };
 
 static const struct pci_driver qemu_cirrus_driver __pci_driver = {

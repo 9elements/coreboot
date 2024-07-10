@@ -1,22 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- * Copyright (C) 2015 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <mainboard/google/cyan/irqroute.h>
 #include <soc/gpio.h>
-#include <stdlib.h>
 
 /* South East Community */
 static const struct soc_gpio_map gpse_gpio_map[] = {
@@ -66,12 +51,11 @@ static const struct soc_gpio_map gpse_gpio_map[] = {
 	GPIO_NC, /* 69 MMC1_RCLK */
 	Native_M1, /* 75  GPO USB_OC1_B */
 	Native_M1, /* 76  PMU_RESETBUTTON_B */
-	GPI(trig_edge_both, L0, NA, non_maskable, en_edge_detect, NA, NA),
-	/* GPIO_ALERT 77   */
+	GPIO_NC, /* GPIO_ALERT 77 */
 	Native_M1, /* 78  SDMMC3_PWR_EN_B */
 	GPIO_NC, /* 79  GPI ILB_SERIRQ */
 	Native_M1, /* 80  USB_OC0_B */
-	GPI(trig_edge_both, L1, P_20K_H, non_maskable,
+	GPI(trig_edge_both, L1, P_20K_H, maskable,
 				en_edge_detect, NA, NA),
 	/* 81  SDMMC3_CD_B */
 	GPIO_NC,  /* 82  spkr	 assumed gpio number */
@@ -80,7 +64,6 @@ static const struct soc_gpio_map gpse_gpio_map[] = {
 	Native_M1, /* 85 SDMMC3_1P8_EN */
 	GPIO_END
 };
-
 
 /* South West Community */
 static const struct soc_gpio_map  gpsw_gpio_map[] = {
@@ -108,8 +91,7 @@ static const struct soc_gpio_map  gpsw_gpio_map[] = {
 		/* 34 MF_HDA_DOCKRSTB */
 	GPIO_NC, /* 35 MF_HDA_SYNC */
 	GPIO_NC, /* 36 GPIO_SW36 MF_HDA_SDI1 */
-	GPI(trig_edge_both, L2, P_1K_H, non_maskable, en_edge_detect, NA, NA),
-		/* 37 MF_HDA_DOCKENB */
+	GPIO_NC, /* 37 MF_HDA_DOCKENB */
 	NATIVE_PU1K_CSEN_INVTX(1), /* 45 I2C5_SDA */
 	NATIVE_PU1K_CSEN_INVTX(1), /* 46 I2C4_SDA */
 	NATIVE_PU1K_CSEN_INVTX(1), /* 47 I2C6_SDA */
@@ -146,7 +128,6 @@ static const struct soc_gpio_map  gpsw_gpio_map[] = {
 	NATIVE_FUNC(1, 0, inv_tx_enable), /* 97 GP_SSP_2f_TXD */
 	GPIO_END
 };
-
 
 /* North Community */
 static const struct soc_gpio_map  gpn_gpio_map[] = {
@@ -217,7 +198,6 @@ static const struct soc_gpio_map  gpn_gpio_map[] = {
 	GPIO_END
 };
 
-
 /* East Community */
 static const struct soc_gpio_map  gpe_gpio_map[] = {
 	Native_M1, /* 00 PMU_SLP_S3_B */
@@ -246,7 +226,6 @@ static const struct soc_gpio_map  gpe_gpio_map[] = {
 	GPIO_NC, /* 26 MF_I2C1_SDA */
 	GPIO_END
 };
-
 
 static struct soc_gpio_config gpio_config = {
 	/* BSW */

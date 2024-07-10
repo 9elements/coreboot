@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
-
 ##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2011 secunet Security Networks AG
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 # In the hooks, use the same `make` tool as used when running `make gitconfig`,
 # e.g. `remake gitconfig` will set `remake` to be run by the hooks.
@@ -52,11 +39,11 @@ done
 for d in 3rdparty/{blobs,libhwbase,libgfxinit}; do
 	if [ -d $d ]; then
 		(cd $d || exit 1
-		 git config remote.origin.push HEAD:refs/for/master)
+		 git config remote.origin.push HEAD:refs/for/main)
 	fi
 done
 
-git config remote.origin.push HEAD:refs/for/master
+git config remote.origin.push HEAD:refs/for/main
 git config alias.sup "!git submodule update --remote --rebase && \
 git submodule update --init --checkout"
 

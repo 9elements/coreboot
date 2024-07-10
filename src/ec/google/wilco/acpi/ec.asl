@@ -1,18 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+Name (RD, 0)
+Name (WR, 1)
 
 Device (EC0)
 {
@@ -20,7 +9,9 @@ Device (EC0)
 	Name (_UID, 1)
 	Name (_GPE, EC_SCI_GPI)
 	Name (_STA, 0xf)
-	Name (DBUG, Zero)
+	Name (DBUG, 0)
+	Name (ISSX, 0) /* Is the EC in S0ix mode? */
+	Name (UCEP, 0) /* Is there a pending UCSI event? */
 
 	Name (_CRS, ResourceTemplate() {
 		IO (Decode16,
@@ -34,7 +25,7 @@ Device (EC0)
 	})
 
 	/* Handle registration of EmbeddedControl region */
-	Name (EREG, Zero)
+	Name (EREG, 0)
 	OperationRegion (ERAM, EmbeddedControl, 0, 0xff)
 	Method (_REG, 2)
 	{
@@ -48,18 +39,21 @@ Device (EC0)
 		W (ERDY, Arg1)
 
 		/* Indicate that the OS supports S0ix */
-		W (CSOS, One)
+		W (CSOS, 1)
 
 		/* Tell EC to stop emulating PS/2 mouse */
-		W (PS2M, Zero)
+		W (PS2M, 0)
 
 		/* Enable DPTF support if enabled in devicetree */
-		If (\DPTE == One) {
+		If (\DPTE == 1) {
 			W (DWST, Arg1)
 		}
 
 		/* Initialize UCSI */
-		^UCSI.INIT ()
+		\_SB.UCSI.INIT ()
+
+		// Initialize LID switch state
+		\LIDS = R (P1LC)
 	}
 
 	/*
@@ -86,7 +80,7 @@ Device (EC0)
 	Method (ECRW, 2, Serialized, 2)
 	{
 		If (!EREG) {
-			Return (Zero)
+			Return (0)
 		}
 
 		Local0 = DeRefOf (Arg0[0])	/* Byte offset */
@@ -124,7 +118,7 @@ Device (EC0)
 			}
 			BYT1 = Arg1
 		}
-		Return (Zero)
+		Return (0)
 	}
 
 	/*
@@ -133,7 +127,9 @@ Device (EC0)
 	 */
 	Method (R, 1, Serialized, 2)
 	{
-		Return (ECRW (Arg0, Zero))
+		/* Set read operation */
+		Arg0[2] = RD
+		Return (ECRW (Arg0, 0))
 	}
 
 	/*
@@ -143,6 +139,8 @@ Device (EC0)
 	 */
 	Method (W, 2, Serialized, 2)
 	{
+		/* Set write operation */
+		Arg0[2] = WR
 		Return (ECRW (Arg0, Arg1))
 	}
 
@@ -151,9 +149,11 @@ Device (EC0)
 	 */
 	Method (S0IX, 1, Serialized)
 	{
+		^ISSX = Arg0 /* Update S0ix state. */
+
 		If (Arg0) {
 			Printf ("EC Enter S0ix")
-			W (CSEX, One)
+			W (CSEX, 1)
 
 			/*
 			 * Read back from EC RAM after enabling S0ix
@@ -162,7 +162,12 @@ Device (EC0)
 			R (EVT1)
 		} Else {
 			Printf ("EC Exit S0ix")
-			W (CSEX, Zero)
+			W (CSEX, 0)
+
+			/* If UCSI event happened during S0ix send it now. */
+			If (^UCEP == 1) {
+				^_Q79 ()
+			}
 		}
 	}
 
@@ -177,5 +182,8 @@ Device (EC0)
 	#include "ucsi.asl"
 #ifdef EC_ENABLE_DPTF
 	#include "dptf.asl"
+#endif
+#ifdef EC_ENABLE_PRIVACY
+	#include "privacy.asl"
 #endif
 }

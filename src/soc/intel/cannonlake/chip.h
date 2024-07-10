@@ -1,34 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2008 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017-2019 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_CHIP_H_
 #define _SOC_CHIP_H_
 
-#include <intelblocks/chip.h>
 #include <drivers/i2c/designware/dw_i2c.h>
-#include <intelblocks/gpio.h>
+#include <drivers/intel/gma/gma.h>
+#include <gpio.h>
+#include <intelblocks/cfg.h>
 #include <intelblocks/gspi.h>
-#include <smbios.h>
+#include <intelblocks/lpc_lib.h>
+#include <intelblocks/power_limit.h>
+#include <intelblocks/xhci.h>
+#include <stdbool.h>
 #include <stdint.h>
-#include <soc/gpio.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <soc/pmc.h>
+#include <soc/sata.h>
 #include <soc/serialio.h>
 #include <soc/usb.h>
 #include <soc/vr_config.h>
@@ -39,17 +28,21 @@
 #endif
 
 #define SOC_INTEL_CML_UART_DEV_MAX 3
+#define SOC_INTEL_CML_SATA_DEV_MAX 8
+
+enum chip_pl2_4_cfg {
+	baseline,
+	performance,
+	value_not_set /* vr_config internal use only */
+};
 
 struct soc_intel_cannonlake_config {
 
 	/* Common struct containing soc config data required by common code */
 	struct soc_intel_common_config common_soc_config;
 
-	/* GPE configuration */
-	uint32_t gpe0_en_1; /* GPE0_EN_31_0 */
-	uint32_t gpe0_en_2; /* GPE0_EN_63_32 */
-	uint32_t gpe0_en_3; /* GPE0_EN_95_64 */
-	uint32_t gpe0_en_4; /* GPE0_EN_127_96 / GPE_STD */
+	/* Common struct containing power limits configuration information */
+	struct soc_power_limits_config power_limits_config;
 
 	/* Gpio group routed to each dword of the GPE0 block. Values are
 	 * of the form GPP_[A:G] or GPD. */
@@ -63,16 +56,34 @@ struct soc_intel_cannonlake_config {
 	uint32_t gen3_dec;
 	uint32_t gen4_dec;
 
+	/* S0ix configuration */
+
 	/* Enable S0iX support */
-	int s0ix_enable;
+	bool s0ix_enable;
+	/* Enable Audio DSP oscillator qualification for S0ix */
+	bool cppmvric2_adsposcdis;
+
 	/* Enable DPTF support */
-	int dptf_enable;
+	bool dptf_enable;
+
+	enum {
+		MAX_PC_DEFAULT	= 0,
+		MAX_PC0_1	= 1,
+		MAX_PC2		= 2,
+		MAX_PC3		= 3,
+		MAX_PC6		= 4,
+		MAX_PC7		= 5,
+		MAX_PC7S	= 6,
+		MAX_PC8		= 7,
+		MAX_PC9		= 8,
+		MAX_PC10	= 9,
+	} max_package_c_state;
 
 	/* Deep SX enable for both AC and DC */
-	int deep_s3_enable_ac;
-	int deep_s3_enable_dc;
-	int deep_s5_enable_ac;
-	int deep_s5_enable_dc;
+	bool deep_s3_enable_ac;
+	bool deep_s3_enable_dc;
+	bool deep_s5_enable_ac;
+	bool deep_s5_enable_dc;
 
 	/* Deep Sx Configuration
 	 *  DSX_EN_WAKE_PIN       - Enable WAKE# pin
@@ -82,24 +93,6 @@ struct soc_intel_cannonlake_config {
 
 	/* TCC activation offset */
 	uint32_t tcc_offset;
-
-	uint64_t PlatformMemorySize;
-	uint8_t SmramMask;
-	uint8_t MrcFastBoot;
-	uint32_t TsegSize;
-	uint16_t MmioSize;
-
-	/* DDR Frequency Limit. Maximum Memory Frequency Selections in Mhz.
-	 * Options : 1067, 1333, 1600, 1867, 2133, 2400, 2667, 2933, 0(Auto) */
-	uint16_t DdrFreqLimit;
-
-	/* SAGV Low Frequency Selections in Mhz.
-	 * Options : 1067, 1333, 1600, 1867, 2133, 2400, 2667, 2933, 0(Auto) */
-	uint16_t FreqSaGvLow;
-
-	/* SAGV Mid Frequency Selections in Mhz.
-	 * Options : 1067, 1333, 1600, 1867, 2133, 2400, 2667, 2933, 0(Auto) */
-	uint16_t FreqSaGvMid;
 
 	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
 	 * For CNL, options are as following
@@ -111,150 +104,145 @@ struct soc_intel_cannonlake_config {
 	enum {
 		SaGv_Disabled,
 		SaGv_FixedLow,
-#if !CONFIG(SOC_INTEL_CANNONLAKE_ALTERNATE_HEADERS)
-		SaGv_FixedMid,
-#endif
 		SaGv_FixedHigh,
 		SaGv_Enabled,
 	} SaGv;
 
-
 	/* Rank Margin Tool. 1:Enable, 0:Disable */
-	uint8_t RMT;
+	bool RMT;
 
 	/* USB related */
 	struct usb2_port_config usb2_ports[16];
 	struct usb3_port_config usb3_ports[10];
-	uint8_t SsicPortEnable;
 	/* Wake Enable Bitmap for USB2 ports */
 	uint16_t usb2_wake_enable_bitmap;
 	/* Wake Enable Bitmap for USB3 ports */
 	uint16_t usb3_wake_enable_bitmap;
+	/* USB2 PHY power gating */
+	bool PchUsb2PhySusPgDisable;
 
 	/* SATA related */
 	enum {
-		Sata_AHCI,
-		Sata_RAID,
+		SATA_AHCI,
+		SATA_RAID,
 	} SataMode;
-	uint8_t SataSalpSupport;
-	uint8_t SataPortsEnable[8];
-	uint8_t SataPortsDevSlp[8];
+
+	/* SATA devslp pad reset configuration */
+	enum {
+		SataDevSlpResumeReset = 1,
+		SataDevSlpHostDeepReset = 3,
+		SataDevSlpPlatformReset = 5,
+		SataDevSlpDswReset = 7
+	} SataDevSlpRstConfig;
+
+	bool SataSalpSupport;
+	bool SataPortsEnable[8];
+	bool SataPortsDevSlp[8];
+	uint8_t SataPortsDevSlpResetConfig[8];
+	bool SataPortsHotPlug[8];
 
 	/* Enable/Disable SLP_S0 with GBE Support. 0: disable, 1: enable */
-	uint8_t SlpS0WithGbeSupport;
+	bool SlpS0WithGbeSupport;
 	/* SLP_S0 Voltage Margining Policy. 0: disable, 1: enable */
-	uint8_t PchPmSlpS0VmRuntimeControl;
+	bool PchPmSlpS0VmRuntimeControl;
 	/* SLP_S0 Voltage Margining  0.70V Policy. 0: disable, 1: enable */
-	uint8_t PchPmSlpS0Vm070VSupport;
+	bool PchPmSlpS0Vm070VSupport;
 	/* SLP_S0 Voltage Margining  0.75V Policy. 0: disable, 1: enable */
-	uint8_t PchPmSlpS0Vm075VSupport;
+	bool PchPmSlpS0Vm075VSupport;
 
 	/* Audio related */
-	uint8_t PchHdaDspEnable;
+	bool PchHdaDspEnable;
 
 	/* Enable/Disable HD Audio Link. Muxed with SSP0/SSP1/SNDW1 */
-	uint8_t PchHdaAudioLinkHda;
-	uint8_t PchHdaAudioLinkDmic0;
-	uint8_t PchHdaAudioLinkDmic1;
-	uint8_t PchHdaAudioLinkSsp0;
-	uint8_t PchHdaAudioLinkSsp1;
-	uint8_t PchHdaAudioLinkSsp2;
-	uint8_t PchHdaAudioLinkSndw1;
-	uint8_t PchHdaAudioLinkSndw2;
-	uint8_t PchHdaAudioLinkSndw3;
-	uint8_t PchHdaAudioLinkSndw4;
+	bool PchHdaAudioLinkHda;
+	bool PchHdaIDispCodecDisconnect;
+	bool PchHdaAudioLinkDmic0;
+	bool PchHdaAudioLinkDmic1;
+	bool PchHdaAudioLinkSsp0;
+	bool PchHdaAudioLinkSsp1;
+	bool PchHdaAudioLinkSsp2;
+	bool PchHdaAudioLinkSndw1;
+	bool PchHdaAudioLinkSndw2;
+	bool PchHdaAudioLinkSndw3;
+	bool PchHdaAudioLinkSndw4;
 
 	/* PCIe Root Ports */
-	uint8_t PcieRpEnable[CONFIG_MAX_ROOT_PORTS];
-	/* PCIe output clocks type to Pcie devices.
+	bool PcieRpEnable[CONFIG_MAX_ROOT_PORTS];
+	/* PCIe output clocks type to PCIe devices.
 	 * 0-23: PCH rootport, 0x70: LAN, 0x80: unspecified but in use,
 	 * 0xFF: not used */
-	uint8_t PcieClkSrcUsage[CONFIG_MAX_PCIE_CLOCKS];
+	uint8_t PcieClkSrcUsage[CONFIG_MAX_PCIE_CLOCK_SRC];
 	/* PCIe ClkReq-to-ClkSrc mapping, number of clkreq signal assigned to
 	 * clksrc. */
-	uint8_t PcieClkSrcClkReq[CONFIG_MAX_PCIE_CLOCKS];
+	uint8_t PcieClkSrcClkReq[CONFIG_MAX_PCIE_CLOCK_SRC];
 	/* PCIe LTR(Latency Tolerance Reporting) mechanism */
-	uint8_t PcieRpLtrEnable[CONFIG_MAX_ROOT_PORTS];
+	bool PcieRpLtrEnable[CONFIG_MAX_ROOT_PORTS];
+	/* Implemented as slot or built-in? */
+	bool PcieRpSlotImplemented[CONFIG_MAX_ROOT_PORTS];
 	/* Enable/Disable HotPlug support for Root Port */
-	uint8_t PcieRpHotPlug[CONFIG_MAX_ROOT_PORTS];
+	bool PcieRpHotPlug[CONFIG_MAX_ROOT_PORTS];
+
+	/*
+	 * Enable/Disable AER (Advanced Error Reporting) for Root Port
+	 * 0: Disable AER
+	 * 1: Enable AER
+	 */
+	bool PcieRpAdvancedErrorReporting[CONFIG_MAX_ROOT_PORTS];
+
+	/* PCIE RP ASPM, ASPM support for the root port */
+	enum {
+		AspmDefault,
+		AspmDisabled,
+		AspmL0s,
+		AspmL1,
+		AspmL0sL1,
+		AspmAutoConfig,
+	} PcieRpAspm[CONFIG_MAX_ROOT_PORTS];
+
+	/* PCIE RP Max Payload, Max Payload Size supported */
+	enum {
+		RpMaxPayload_128,
+		RpMaxPayload_256,
+	} PcieRpMaxPayload[CONFIG_MAX_ROOT_PORTS];
 
 	/* eMMC and SD */
-	uint8_t ScsEmmcHs400Enabled;
+	bool ScsEmmcHs400Enabled;
 	/* Need to update DLL setting to get Emmc running at HS400 speed */
-	uint8_t EmmcHs400DllNeed;
+	bool EmmcHs400DllNeed;
 	/* 0-39: number of active delay for RX strobe, unit is 125 psec */
 	uint8_t EmmcHs400RxStrobeDll1;
 	/* 0-78: number of active delay for TX data, unit is 125 psec */
 	uint8_t EmmcHs400TxDataDll;
-
-	/* Integrated Sensor */
-	uint8_t PchIshEnable;
+	/* Enable/disable SD card write protect pin configuration on CML */
+	bool ScsSdCardWpPinEnabled;
 
 	/* Heci related */
-	uint8_t Heci3Enabled;
+	bool DisableHeciRetry;
 
 	/* Gfx related */
-	uint8_t IgdDvmt50PreAlloc;
-	uint8_t InternalGfx;
-	uint8_t SkipExtGfxScan;
+	bool SkipExtGfxScan;
 
-	uint32_t GraphicsConfigPtr;
-	uint8_t Device4Enable;
+	bool Device4Enable;
 
-	/* GPIO IRQ Select. The valid value is 14 or 15 */
-	uint8_t GpioIrqRoute;
-	/* SCI IRQ Select. The valid value is 9, 10, 11, 20, 21, 22, 23 */
-	uint8_t SciIrqSelect;
-	/* TCO IRQ Select. The valid value is 9, 10, 11, 20, 21, 22, 23 */
-	uint8_t TcoIrqSelect;
-	uint8_t TcoIrqEnable;
+	/* CPU PL2/4 Config
+	 * Performance: Maximum PLs for maximum performance.
+	 * Baseline: Baseline PLs for balanced performance at lower power.
+	 */
+	enum chip_pl2_4_cfg cpu_pl2_4_cfg;
 
 	/* VrConfig Settings for 5 domains
 	 * 0 = System Agent, 1 = IA Core, 2 = Ring,
 	 * 3 = GT unsliced,  4 = GT sliced */
 	struct vr_config domain_vr_config[NUM_VR_DOMAINS];
-	/* HeciEnabled decides the state of Heci1 at end of boot
-	 * Setting to 0 (default) disables Heci1 and hides the device from OS */
-	uint8_t HeciEnabled;
 
-	/* PL1 Override value in Watts */
-	uint32_t tdp_pl1_override;
-	/* PL2 Override value in Watts */
-	uint32_t tdp_pl2_override;
-	/* SysPL2 Value in Watts */
-	uint32_t tdp_psyspl2;
-	/* SysPL3 Value in Watts */
-	uint32_t tdp_psyspl3;
-	/* SysPL3 window size */
-	uint32_t tdp_psyspl3_time;
-	/* SysPL3 duty cycle */
-	uint32_t tdp_psyspl3_dutycycle;
-	/* PL4 Value in Watts */
-	uint32_t tdp_pl4;
-	/* Estimated maximum platform power in Watts */
-	uint16_t psys_pmax;
-
-	/* Intel Speed Shift Technology */
-	uint8_t speed_shift_enable;
-	/* Enable VR specific mailbox command
-	 * 00b - no VR specific cmd sent
-	 * 01b - VR mailbox cmd specifically for the MPS IMPV8 VR will be sent
-	 * 10b - VR specific cmd sent for PS4 exit issue
-	 * 11b - Reserved */
-	uint8_t SendVrMbxCmd;
+	/* Enables support for Teton Glacier hybrid storage device */
+	bool TetonGlacierMode;
 
 	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
-	uint8_t eist_enable;
+	bool eist_enable;
 
 	/* Enable C6 DRAM */
-	uint8_t enable_c6dram;
-	/*
-	 * PRMRR size setting with below options
-	 * 0x00100000 - 1MiB
-	 * 0x02000000 - 32MiB and beyond
-	 */
-	uint32_t PrmrrSize;
-	uint8_t PmTimerDisabled;
+	bool enable_c6dram;
 
 	/*
 	 * SLP_S3 Minimum Assertion Width Policy
@@ -291,6 +279,23 @@ struct soc_intel_cannonlake_config {
 	 *  4 = 2s
 	 */
 	uint8_t PchPmSlpAMinAssert;
+
+	/*
+	 * PCH PM Reset Power Cycle Duration
+	 *  0 = 4s
+	 *  1 = 1s
+	 *  2 = 2s
+	 *  3 = 3s
+	 *  4 = 4s (default)
+	 *
+	 * NOTE: Duration programmed in the PchPmPwrCycDur should never be smaller than the
+	 * stretch duration programmed in the following registers -
+	 *  - GEN_PMCON_A.SLP_S3_MIN_ASST_WDTH (PchPmSlpS3MinAssert)
+	 *  - GEN_PMCON_A.S4MAW (PchPmSlpS4MinAssert)
+	 *  - PM_CFG.SLP_A_MIN_ASST_WDTH (PchPmSlpAMinAssert)
+	 *  - PM_CFG.SLP_LAN_MIN_ASST_WDTH
+	 */
+	uint8_t PchPmPwrCycDur;
 
 	/*
 	 * SerialIO device mode selection:
@@ -337,18 +342,20 @@ struct soc_intel_cannonlake_config {
 	 */
 	uint8_t SerialIoDevMode[PchSerialIoIndexMAX];
 
+	enum serirq_mode serirq_mode;
+
 	/* GPIO SD card detect pin */
 	unsigned int sdcard_cd_gpio;
 
 	/* Enable Pch iSCLK */
-	uint8_t pch_isclk;
+	bool pch_isclk;
 
 	/*
 	 * Acoustic Noise Mitigation
 	 * 0b - Disable
 	 * 1b - Enable noise mitigation
 	 */
-	uint8_t AcousticNoiseMitigation;
+	bool AcousticNoiseMitigation;
 
 	/*
 	 * Disable Fast Package C-state ramping
@@ -356,10 +363,10 @@ struct soc_intel_cannonlake_config {
 	 * 0b - Enabled
 	 * 1b - Disabled
 	 */
-	uint8_t FastPkgCRampDisableIa;
-	uint8_t FastPkgCRampDisableGt;
-	uint8_t FastPkgCRampDisableSa;
-	uint8_t FastPkgCRampDisableFivr;
+	bool FastPkgCRampDisableIa;
+	bool FastPkgCRampDisableGt;
+	bool FastPkgCRampDisableSa;
+	bool FastPkgCRampDisableFivr;
 
 	/*
 	 * Adjust the VR slew rates
@@ -374,40 +381,44 @@ struct soc_intel_cannonlake_config {
 	uint8_t SlowSlewRateForSa;
 	uint8_t SlowSlewRateForFivr;
 
-	/* DMI Power Optimizer */
-	uint8_t dmipwroptimize;
-
 	/* SATA Power Optimizer */
-	uint8_t satapwroptimize;
+	bool satapwroptimize;
+
+	/* SATA Gen3 Strength */
+	struct sata_port_config sata_port[SOC_INTEL_CML_SATA_DEV_MAX];
 
 	/* Enable or disable eDP device */
-	uint8_t DdiPortEdp;
+	bool DdiPortEdp;
 
 	/* Enable or disable HPD of DDI port B/C/D/F */
-	uint8_t DdiPortBHpd;
-	uint8_t DdiPortCHpd;
-	uint8_t DdiPortDHpd;
-	uint8_t DdiPortFHpd;
+	bool DdiPortBHpd;
+	bool DdiPortCHpd;
+	bool DdiPortDHpd;
+	bool DdiPortFHpd;
 
 	/* Enable or disable DDC of DDI port B/C/D/F  */
-	uint8_t DdiPortBDdc;
-	uint8_t DdiPortCDdc;
-	uint8_t DdiPortDDdc;
-	uint8_t DdiPortFDdc;
+	bool DdiPortBDdc;
+	bool DdiPortCDdc;
+	bool DdiPortDDdc;
+	bool DdiPortFDdc;
 
 	/* Unlock all GPIO Pads */
-	uint8_t PchUnlockGpioPads;
+	bool PchUnlockGpioPads;
 
 	/* Enable GBE wakeup */
-	uint8_t LanWakeFromDeepSx;
-	uint8_t WolEnableOverride;
+	bool LanWakeFromDeepSx;
+	bool WolEnableOverride;
+
+#if !CONFIG(SOC_INTEL_COMETLAKE)
+	uint32_t VrPowerDeliveryDesign;
+#endif
 
 	/*
 	 * Override GPIO PM configuration:
 	 * 0: Use FSP default GPIO PM program,
 	 * 1: coreboot to override GPIO PM program
 	 */
-	uint8_t gpio_override_pm;
+	bool gpio_override_pm;
 	/*
 	 * GPIO PM configuration: 0 to disable, 1 to enable power gating
 	 * Bit 6-7: Reserved
@@ -419,6 +430,28 @@ struct soc_intel_cannonlake_config {
 	 * Bit 0: MISCCFG_GPDLCGEN
 	 */
 	uint8_t gpio_pm[TOTAL_GPIO_COMM];
+
+	/*
+	 * Override CPU flex ratio value:
+	 * CPU ratio value controls the maximum processor non-turbo ratio.
+	 * Valid Range 0 to 63.
+	 *
+	 * In general descriptor provides option to set default cpu flex ratio.
+	 * Default cpu flex ratio is 0 ensures booting with non-turbo max frequency.
+	 * That's the reason FSP skips cpu_ratio override if cpu_ratio is 0.
+	 *
+	 * Only override CPU flex ratio if don't want to boot with non-turbo max.
+	 */
+	uint8_t cpu_ratio_override;
+
+	struct i915_gpu_panel_config panel_cfg;
+
+	struct i915_gpu_controller_info gfx;
+
+	/* Disable CPU Turbo in IA32_MISC_ENABLE */
+	bool cpu_turbo_disable;
+
+	bool disable_vmx;
 };
 
 typedef struct soc_intel_cannonlake_config config_t;

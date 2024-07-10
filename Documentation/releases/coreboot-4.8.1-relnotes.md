@@ -40,7 +40,7 @@ possible
 
 Lenovo mainboards
 -----------------
-* Started integration of VBT (Video Bios Table) binary files to
+* Started integration of VBT (Video BIOS Table) binary files to
 support native graphics initialisation
 
 Internal changes
@@ -71,13 +71,13 @@ detection
 Payloads
 --------
 * Bumped SeaBIOS to 1.11.1
-* Improved TianoCore integration
+* Improved edk2 integration
 
 Security
 --------
 * Start of refactoring the TPM software stack
 * Introduced coreboot security section in kconfig
-* VBoot & TPM code moved into src/security
+* vboot & TPM code moved into src/security
 
 Intelmetool
 -----------

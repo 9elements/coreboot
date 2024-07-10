@@ -1,28 +1,15 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2008 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2010,2017 Keith Hui <buurin@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <spd.h>
 #include <delay.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <device/mmio.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
+#include <device/smbus_host.h>
 #include <console/console.h>
+#include <commonlib/console/post_codes.h>
+#include <timestamp.h>
 #include "i440bx.h"
 #include "raminit.h"
 
@@ -60,7 +47,7 @@ static const uint32_t refresh_rate_map[] = {
 	1, 5, 5, 2, 3, 4
 };
 
-/* Table format: register, bitmask, value. */
+/* Table format: register, value. */
 static const u8 register_values[] = {
 	/* NBXCFG - NBX Configuration Register
 	 * 0x50 - 0x53
@@ -122,11 +109,14 @@ static const u8 register_values[] = {
 	 *         0 = A7# is sampled asserted (i.e., 0)
 	 * [01:00] Reserved
 	 */
-	NBXCFG + 0, 0x00, 0x0c,
-	// TODO: Bit 15 should be 0 for multiprocessor boards
-	NBXCFG + 1, 0x00, 0x80,
-	NBXCFG + 2, 0x00, 0x00,
-	NBXCFG + 3, 0x00, 0xff,
+	NBXCFG + 0, 0x0c,
+#if CONFIG(SMP)
+	NBXCFG + 1, 0x00,
+#else
+	NBXCFG + 1, 0x80,
+#endif
+	NBXCFG + 2, 0x00,
+	NBXCFG + 3, 0xff,
 
 	/* DRAMC - DRAM Control Register
 	 * 0x57
@@ -156,7 +146,7 @@ static const u8 register_values[] = {
 	 *       111 = Reserved
 	 */
 	/* Choose SDRAM (not registered), and disable refresh for now. */
-	DRAMC, 0x00, 0x08,
+	DRAMC, 0x08,
 
 	/*
 	 * PAM[6:0] - Programmable Attribute Map Registers
@@ -190,13 +180,13 @@ static const u8 register_values[] = {
 	 * registers are not set here appropriately, the RAM in that region
 	 * will not be accessible, thus a RAM check of it will also fail.
 	 */
-	PAM0, 0x00, 0x30,
-	PAM1, 0x00, 0x33,
-	PAM2, 0x00, 0x33,
-	PAM3, 0x00, 0x33,
-	PAM4, 0x00, 0x33,
-	PAM5, 0x00, 0x33,
-	PAM6, 0x00, 0x33,
+	PAM0, 0x30,
+	PAM1, 0x33,
+	PAM2, 0x33,
+	PAM3, 0x33,
+	PAM4, 0x33,
+	PAM5, 0x33,
+	PAM6, 0x33,
 
 	/* DRB[0:7] - DRAM Row Boundary Registers
 	 * 0x60 - 0x67
@@ -214,14 +204,6 @@ static const u8 register_values[] = {
 	 * 0x67 DRB7 = Total memory in row0+1+2+3+4+5+6+7 (in 8 MB)
 	 */
 	/* DRBs will be set later. */
-	DRB0, 0x00, 0x00,
-	DRB1, 0x00, 0x00,
-	DRB2, 0x00, 0x00,
-	DRB3, 0x00, 0x00,
-	DRB4, 0x00, 0x00,
-	DRB5, 0x00, 0x00,
-	DRB6, 0x00, 0x00,
-	DRB7, 0x00, 0x00,
 
 	/* FDHC - Fixed DRAM Hole Control Register
 	 * 0x68
@@ -236,7 +218,7 @@ static const u8 register_values[] = {
 	 * [5:0] Reserved
 	 */
 	/* No memory holes. */
-	FDHC, 0x00, 0x00,
+	FDHC, 0x00,
 
 	/* RPS - SDRAM Row Page Size Register
 	 * 0x74 - 0x75
@@ -261,8 +243,6 @@ static const u8 register_values[] = {
 	 * [15:14]  DRB[7], row 7
 	 */
 	/* Power on defaults to 2KB. Will be set later. */
-	// RPS + 0, 0x00, 0x00,
-	// RPS + 1, 0x00, 0x00,
 
 	/* SDRAMC - SDRAM Control Register
 	 * 0x76 - 0x77
@@ -298,9 +278,9 @@ static const u8 register_values[] = {
 	 *         1 = 2 clocks of RAS# precharge
 	 */
 #if CONFIG(SDRAMPWR_4DIMM)
-	SDRAMC + 0, 0x00, 0x10, /* The board has 4 DIMM slots. */
+	SDRAMC, 0x10, /* The board has 4 DIMM slots. */
 #else
-	SDRAMC + 0, 0x00, 0x00, /* The board has 3 DIMM slots. */
+	SDRAMC, 0x00, /* The board has 3 DIMM slots. */
 #endif
 
 	/* PGPOL - Paging Policy Register
@@ -325,43 +305,38 @@ static const u8 register_values[] = {
 	 *         0111 = 32 clocks
 	 *         1xxx = Infinite (pages are not closed for idle condition)
 	 */
-	PGPOL + 0, 0x00, 0x00,
-	PGPOL + 1, 0x00, 0xff,
+	/* PGPOL will be set later. */
 
 	/* PMCR - Power Management Control Register
 	 * 0x7a
 	 *
-	 * [07:07] Power Down SDRAM Enable (PDSE)
-	 *         1 = Enable
-	 *         0 = Disable
-	 * [06:06] ACPI Control Register Enable (SCRE)
-	 *         1 = Enable
-	 *         0 = Disable (default)
-	 * [05:05] Suspend Refresh Type (SRT)
-	 *         1 = Self refresh mode
-	 *         0 = CBR fresh mode
-	 * [04:04] Normal Refresh Enable (NREF_EN)
-	 *         1 = Enable
-	 *         0 = Disable
-	 * [03:03] Quick Start Mode (QSTART)
-	 *         1 = Quick start mode for the processor is enabled
-	 * [02:02] Gated Clock Enable (GCLKEN)
-	 *         1 = Enable
-	 *         0 = Disable
-	 * [01:01] AGP Disable (AGP_DIS)
-	 *         1 = Disable
-	 *         0 = Enable
-	 * [00:00] CPU reset without PCIRST enable (CRst_En)
-	 *         1 = Enable
-	 *         0 = Disable
+	 * [7] Power Down SDRAM Enable (PDSE)
+	 *     1 = Enable
+	 *     0 = Disable
+	 * [6] ACPI Control Register Enable (SCRE)
+	 *     1 = Enable
+	 *     0 = Disable (default)
+	 * [5] Suspend Refresh Type (SRT)
+	 *     1 = Self refresh mode
+	 *     0 = CBR fresh mode
+	 * [4] Normal Refresh Enable (NREF_EN)
+	 *     1 = Enable
+	 *     0 = Disable
+	 * [3] Quick Start Mode (QSTART)
+	 *     1 = Quick start mode for the processor is enabled
+	 * [2] Gated Clock Enable (GCLKEN)
+	 *     1 = Enable
+	 *     0 = Disable
+	 * [1] AGP Disable (AGP_DIS)
+	 *     1 = AGP disabled (Hardware strap)
+	 * [0] CPU reset without PCIRST enable (CRst_En)
+	 *     1 = Enable
+	 *     0 = Disable
 	 */
-	/* Enable normal refresh and the gated clock. */
-	// TODO: Only do this later?
-	// PMCR, 0x00, 0x14,
-	PMCR, 0x00, 0x00,
+	/* PMCR will be set later. */
 
 	/* Enable SCRR.SRRAEN and let BX choose the SRR. */
-	SCRR + 1, 0x00, 0x10,
+	SCRR + 1, 0x10,
 };
 
 /*-----------------------------------------------------------------------------
@@ -384,7 +359,7 @@ static void do_ram_command(u32 command)
 	/* Configure the RAM command. */
 	reg16 = pci_read_config16(NB, SDRAMC);
 	reg16 &= 0xff1f;		/* Clear bits 7-5. */
-	reg16 |= (u16) (command << 5);	/* Write command into bits 7-5. */
+	reg16 |= (u16)(command << 5);	/* Write command into bits 7-5. */
 	pci_write_config16(NB, SDRAMC, reg16);
 
 	/*
@@ -651,7 +626,7 @@ static void spd_enable_refresh(void)
 	reg = pci_read_config8(NB, DRAMC);
 
 	for (i = 0; i < DIMM_SOCKETS; i++) {
-		value = spd_read_byte(DIMM0 + i, SPD_REFRESH);
+		value = smbus_read_byte(DIMM0 + i, SPD_REFRESH);
 		if (value < 0)
 			continue;
 		reg = (reg & 0xf8) | refresh_rate_map[(value & 0x7f)];
@@ -666,23 +641,18 @@ static void spd_enable_refresh(void)
 Public interface.
 -----------------------------------------------------------------------------*/
 
-void sdram_set_registers(void)
+static void sdram_set_registers(void)
 {
 	int i, max;
-	uint8_t reg;
 
-	PRINT_DEBUG("Northbridge prior to SDRAM init:\n");
+	PRINT_DEBUG("Northbridge %s SDRAM init:\n", "prior to");
 	DUMPNORTH();
 
 	max = ARRAY_SIZE(register_values);
 
 	/* Set registers as specified in the register_values[] array. */
-	for (i = 0; i < max; i += 3) {
-		reg = pci_read_config8(NB, register_values[i]);
-		reg &= register_values[i + 1];
-		reg |= register_values[i + 2] & ~(register_values[i + 1]);
-		pci_write_config8(NB, register_values[i], reg);
-	}
+	for (i = 0; i < max; i += 2)
+		pci_write_config8(NB, register_values[i], register_values[i + 1]);
 }
 
 struct dimm_size {
@@ -695,8 +665,8 @@ static struct dimm_size spd_get_dimm_size(unsigned int device)
 	struct dimm_size sz;
 	int i, module_density, dimm_banks;
 	sz.side1 = 0;
-	module_density = spd_read_byte(device, SPD_DENSITY_OF_EACH_ROW_ON_MODULE);
-	dimm_banks = spd_read_byte(device, SPD_NUM_DIMM_BANKS);
+	module_density = smbus_read_byte(device, SPD_DENSITY_OF_EACH_ROW_ON_MODULE);
+	dimm_banks = smbus_read_byte(device, SPD_NUM_DIMM_BANKS);
 
 	/* Find the size of side1. */
 	/* Find the larger value. The larger value is always side1. */
@@ -743,13 +713,13 @@ static struct dimm_size spd_get_dimm_size(unsigned int device)
 	 * modules by setting them to a supported size.
 	 */
 	if (sz.side1 > 128) {
-		PRINT_DEBUG("Side1 was %dMB but only 128MB will be used.\n",
-			sz.side1);
+		PRINT_DEBUG("Side%d was %dMB but only 128MB will be used.\n",
+			1, sz.side1);
 		sz.side1 = 128;
 
 		if (sz.side2 > 128) {
-			PRINT_DEBUG("Side2 was %dMB but only 128MB will be used.\n",
-				sz.side2);
+			PRINT_DEBUG("Side%d was %dMB but only 128MB will be used.\n",
+				2, sz.side2);
 			sz.side2 = 128;
 		}
 	}
@@ -781,7 +751,7 @@ static void set_dram_row_attributes(void)
 		nbxecc >>= 2;
 
 		/* First check if a DIMM is actually present. */
-		value = spd_read_byte(device, SPD_MEMORY_TYPE);
+		value = smbus_read_byte(device, SPD_MEMORY_TYPE);
 		/* This is 440BX! We do EDO too! */
 		if (value == SPD_MEMORY_TYPE_EDO
 			|| value == SPD_MEMORY_TYPE_SDRAM) {
@@ -794,29 +764,29 @@ static void set_dram_row_attributes(void)
 			PRINT_DEBUG("Found DIMM in slot %d\n", i);
 
 			if (edo && sd) {
-				printk(BIOS_ERR, "Mixing EDO/SDRAM unsupported!\n");
-				die("HALT\n");
+				die_with_post_code(POSTCODE_RAM_FAILURE,
+					"Mixing EDO/SDRAM unsupported!\n");
 			}
 
 			/* "DRA" is our RPS for the two rows on this DIMM. */
 			dra = 0;
 
 			/* Columns */
-			col = spd_read_byte(device, SPD_NUM_COLUMNS);
+			col = smbus_read_byte(device, SPD_NUM_COLUMNS);
 
 			/*
 			 * Is this an ECC DIMM? Actually will be a 2 if so.
 			 * TODO: Other register than NBXCFG also needs this
 			 * ECC information.
 			 */
-			value = spd_read_byte(device, SPD_DIMM_CONFIG_TYPE);
+			value = smbus_read_byte(device, SPD_DIMM_CONFIG_TYPE);
 
 			/* Data width */
-			width = spd_read_byte(device, SPD_MODULE_DATA_WIDTH_LSB);
+			width = smbus_read_byte(device, SPD_MODULE_DATA_WIDTH_LSB);
 
 			/* Exclude error checking data width from page size calculations */
 			if (value) {
-				value = spd_read_byte(device,
+				value = smbus_read_byte(device,
 					SPD_ERROR_CHECKING_SDRAM_WIDTH);
 				width -= value;
 				/* ### ECC */
@@ -832,7 +802,7 @@ static void set_dram_row_attributes(void)
 			 * By registered, only the address and control lines need to be, which
 			 * we can tell by reading SPD byte 21, bit 1.
 			 */
-			value = spd_read_byte(device, SPD_MODULE_ATTRIBUTES);
+			value = smbus_read_byte(device, SPD_MODULE_ATTRIBUTES);
 
 			PRINT_DEBUG("DIMM is ");
 			if ((value & MODULE_REGISTERED) == 0) {
@@ -848,12 +818,12 @@ static void set_dram_row_attributes(void)
 			dra = (value >> 13);
 
 			/* Number of banks of DIMM (single or double sided). */
-			value = spd_read_byte(device, SPD_NUM_DIMM_BANKS);
+			value = smbus_read_byte(device, SPD_NUM_DIMM_BANKS);
 
 			/* Once we have dra, col is done and can be reused.
 			 * So it's reused for number of banks.
 			 */
-			col = spd_read_byte(device, SPD_NUM_BANKS_PER_SDRAM);
+			col = smbus_read_byte(device, SPD_NUM_BANKS_PER_SDRAM);
 
 			if (value == 1) {
 				/*
@@ -899,12 +869,12 @@ static void set_dram_row_attributes(void)
 				if (col == 4)
 					bpr |= 0xc0;
 			} else {
-				printk(BIOS_ERR, "# of banks of DIMM unsupported!\n");
-				die("HALT\n");
+				die_with_post_code(POSTCODE_RAM_FAILURE,
+					"# of banks of DIMM unsupported!\n");
 			}
 			if (dra == -1) {
-				printk(BIOS_ERR, "Page size not supported\n");
-				die("HALT\n");
+				die_with_post_code(POSTCODE_RAM_FAILURE,
+					"Page size not supported!\n");
 			}
 
 			/*
@@ -914,9 +884,9 @@ static void set_dram_row_attributes(void)
 			 */
 			struct dimm_size sz = spd_get_dimm_size(device);
 			if ((sz.side1 < 8)) {
-				printk(BIOS_ERR, "DIMMs smaller than 8MB per side\n"
-					  "are not supported on this NB.\n");
-				die("HALT\n");
+				die_with_post_code(POSTCODE_RAM_FAILURE,
+					"DIMMs smaller than 8MB per side "
+					"are not supported!\n");
 			}
 
 			/* Divide size by 8 to set up the DRB registers. */
@@ -949,7 +919,7 @@ static void set_dram_row_attributes(void)
 
 	/* Set paging policy register. */
 	pci_write_config8(NB, PGPOL + 1, bpr);
-	PRINT_DEBUG("PGPOL[BPR] has been set to 0x%02x\n", bpr);
+	PRINT_DEBUG("%s has been set to 0x%02x\n", "PGPOL[BPR]", bpr);
 
 	/* Set DRAM row page size register. */
 	pci_write_config16(NB, RPS, rps);
@@ -957,7 +927,7 @@ static void set_dram_row_attributes(void)
 
 	/* ### ECC */
 	pci_write_config8(NB, NBXCFG + 3, nbxecc);
-	PRINT_DEBUG("NBXECC[31:24] has been set to 0x%02x\n", nbxecc);
+	PRINT_DEBUG("%s has been set to 0x%02x\n", "NBXCFG[31:24]", nbxecc);
 
 	/* Set DRAMC[4:3] to proper memory type (EDO/SDRAM/Registered SDRAM). */
 
@@ -973,26 +943,10 @@ static void set_dram_row_attributes(void)
 	value = pci_read_config8(NB, DRAMC) & 0xe7;
 	value |= i;
 	pci_write_config8(NB, DRAMC, value);
-	PRINT_DEBUG("DRAMC has been set to 0x%02x\n", value);
+	PRINT_DEBUG("%s has been set to 0x%02x\n", "DRAMC", value);
 }
 
-void sdram_set_spd_registers(void)
-{
-	/* Setup DRAM row boundary registers and other attributes. */
-	set_dram_row_attributes();
-
-	/* Setup DRAM buffer strength. */
-	set_dram_buffer_strength();
-
-	/* TODO: Set PMCR? */
-	// pci_write_config8(NB, PMCR, 0x14);
-	pci_write_config8(NB, PMCR, 0x10);
-
-	/* TODO: This is for EDO memory only. */
-	pci_write_config8(NB, DRAMT, 0x03);
-}
-
-void sdram_enable(void)
+static void sdram_enable(void)
 {
 	int i;
 
@@ -1000,46 +954,62 @@ void sdram_enable(void)
 	udelay(200);
 
 	/* 1. Apply NOP. Wait 200 clock cycles (200us should do). */
-	PRINT_DEBUG("RAM Enable 1: Apply NOP\n");
+	PRINT_DEBUG("RAM Enable %d: %s\n", 1, "Apply NOP");
 	do_ram_command(RAM_COMMAND_NOP);
 	udelay(200);
 
 	/* 2. Precharge all. Wait tRP. */
-	PRINT_DEBUG("RAM Enable 2: Precharge all\n");
+	PRINT_DEBUG("RAM Enable %d: %s\n", 2, "Precharge all");
 	do_ram_command(RAM_COMMAND_PRECHARGE);
 	udelay(1);
 
 	/* 3. Perform 8 refresh cycles. Wait tRC each time. */
-	PRINT_DEBUG("RAM Enable 3: CBR\n");
+	PRINT_DEBUG("RAM Enable %d: %s\n", 3, "CBR");
 	for (i = 0; i < 8; i++) {
 		do_ram_command(RAM_COMMAND_CBR);
 		udelay(1);
 	}
 
 	/* 4. Mode register set. Wait two memory cycles. */
-	PRINT_DEBUG("RAM Enable 4: Mode register set\n");
+	PRINT_DEBUG("RAM Enable %d: %s\n", 4, "Mode register set");
 	do_ram_command(RAM_COMMAND_MRS);
 	udelay(2);
 
 	/* 5. Normal operation. */
-	PRINT_DEBUG("RAM Enable 5: Normal operation\n");
+	PRINT_DEBUG("RAM Enable %d: %s\n", 5, "Normal operation");
 	do_ram_command(RAM_COMMAND_NORMAL);
 	udelay(1);
 
 	/* 6. Finally enable refresh. */
-	PRINT_DEBUG("RAM Enable 6: Enable refresh\n");
-	// pci_write_config8(NB, PMCR, 0x10);
+	PRINT_DEBUG("RAM Enable %d: %s\n", 6, "Enable refresh");
+	pci_write_config8(NB, PMCR, 0x10);
 	spd_enable_refresh();
 	udelay(1);
 
-	PRINT_DEBUG("Northbridge following SDRAM init:\n");
+	PRINT_DEBUG("Northbridge %s SDRAM init:\n", "following");
 	DUMPNORTH();
 }
 
-void sdram_initialize(void)
+/* Implemented under mainboard. */
+void __weak enable_spd(void) { }
+
+void sdram_initialize(int s3resume)
 {
+	timestamp_add_now(TS_INITRAM_START);
+	enable_spd();
+
 	dump_spd_registers();
 	sdram_set_registers();
-	sdram_set_spd_registers();
+	/* Set up DRAM row boundary registers and other attributes. */
+	set_dram_row_attributes();
+	/* Set up DRAM buffer strength. */
+	set_dram_buffer_strength();
 	sdram_enable();
+
+	/* Clear any errors reported during raminit. */
+	pci_write_config32(NB, EAP, 0x3);
+	pci_write_config8(NB, ERRSTS, 0x11);
+	pci_write_config8(NB, ERRSTS + 1, 0x1f);
+
+	timestamp_add_now(TS_INITRAM_END);
 }

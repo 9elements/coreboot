@@ -1,22 +1,4 @@
-/*
- * This file is part of the superiotool project.
- *
- * Copyright (C) 2006 coresystems GmbH <info@coresystems.de>
- * Copyright (C) 2007-2008 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2014 Edward O'Callaghan <eocallaghan@alterapraxis.com>
- * Copyright (C) 2014 Wilbert Duijvenvoorde <w.a.n.duijvenvoorde@gmail.com>
- * Copyright (C) 2017 Nicola Corna <nicola@corna.info>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include "superiotool.h"
 
@@ -562,6 +544,9 @@ void probe_idregs_fintek(uint16_t port)
 		/* Get HWM base address (stored in LDN 4, index 0x60/0x61). */
 		hwmport = regval(port, 0x60) << 8;
 		hwmport |= regval(port, 0x61);
+
+		/* HWM address register = HWM base address + 5. */
+		hwmport += 5;
 
 		printf("Hardware monitor (0x%04x)\n", hwmport);
 		dump_superio("Fintek-HWM", hwm_table, hwmport, did, LDN_SEL);

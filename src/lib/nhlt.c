@@ -1,19 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <cbfs.h>
 #include <commonlib/endian.h>
 #include <console/console.h>
@@ -139,7 +126,7 @@ struct nhlt_format *nhlt_add_format(struct nhlt_endpoint *endp,
 	wave->channel_mask = speaker_mask;
 	memcpy(&wave->sub_format, &pcm_subformat, sizeof(wave->sub_format));
 
-	/* Calculate the dervied fields. */
+	/* Calculate the derived fields. */
 	wave->block_align = wave->num_channels * wave->bits_per_sample / 8;
 	wave->bytes_per_second = wave->block_align * wave->samples_per_second;
 
@@ -162,9 +149,8 @@ int nhlt_endpoint_add_formats(struct nhlt_endpoint *endp,
 
 	for (i = 0; i < num_formats; i++) {
 		struct nhlt_format *fmt;
-		struct cbfsf file;
-		struct region_device settings;
 		void *settings_data;
+		size_t size;
 		const struct nhlt_format_config *cfg = &formats[i];
 
 		fmt = nhlt_add_format(endp, cfg->num_channels,
@@ -180,34 +166,19 @@ int nhlt_endpoint_add_formats(struct nhlt_endpoint *endp,
 			continue;
 
 		/* Find the settings file in CBFS and place it in format. */
-		if (cbfs_boot_locate(&file, cfg->settings_file, NULL))
+		settings_data = cbfs_map(cfg->settings_file, &size);
+		if (!settings_data)
 			return -1;
 
-		cbfs_file_data(&settings, &file);
-
-		settings_data = rdev_mmap_full(&settings);
-
-		if (settings_data == NULL)
-			return -1;
-
-		if (nhlt_format_append_config(fmt, settings_data,
-					region_device_sz(&settings))) {
-			rdev_munmap(&settings, settings_data);
+		if (nhlt_format_append_config(fmt, settings_data, size)) {
+			cbfs_unmap(settings_data);
 			return -1;
 		}
 
-		rdev_munmap(&settings, settings_data);
+		cbfs_unmap(settings_data);
 	}
 
 	return 0;
-}
-
-void nhlt_next_instance(struct nhlt *nhlt, int link_type)
-{
-	if (link_type < NHLT_LINK_HDA || link_type >= NHLT_MAX_LINK_TYPES)
-		return;
-
-	nhlt->current_instance_id[link_type]++;
 }
 
 static size_t calc_specific_config_size(struct nhlt_specific_config *cfg)
@@ -276,7 +247,7 @@ static size_t calc_size(struct nhlt *nhlt)
 
 size_t nhlt_current_size(struct nhlt *nhlt)
 {
-	return calc_size(nhlt) + sizeof(acpi_header_t);
+	return calc_size(nhlt) + sizeof(acpi_header_t) + sizeof(uint32_t);
 }
 
 static void nhlt_free_resources(struct nhlt *nhlt)
@@ -381,12 +352,13 @@ static void serialize_endpoint(struct nhlt_endpoint *endp, struct cursor *cur)
 
 static void nhlt_serialize_endpoints(struct nhlt *nhlt, struct cursor *cur)
 {
-	int i;
+	int i, capabilities_size = 0;
 
 	ser8(cur, nhlt->num_endpoints);
 
 	for (i = 0; i < nhlt->num_endpoints; i++)
 		serialize_endpoint(&nhlt->endpoints[i], cur);
+	ser32(cur, capabilities_size);
 }
 
 uintptr_t nhlt_serialize(struct nhlt *nhlt, uintptr_t acpi_addr)
@@ -489,12 +461,5 @@ int nhlt_add_endpoints(struct nhlt *nhlt,
 int nhlt_add_ssp_endpoints(struct nhlt *nhlt, int virtual_bus_id,
 		const struct nhlt_endp_descriptor *epds, size_t num_epds)
 {
-	int ret;
-
-	ret = _nhlt_add_endpoints(nhlt, virtual_bus_id, epds, num_epds);
-
-	if (!ret)
-		nhlt_next_instance(nhlt, NHLT_LINK_SSP);
-
-	return ret;
+	return  _nhlt_add_endpoints(nhlt, virtual_bus_id, epds, num_epds);
 }

@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright 2016 Google Inc.
  *
@@ -36,8 +35,6 @@
 
 uint64_t timer_hz(void)
 {
-	/* libc/time.c currently requires all timers to be at least 1MHz. */
-	assert(CONFIG_LP_TIMER_GENERIC_HZ >= 1000000);
 	return CONFIG_LP_TIMER_GENERIC_HZ;
 }
 

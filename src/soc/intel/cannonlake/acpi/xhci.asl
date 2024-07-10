@@ -1,21 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2015 Google Inc.
- * Copyright (C) 2015 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <intelblocks/xhci.h>
 #include <soc/gpe.h>
+
+/* Include UWES method for enabling USB wake */
+#include <soc/intel/common/acpi/xhci_wake.asl>
 
 /* XHCI Controller 0:14.0 */
 
@@ -23,11 +12,34 @@ Device (XHCI)
 {
 	Name (_ADR, 0x00140000)
 
-	Name (_PRW, Package () { GPE0_PME_B0, 3 })
+	Name (_PRW, Package () { GPE0_PME_B0, 4 })
+
+	Method (_DSW, 3)
+	{
+		UWES ((\U2WE & 0xFFF), PORTSCN_OFFSET, XMEM)
+		UWES ((\U3WE & 0x3F ), PORTSCXUSB3_OFFSET, XMEM)
+	}
 
 	Name (_S3D, 3)	/* D3 supported in S3 */
 	Name (_S0W, 3)	/* D3 can wake device in S0 */
 	Name (_S3W, 3)	/* D3 can wake system from S3 */
+
+	Name (_S4D, 3)	/* D3 supported in S4 */
+	Name (_S4W, 3)	/* D3 can wake system from S4 */
+
+	OperationRegion (XPRT, PCI_Config, 0x00, 0x100)
+	Field (XPRT, AnyAcc, NoLock, Preserve)
+	{
+		Offset (0x10),
+		, 16,
+		XMEM, 16,	/* MEM_BASE */
+		Offset (0x74),
+		D0D3, 2,	/* POWERSTATE */
+		, 6,
+		PMEE, 1,	/* PME_EN */
+		, 6,
+		PMES, 1,	/* PME_STS */
+	}
 
 	Method (_PS0, 0, Serialized)
 	{
@@ -42,7 +54,7 @@ Device (XHCI)
 	/* Root Hub for Cannonlake-LP PCH */
 	Device (RHUB)
 	{
-		Name (_ADR, Zero)
+		Name (_ADR, 0)
 
 		/* USB2 */
 		Device (HS01) { Name (_ADR, 1) }

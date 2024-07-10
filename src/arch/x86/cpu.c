@@ -1,30 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
 #include <boot/coreboot_tables.h>
 #include <console/console.h>
 #include <cpu/cpu.h>
+#include <post.h>
 #include <string.h>
+#include <cpu/x86/gdt.h>
 #include <cpu/x86/mp.h>
 #include <cpu/x86/lapic.h>
 #include <cpu/x86/tsc.h>
-#include <arch/cpu.h>
 #include <device/path.h>
 #include <device/device.h>
 #include <smp/spinlock.h>
 
-#ifndef __x86_64__
+#if ENV_X86_32
 /* Standard macro to see if a specific flag is changeable */
 static inline int flag_is_changeable_p(uint32_t flag)
 {
@@ -69,7 +59,7 @@ static inline int test_cyrix_52div(void)
 	     : "cc");
 
 	/* AH is 0x02 on Cyrix after the divide.. */
-	return (unsigned char) (test >> 8) == 0x02;
+	return (unsigned char)(test >> 8) == 0x02;
 }
 
 /*
@@ -134,8 +124,8 @@ static const char *cpu_vendor_name(int vendor)
 {
 	const char *name;
 	name = "<invalid CPU vendor>";
-	if ((vendor < (ARRAY_SIZE(x86_vendor_name))) &&
-		(x86_vendor_name[vendor] != 0))
+	if (vendor < ARRAY_SIZE(x86_vendor_name) &&
+		x86_vendor_name[vendor] != 0)
 		name = x86_vendor_name[vendor];
 	return name;
 }
@@ -147,7 +137,7 @@ static void identify_cpu(struct device *cpu)
 
 	vendor_name[0] = '\0'; /* Unset */
 
-#ifndef __x86_64__
+#if ENV_X86_32
 	/* Find the id and vendor_name */
 	if (!cpu_have_cpuid()) {
 		/* Its a 486 if we can modify the AC flag */
@@ -155,7 +145,7 @@ static void identify_cpu(struct device *cpu)
 			cpu->device = 0x00000400; /* 486 */
 		else
 			cpu->device = 0x00000300; /* 386 */
-		if ((cpu->device == 0x00000400) && test_cyrix_52div())
+		if (cpu->device == 0x00000400 && test_cyrix_52div())
 			memcpy(vendor_name, "CyrixInstead", 13);
 			/* If we ever care we can enable cpuid here */
 		/* Detect NexGen with old hypercode */
@@ -205,8 +195,8 @@ struct cpu_driver *find_cpu_driver(struct device *cpu)
 		const struct cpu_device_id *id;
 		for (id = driver->id_table;
 		     id->vendor != X86_VENDOR_INVALID; id++) {
-			if ((cpu->vendor == id->vendor) &&
-				(cpu->device == id->device))
+			if (cpu->vendor == id->vendor &&
+			    cpuid_match(cpu->device, id->device, id->device_match_mask))
 				return driver;
 			if (id->vendor == X86_VENDOR_ANY)
 				return driver;
@@ -221,36 +211,7 @@ static void set_cpu_ops(struct device *cpu)
 	cpu->ops = driver ? driver->ops : NULL;
 }
 
-/* Keep track of default apic ids for SMM. */
-static int cpus_default_apic_id[CONFIG_MAX_CPUS];
-
-/*
- * When CPUID executes with EAX set to 1, additional processor identification
- * information is returned to EBX register:
- * Default APIC ID: EBX[31-24] - this number is the 8 bit ID that is assigned
- * to the local APIC on the processor during power on.
- */
-static int initial_lapicid(void)
-{
-	return cpuid_ebx(1) >> 24;
-}
-
-/* Function to keep track of cpu default apic_id */
-void cpu_add_map_entry(unsigned int index)
-{
-	cpus_default_apic_id[index] = initial_lapicid();
-}
-
-/* Returns default APIC id based on logical_cpu number or < 0 on failure. */
-int cpu_get_apic_id(int logical_cpu)
-{
-	if (logical_cpu >= CONFIG_MAX_CPUS || logical_cpu < 0)
-		return -1;
-
-	return cpus_default_apic_id[logical_cpu];
-}
-
-void cpu_initialize(unsigned int index)
+void cpu_initialize(void)
 {
 	/* Because we busy wait at the printk spinlock.
 	 * It is important to keep the number of printed messages
@@ -263,7 +224,7 @@ void cpu_initialize(unsigned int index)
 
 	info = cpu_info();
 
-	printk(BIOS_INFO, "Initializing CPU #%d\n", index);
+	printk(BIOS_INFO, "Initializing CPU #%zd\n", info->index);
 
 	cpu = info->cpu;
 	if (!cpu)
@@ -297,7 +258,6 @@ void cpu_initialize(unsigned int index)
 		printk(BIOS_DEBUG, "Using generic CPU ops (good)\n");
 	}
 
-
 	/* Initialize the CPU */
 	if (cpu->ops && cpu->ops->init) {
 		cpu->enabled = 1;
@@ -306,7 +266,7 @@ void cpu_initialize(unsigned int index)
 	}
 	post_log_clear();
 
-	printk(BIOS_INFO, "CPU #%d initialized\n", index);
+	printk(BIOS_INFO, "CPU #%zd initialized\n", info->index);
 }
 
 void lb_arch_add_records(struct lb_header *header)
@@ -315,7 +275,7 @@ void lb_arch_add_records(struct lb_header *header)
 	struct lb_tsc_info *tsc_info;
 
 	/* Don't advertise a TSC rate unless it's constant. */
-	if (!CONFIG(TSC_CONSTANT_RATE))
+	if (!tsc_constant_rate())
 		return;
 
 	freq_khz = tsc_freq_mhz() * 1000;
@@ -340,26 +300,40 @@ void arch_bootstate_coreboot_exit(void)
 	mp_park_aps();
 }
 
-/*
- * Previously cpu_index() implementation assumes that cpu_index()
- * function will always getting called from coreboot context
- * (ESP stack pointer will always refer to coreboot).
- *
- * But with FSP_USES_MP_SERVICES_PPI implementation in coreboot this
- * assumption might not be true, where FSP context (stack pointer refers
- * to FSP) will request to get cpu_index().
- *
- * Hence new logic to use cpuid to fetch lapic id and matches with
- * cpus_default_apic_id[] variable to return correct cpu_index().
- */
-int cpu_index(void)
-{
-	int i;
-	int lapic_id = initial_lapicid();
+/* cpu_info() looks at address 0 at the base of %gs for a pointer to struct cpu_info */
+static struct per_cpu_segment_data segment_data[CONFIG_MAX_CPUS];
+struct cpu_info cpu_infos[CONFIG_MAX_CPUS] = {0};
 
-	for (i = 0; i < CONFIG_MAX_CPUS; i++) {
-		if (cpu_get_apic_id(i) == lapic_id)
-			return i;
-	}
-	return -1;
+enum cb_err set_cpu_info(unsigned int index, struct device *cpu)
+{
+	if (index >= ARRAY_SIZE(cpu_infos))
+		return CB_ERR;
+
+	if (!cpu)
+		return CB_ERR;
+
+	const struct cpu_info info = { .cpu = cpu, .index = index};
+	cpu_infos[index] = info;
+	segment_data[index].cpu_info = &cpu_infos[index];
+
+	struct segment_descriptor {
+		uint16_t segment_limit_0_15;
+		uint16_t base_address_0_15;
+		uint8_t base_address_16_23;
+		uint8_t attrs[2];
+		uint8_t base_address_24_31;
+	} *segment_descriptor = (void *)&per_cpu_segment_descriptors;
+
+	segment_descriptor[index].base_address_0_15 = (uintptr_t)&segment_data[index] & 0xffff;
+	segment_descriptor[index].base_address_16_23 = ((uintptr_t)&segment_data[index] >> 16) & 0xff;
+	segment_descriptor[index].base_address_24_31 = ((uintptr_t)&segment_data[index] >> 24) & 0xff;
+
+	const unsigned int cpu_segment = per_cpu_segment_selector + (index << 3);
+
+	__asm__ __volatile__ ("mov %0, %%gs\n"
+		:
+		: "r" (cpu_segment)
+		: );
+
+	return CB_SUCCESS;
 }

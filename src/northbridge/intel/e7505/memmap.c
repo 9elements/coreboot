@@ -1,53 +1,97 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Use simple device model for this file even in ramstage
 #define __SIMPLE_DEVICE__
 
-#include <device/pci_ops.h>
-#include <arch/cpu.h>
+#include <arch/romstage.h>
 #include <cbmem.h>
-#include <console/console.h>
-#include <cpu/intel/romstage.h>
+#include <cpu/intel/smm_reloc.h>
 #include <cpu/x86/mtrr.h>
+#include <cpu/x86/smm.h>
+#include <device/pci_ops.h>
 #include <program_loading.h>
+#include <stdint.h>
+
 #include "e7505.h"
 
-void *cbmem_top(void)
+#define HOST_BRIDGE PCI_DEV(0, 0, 0)
+
+static uintptr_t top_of_low_ram(void)
 {
-	pci_devfn_t mch = PCI_DEV(0, 0, 0);
 	uintptr_t tolm;
 
 	/* This is at 128 MiB boundary. */
-	tolm = pci_read_config16(mch, TOLM) >> 11;
+	tolm = pci_read_config16(HOST_BRIDGE, TOLM) >> 11;
 	tolm <<= 27;
-
-	return (void *)tolm;
+	return tolm;
 }
 
-#define ROMSTAGE_RAM_STACK_SIZE 0x5000
-
-/* platform_enter_postcar() determines the stack to use after
- * cache-as-ram is torn down as well as the MTRR settings to use,
- * and continues execution in postcar stage. */
-void platform_enter_postcar(void)
+size_t northbridge_get_tseg_size(void)
 {
-	struct postcar_frame pcf;
-	uintptr_t top_of_ram;
+	const uint8_t esmramc = pci_read_config8(HOST_BRIDGE, ESMRAMC);
 
-	if (postcar_frame_init(&pcf, ROMSTAGE_RAM_STACK_SIZE))
-		die("Unable to initialize postcar frame.\n");
+	if (!(esmramc & T_EN))
+		return 0;
 
+	switch ((esmramc & TSEG_SZ_MASK) >> 1) {
+	case 0:
+		return 128 * KiB;
+	case 1:
+		return 256 * KiB;
+	case 2:
+		return 512 * KiB;
+	case 3:
+	default:
+		return 1 * MiB;
+	}
+}
+
+uintptr_t northbridge_get_tseg_base(void)
+{
+	uintptr_t tolm = top_of_low_ram();
+
+	/* subtract TSEG size */
+	tolm -= northbridge_get_tseg_size();
+	return tolm;
+}
+
+void smm_region(uintptr_t *start, size_t *size)
+{
+	*start = northbridge_get_tseg_base();
+	*size = northbridge_get_tseg_size();
+}
+
+uintptr_t cbmem_top_chipset(void)
+{
+	return northbridge_get_tseg_base();
+}
+
+void smm_open(void)
+{
+	/* Set D_OPEN */
+	pci_write_config8(HOST_BRIDGE, SMRAMC, D_OPEN | G_SMRAME | C_BASE_SEG);
+}
+
+void smm_close(void)
+{
+	/* Clear D_OPEN */
+	pci_write_config8(HOST_BRIDGE, SMRAMC, G_SMRAME | C_BASE_SEG);
+}
+
+void smm_lock(void)
+{
+	/*
+	 * LOCK the SMM memory window and enable normal SMM.
+	 * After running this function, only a full reset can
+	 * make the SMM registers writable again.
+	 */
+	printk(BIOS_DEBUG, "Locking SMM.\n");
+
+	pci_write_config8(HOST_BRIDGE, SMRAMC, D_LCK | G_SMRAME | C_BASE_SEG);
+}
+
+void fill_postcar_frame(struct postcar_frame *pcf)
+{
 	/*
 	 * Choose to NOT set ROM as WP cacheable here.
 	 * Timestamps indicate the CPU this northbridge code is
@@ -55,15 +99,8 @@ void platform_enter_postcar(void)
 	 * operations when source is left as UC.
 	 */
 
-	/* Cache RAM as WB from 0 -> CACHE_TMP_RAMTOP. */
-	postcar_frame_add_mtrr(&pcf, 0, CACHE_TMP_RAMTOP, MTRR_TYPE_WRBACK);
+	pcf->skip_common_mtrr = 1;
 
-	/* Cache CBMEM region as WB. */
-	top_of_ram = (uintptr_t)cbmem_top();
-	postcar_frame_add_mtrr(&pcf, top_of_ram - 8*MiB, 8*MiB,
-		MTRR_TYPE_WRBACK);
-
-	run_postcar_phase(&pcf);
-
-	/* We do not return here. */
+	/* Cache RAM as WB from 0 -> TOLM. */
+	postcar_frame_add_mtrr(pcf, top_of_low_ram(), CACHE_TMP_RAMTOP, MTRR_TYPE_WRBACK);
 }

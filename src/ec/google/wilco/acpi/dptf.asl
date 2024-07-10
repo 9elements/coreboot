@@ -1,25 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * Dynamic Platform Thermal Framework support
  */
 
 /* Mutex for EC PAT interface */
-Mutex (PATM, 1)
+Mutex (PATM, 0)
 
 /* Read requested temperature sensor */
 Method (TSRD, 1, Serialized)
@@ -110,13 +96,15 @@ Method (PATX, 0, Serialized)
 
 	Printf ("Sensor trip mask: %o", Local0)
 
-	If (LNot (Acquire (^PATM, 1000))) {
+	If (!Acquire (^PATM, 1000)) {
 
 		/* Handle bits that are set */
 		While (FindSetRightBit (Local1, Local2))
 		{
+#ifdef HAVE_THERM_EVENT_HANDLER
 			/* DPTF will Notify sensor devices */
 			\_SB.DPTF.TEVT (Local2)
+#endif
 
 			/* Clear current sensor number */
 			Local1 &= ~(1 << (Local2 - 1))
@@ -128,3 +116,18 @@ Method (PATX, 0, Serialized)
 	/* Clear sensor events */
 	W (DWTQ, Local0)
 }
+
+#ifdef EC_ENABLE_MULTIPLE_DPTF_PROFILES
+/*
+ * Read current Device DPTF Profile Number
+ */
+Method (RCDP, 0, NotSerialized)
+{
+	Local0 = R(DRTI)
+	If (Local0 == 0) {
+		Return (R(OTBL))
+	} else {
+		Return (Local0 - 1)
+	}
+}
+#endif

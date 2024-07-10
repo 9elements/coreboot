@@ -1,34 +1,21 @@
-#!/bin/sh
-# This file is part of the coreboot project.
+#!/usr/bin/env sh
 #
-# Copyright (C) 2016 Google Inc.
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0-only
+
 # DESCR: Check that saved config files are miniconfigs
 
-LC_ALL=C export LC_ALL
+LINTDIR="$(
+  cd -- "$(dirname "$0")" > /dev/null 2>&1 || return
+  pwd -P
+)"
 
-SYMBOLS='CONFIG_ARCH_\|CONFIG_MAINBOARD_HAS_'
+# shellcheck source=helper_functions.sh
+. "${LINTDIR}/helper_functions.sh"
 
-# Use git grep if the code is in a git repo, otherwise use grep.
-if [ -n "$(command -v git)" ] && \
-	[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
-then
-	GREP="git grep -l"
-else
-	GREP="grep -rl"
-fi
+SYMBOLS='CONFIG_MAINBOARD_DIR\|CONFIG_MAINBOARD_HAS_'
 
 #look for a couple of things that should only be set by select keywords
 for file in \
-	$($GREP "$SYMBOLS" configs) ; do \
+	$(${GREP_FILES} -l "$SYMBOLS" configs) ; do \
 		echo "Error: $file seems to be a full config"; \
 	done

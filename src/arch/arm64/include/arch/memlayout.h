@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* This file contains macro definitions for memlayout.ld linker scripts. */
 
@@ -35,7 +22,7 @@
 /* ARM64 stacks need 16-byte alignment. */
 #define STACK(addr, size) \
 	REGION(stack, addr, size, 16) \
-	_ = ASSERT(size >= 2K, "stack should be >= 2K, see toolchain.inc");
+	_ = ASSERT(size >= 2K, "stack should be >= 2K, see toolchain.mk");
 
 #define BL31(addr, size) \
 	REGION(bl31, addr, size, 4K) \

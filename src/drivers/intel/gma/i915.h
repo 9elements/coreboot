@@ -1,23 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef INTEL_I915_H
 #define INTEL_I915_H 1
 
 #include <drivers/intel/gma/i915_reg.h>
-#include <drivers/intel/gma/drm_dp_helper.h>
+#include <drivers/intel/gma/gma.h>
 #include <edid.h>
 
 /* port types. We stick with the same defines as the kernel */
@@ -43,6 +30,12 @@ enum port {
 	PORT_A = 0,
 	PORT_B,
 	PORT_C,
+#if CONFIG(INTEL_GMA_VERSION_2)
+	PORT_USB_C1,
+	PORT_USB_C2,
+	PORT_USB_C3,
+	PORT_USB_C4,
+#endif
 	PORT_D,
 	PORT_E,
 	I915_NUM_PORTS
@@ -52,6 +45,9 @@ enum pipe {
 	PIPE_A = 0,
 	PIPE_B,
 	PIPE_C,
+#if CONFIG(INTEL_GMA_VERSION_2)
+	PIPE_D,
+#endif
 	I915_NUM_PIPES
 };
 
@@ -86,20 +82,6 @@ void intel_prepare_ddi(void);
 int gtt_poll(u32 reg, u32 mask, u32 value);
 void gtt_write(u32 reg, u32 data);
 u32 gtt_read(u32 reg);
-
-struct i915_gpu_controller_info
-{
-	int use_spread_spectrum_clock;
-	int link_frequency_270_mhz;
-	u32 backlight;
-	int ndid;
-	u32 did[5];
-};
-
-void
-drivers_intel_gma_displays_ssdt_generate(const struct i915_gpu_controller_info *conf);
-const struct i915_gpu_controller_info *
-intel_gma_get_controller_info(void);
 
 /* vbt.c */
 struct device;

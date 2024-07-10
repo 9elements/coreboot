@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_QC_IPQ806X
 	bool
 	default n
@@ -7,8 +9,13 @@ config SOC_QC_IPQ806X
 	select ARCH_RAMSTAGE_ARMV7
 	select HAVE_UART_SPECIAL
 	select GENERIC_GPIO_LIB
+	select NO_MONOTONIC_TIMER
 
 if SOC_QC_IPQ806X
+
+config MEMLAYOUT_LD_FILE
+	string
+	default "src/soc/qualcomm/ipq806x/memlayout.ld"
 
 config VBOOT
 	select VBOOT_STARTS_IN_BOOTBLOCK

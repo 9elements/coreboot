@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <ec/google/chromeec/ec.h>
 #include <soc/pm.h>
@@ -35,8 +24,8 @@ int variant_smbios_data(struct device *dev, int *handle, unsigned long *current)
 	return len;
 }
 
-void variant_romstage_entry(struct romstage_params *rp)
+void mainboard_post_raminit(const int s3resume)
 {
-	if (rp->power_state->prev_sleep_state != ACPI_S3)
+	if (!s3resume)
 		google_chromeec_kbbacklight(75);
 }

@@ -1,33 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* Intel Cougar Point PCH support */
 #include <southbridge/intel/bd82x6x/pch.h>
 
 Scope(\)
 {
-	// IO-Trap at 0x800. This is the ACPI->SMI communication interface.
-
-	OperationRegion(IO_T, SystemIO, 0x800, 0x10)
-	Field(IO_T, ByteAcc, NoLock, Preserve)
-	{
-		Offset(0x8),
-		TRP0, 8		// IO-Trap at 0x808
-	}
-
 	// PCH Power Management Registers, located at PMBASE (0x1f.0 0x40.l)
 	OperationRegion(PMIO, SystemIO, DEFAULT_PMBASE, 0x80)
 	Field(PMIO, ByteAcc, NoLock, Preserve)
@@ -77,8 +54,7 @@ Scope(\)
 	OperationRegion(GPIO, SystemIO, DEFAULT_GPIOBASE, 0x6c)
 	Field(GPIO, ByteAcc, NoLock, Preserve)
 	{
-		Offset(0x00),	// GPIO Use Select
-		GU00, 8,
+		GU00, 8,	// GPIO Use Select
 		GU01, 8,
 		GU02, 8,
 		GU03, 8,
@@ -196,7 +172,7 @@ Scope(\)
 
 
 	// ICH7 Root Complex Register Block. Memory Mapped through RCBA)
-	OperationRegion(RCRB, SystemMemory, DEFAULT_RCBA, 0x4000)
+	OperationRegion(RCRB, SystemMemory, CONFIG_FIXED_RCBA_MMIO_BASE, CONFIG_RCBA_LENGTH)
 	Field(RCRB, DWordAcc, Lock, Preserve)
 	{
 		Offset(0x0000), // Backbone
@@ -251,7 +227,7 @@ Scope(\)
 #include "sata.asl"
 
 // SMBus 0:1f.3
-#include "smbus.asl"
+#include <southbridge/intel/common/acpi/smbus.asl>
 
 Method (_OSC, 4)
 {
@@ -262,13 +238,13 @@ Method (_OSC, 4)
 	 * Arg3 - A Buffer containing a list of DWORD capabilities
 	 */
 	/* Check for XHCI */
-	If (LEqual (Arg0, ToUUID("7c9512a9-1705-4cb4-af7d-506a2423ab71")))
+	If (Arg0 == ToUUID("7c9512a9-1705-4cb4-af7d-506a2423ab71"))
 	{
 		Return (^XHC.POSC(Arg2, Arg3))
 	}
 
 	/* Check for PCIe */
-	If (LEqual (Arg0, ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766")))
+	If (Arg0 == ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766"))
 	{
 		/* Let OS control everything */
 		Return (Arg3)
@@ -276,7 +252,7 @@ Method (_OSC, 4)
 
 	/* Else Return Unrecognized UUID */
 	CreateDWordField (Arg3, 0, CDW1)
-	Or (CDW1, 4, CDW1)
+	CDW1 |= 4
 	Return (Arg3)
 
 }

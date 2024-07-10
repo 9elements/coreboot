@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_RODA_RK9
 
 config BOARD_SPECIFIC_OPTIONS
@@ -8,8 +10,6 @@ config BOARD_SPECIFIC_OPTIONS
 	select SOUTHBRIDGE_INTEL_I82801IX
 	select SUPERIO_SMSC_LPC47N227
 	select BOARD_ROMSIZE_KB_4096
-	select DRIVERS_GENERIC_IOAPIC
-	select HAVE_MP_TABLE
 	select CARDBUS_PLUGIN_SUPPORT
 	select HAVE_ACPI_TABLES
 	select HAVE_ACPI_RESUME
@@ -18,19 +18,12 @@ config BOARD_SPECIFIC_OPTIONS
 	select INTEL_INT15
 
 config MAINBOARD_DIR
-	string
-	default roda/rk9
+	default "roda/rk9"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "RK9"
 
-config MAX_CPUS
-	int
-	default 2
-
 config CBFS_SIZE
-	hex
 	default ROM_SIZE
 
 endif # BOARD_RODA_RK9

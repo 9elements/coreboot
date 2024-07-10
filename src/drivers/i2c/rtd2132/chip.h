@@ -1,17 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.  All Rights Reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+#ifndef __DRIVERS_I2C_RTD2132_CHIP_H__
+#define __DRIVERS_I2C_RTD2132_CHIP_H__
 
 struct drivers_i2c_rtd2132_config {
 	/* Panel Power Sequencing. All units in ms. */
@@ -21,7 +11,7 @@ struct drivers_i2c_rtd2132_config {
 	u16 t4; /* Delay from backlight output disable to PWM output disable. */
 	u16 t5; /* Delay from PWM output disable to LVDS output disable. */
 	u16 t6; /* Delay from LVDS output disable to panel Vcc disable. */
-	u16 t7; /* Delay between tweo panel power on/off sequence. */
+	u16 t7; /* Delay between two panel power on/off sequence. */
 
 	/*
 	 * LVDS swap.
@@ -45,3 +35,5 @@ struct drivers_i2c_rtd2132_config {
 	 */
 	u8 sscg_percent;
 };
+
+#endif /* __DRIVERS_I2C_RTD2132_CHIP_H__ */

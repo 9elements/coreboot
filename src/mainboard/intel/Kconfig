@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if VENDOR_INTEL
 
 choice
@@ -10,7 +12,6 @@ endchoice
 source "src/mainboard/intel/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "Intel"
 
 endif # VENDOR_INTEL

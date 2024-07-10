@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011-2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <mainboard/google/parrot/onboard.h>
 
@@ -25,7 +11,7 @@ Scope (\_GPE) {
 		 * changes again. GIV1 is the interrupt level control
 		 * register for GPIO bits 15:8
 		 */
-		Xor(GIV1, 0x80, GIV1)
+		GIV1 ^= 0x80
 		Notify(\_SB.LID0,0x80)
 	}
 }
@@ -36,19 +22,17 @@ Scope (\_SB) {
 		Name(_HID, EisaId("PNP0C0D"))
 		Method(_LID, 0)
 		{
-			Store (GP15, \LIDS)
+			\LIDS = GP15
 			Return (\LIDS)
 		}
 	}
 
 	Device (TPAD)
 	{
-		Name (_ADR, 0x0)
-		Name (_UID, 1)
 
-		// Report as a Sleep Button device so Linux will
-		// automatically enable it as a wake source
-		Name(_HID, EisaId("PNP0C0E"))
+		Name(_HID, "CYSM0000")
+		Name(_UID, 1)
+		Name(_HRV, 2)
 
 		// Trackpad Wake is GPIO12, wake from S3
 		Name(_PRW, Package() { BOARD_TRACKPAD_WAKE_GPIO, 0x03 })

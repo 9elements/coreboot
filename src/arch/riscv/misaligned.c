@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 HardenedLinux
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stddef.h>
-#include <stdint.h>
 #include <vm.h>
 #include <arch/exception.h>
 #include <commonlib/helpers.h>
+#include <types.h>
 
 /*  these functions are defined in src/arch/riscv/fp_asm.S */
 #if defined(__riscv_flen)
@@ -145,19 +131,18 @@ static struct memory_instruction_info *match_instruction(uintptr_t insn)
 	return NULL;
 }
 
-
-static int fetch_16bit_instruction(uintptr_t vaddr, uintptr_t *insn, int *size)
+static enum cb_err fetch_16bit_instruction(uintptr_t vaddr, uintptr_t *insn, int *size)
 {
 	uint16_t ins = mprv_read_mxr_u16((uint16_t *)vaddr);
 	if (EXTRACT_FIELD(ins, 0x3) != 3) {
 		*insn = ins;
 		*size = 2;
-		return 0;
+		return CB_SUCCESS;
 	}
-	return -1;
+	return CB_ERR;
 }
 
-static int fetch_32bit_instruction(uintptr_t vaddr, uintptr_t *insn, int *size)
+static enum cb_err fetch_32bit_instruction(uintptr_t vaddr, uintptr_t *insn, int *size)
 {
 	uint32_t l = (uint32_t)mprv_read_mxr_u16((uint16_t *)vaddr + 0);
 	uint32_t h = (uint32_t)mprv_read_mxr_u16((uint16_t *)vaddr + 1);
@@ -166,11 +151,10 @@ static int fetch_32bit_instruction(uintptr_t vaddr, uintptr_t *insn, int *size)
 		(EXTRACT_FIELD(ins, 0x1c) != 0x7)) {
 		*insn = ins;
 		*size = 4;
-		return 0;
+		return CB_SUCCESS;
 	}
-	return -1;
+	return CB_ERR;
 }
-
 
 void handle_misaligned(trapframe *tf)
 {

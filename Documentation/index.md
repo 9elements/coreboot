@@ -1,9 +1,13 @@
 # Welcome to the coreboot documentation
 
 This is the developer documentation for [coreboot](https://coreboot.org).
-It is built from Markdown files in the
-[Documentation](https://review.coreboot.org/cgit/coreboot.git/tree/Documentation)
-directory in the source code.
+It is built from Markdown files in the [Documentation] directory in the
+source code.
+
+## Spelling of coreboot
+
+The correct spelling of coreboot is completely in lower case characters and in
+one word without a space between the two parts.
 
 ## Purpose of coreboot
 
@@ -21,7 +25,7 @@ initialization routines across many different use cases, no matter if
 they provide standard interfaces or entirely custom boot flows.
 
 Popular [payloads](payloads.md) in use with coreboot are SeaBIOS,
-which provides PCBIOS services, Tianocore, which provides UEFI services,
+which provides PCBIOS services, edk2, which provides UEFI services,
 GRUB2, the bootloader used by many Linux distributions, or depthcharge,
 a custom boot loader used on Chromebooks.
 
@@ -44,6 +48,12 @@ separating out concerns (interfaces and resident services are delegated
 to the payload), but it's also a value that is deeply ingrained in the
 project. We fearlessly rip out parts of the architecture and remodel it
 when a better way of doing the same was identified.
+
+That said, since there are attempts to coerce coreboot to move in various
+directions by outside "standardization", long-established practices of
+coreboot as well as aligned projects can be documented as best practices,
+making them standards in their own right. However we reserve the right to
+retire them as the landscape shifts around us.
 
 ### One tree for everything
 
@@ -132,13 +142,13 @@ say hello!
 ## Getting the source code
 
 coreboot is primarily developed in the
-[git](https://review.coreboot.org/cgit/coreboot.git) version control
+[git](https://review.coreboot.org/plugins/gitiles/coreboot) version control
 system, using [Gerrit](https://review.coreboot.org) to manage
 contributions and code review.
 
-In general we try to keep the `master` branch in the repository functional
+In general we try to keep the `main` branch in the repository functional
 for all hardware we support. So far, the only guarantee we can make is
-that the master branch will (nearly) always build for all boards in a
+that the main branch will (nearly) always build for all boards in a
 standard configuration.
 
 However, we're continually working on improvements to our infrastructure to
@@ -161,29 +171,33 @@ for example OpenBSD, is probably the closest cousin of our approach.
 Contents:
 
 * [Getting Started](getting_started/index.md)
-* [Rookie Guide](lessons/index.md)
-* [Coding Style](coding_style.md)
-* [Project Ideas](contributing/project_ideas.md)
-* [Code of Conduct](community/code_of_conduct.md)
-* [Community forums](community/forums.md)
-* [coreboot at conferences](community/conferences.md)
+* [Tutorial](tutorial/index.md)
+* [Contributing](contributing/index.md)
+* [Community](community/index.md)
 * [Payloads](payloads.md)
 * [Distributions](distributions.md)
-* [Intel IFD Binary Extraction](Binary_Extraction.md)
-* [Dealing with Untrusted Input in SMM](technotes/2017-02-dealing-with-untrusted-input-in-smm.md)
-* [GPIO toggling in ACPI AML](acpi/gpio.md)
+* [Technotes](technotes/index.md)
+* [ACPI](acpi/index.md)
 * [Native Graphics Initialization with libgfxinit](gfx/libgfxinit.md)
-* [Display panel-specific documentation](gfx/display-panel.md)
-* [Architecture-specific documentation](arch/index.md)
-* [Platform independend drivers documentation](drivers/index.md)
-* [Northbridge-specific documentation](northbridge/index.md)
-* [System on Chip-specific documentation](soc/index.md)
-* [Mainboard-specific documentation](mainboard/index.md)
-* [Payload-specific documentation](lib/payloads/index.md)
-* [Library-specific documentation](lib/index.md)
+* [Display panel](gfx/display-panel.md)
+* [CPU Architecture](arch/index.md)
+* [Platform independent drivers](drivers/index.md)
+* [Northbridge](northbridge/index.md)
+* [System on Chip](soc/index.md)
+* [Mainboard](mainboard/index.md)
+* [Payloads](lib/payloads/index.md)
+* [Libraries](lib/index.md)
+* [Options](lib/option.md)
 * [Security](security/index.md)
-* [SuperIO-specific documentation](superio/index.md)
-* [Vendorcode-specific documentation](vendorcode/index.md)
+* [SuperIO](superio/index.md)
+* [Vendorcode](vendorcode/index.md)
 * [Utilities](util.md)
-* [Release notes for past releases](releases/index.md)
-* [Flashing firmware tutorial](flash_tutorial/index.md)
+* [Software Bill of Materials](sbom/sbom.md)
+* [Project infrastructure & services](infrastructure/index.md)
+* [Boards supported in each release directory](releases/boards_supported_on_branches.md)
+* [Release notes](releases/index.md)
+* [Acronyms & Definitions](acronyms.md)
+* [External Resources](external_docs.md)
+* [Documentation License](documentation_license.md)
+
+[Documentation]: https://review.coreboot.org/plugins/gitiles/coreboot/+/refs/heads/main/Documentation/

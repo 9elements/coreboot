@@ -12,6 +12,8 @@ Google's verified boot support consists of:
 
 Google's vboot verifies the firmware and places measurements within the TPM.
 
+- [List of supported Devices](list_vboot.md)
+
 ***
 
 ## Root of Trust
@@ -174,7 +176,6 @@ CMOS, the EC, or in a read/write area of the SPI flash device.
 Select one of the following:
 
 * `VBOOT_VBNV_CMOS`
-* `VBOOT_VBNV_EC`
 * `VBOOT_VBNV_FLASH`
 
 More non-volatile storage features may be found in `security/vboot/Kconfig`.
@@ -185,6 +186,26 @@ TPMs are available in `drivers/i2c/tpm` and `drivers/pc80/tpm`.
 In addition to adding the coreboot files into the read-only region,
 enabling vboot causes the build script to add the read/write files into
 coreboot file systems in *FW_MAIN_A* and *FW_MAIN_B*.
+
+**RO_REGION_ONLY**
+
+The files added to this list will only be placed in the read-only region and
+not into the read/write coreboot file systems in *FW_MAIN_A* and *FW_MAIN_B*.
+
+**VBOOT_ENABLE_CBFS_FALLBACK**
+
+Normally coreboot will use the active read/write coreboot file system for all
+of it's file access when vboot is active and is not in recovery mode.
+
+When the `VBOOT_ENABLE_CBFS_FALLBACK` option is enabled the cbfs file system will
+first try to locate a file in the active read/write file system. If the file
+doesn't exist here the file system will try to locate the file in the read-only
+file system.
+
+This option can be used to prevent duplication of static data. Files can be
+removed from the read/write partitions by adding them to the `RO_REGION_ONLY`
+config. If a file needs to be changed in a later stage simply remove it from
+this list.
 
 ***
 
@@ -209,7 +230,7 @@ More details are available in `3rdparty/vboot/README`.
 #  The keys were made using the following command
 #
 #        3rdparty/vboot/scripts/keygeneration/create_new_keys.sh  \
-#                --4k --4k-root --output $PWD/keys
+#                --output $PWD/keys
 #
 #
 #  The "magic" numbers below are derived from the GBB section in
@@ -307,7 +328,7 @@ Google's Chromebooks have some special features:
 ### Developer Mode
 
 Developer mode allows the user to use coreboot to boot another operating system.
-This may be a another (beta) version of Chrome OS, or another flavor of
+This may be a another (beta) version of ChromeOS, or another flavor of
 GNU/Linux. Use of developer mode does not void the system warranty. Upon entry
 into developer mode, all locally saved data on the system is lost.
 This prevents someone from entering developer mode to subvert the system

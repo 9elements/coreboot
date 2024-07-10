@@ -1,21 +1,4 @@
-/*
- * This file is part of the superiotool project.
- *
- * Copyright (C) 2006 Ronald Minnich <rminnich@gmail.com>
- * Copyright (C) 2007 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2007 Carl-Daniel Hailfinger
- * Copyright (C) 2008 Robinson P. Tryon <bishop.robinson@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include "superiotool.h"
 
@@ -124,25 +107,32 @@ static void dump_regs(const struct superio_registers reg_table[],
 
 	if (alternate_dump) {
 		int skip_def = 0;
+		int val;
 
-		printf("\nidx   val    def\n");
+		printf("\nidx    def    val\n");
 
 		for (k = 0; idx[k] != EOT; k++) {
-			printf("0x%02x: 0x%02x", idx[k], regval(port, idx[k]));
-
 			if (skip_def || def[k] == EOT) {
 				skip_def = 1;
 				printf("\n");
 				continue;
 			}
+
+			printf("0x%02x:  ", idx[k]);
+			val = regval(port, idx[k]);
+
 			if (def[k] == NANA)
-				printf("   (NA)\n");
+				printf("(NA)   0x%02x\n", val);
 			else if (def[k] == RSVD)
-				printf("   (RR)\n");
+				printf("(RR)   0x%02x\n", val);
 			else if (def[k] == MISC)
-				printf("   (MM)\n");
-			else
-				printf("   (0x%02x)\n", def[k]);
+				printf("(MM)   0x%02x\n", val);
+			else {
+				if (def[k] == val)
+					printf("0x%02x   0x%02x\n", def[k], val);
+				else
+					printf("0x%02x  [0x%02x]\n", def[k], val);
+			}
 		}
 	} else {
 		printf("\nidx");
@@ -340,9 +330,12 @@ int main(int argc, char *argv[])
 #if defined(__FreeBSD__)
 	if ((io_fd = open("/dev/io", O_RDWR)) < 0) {
 		perror("/dev/io");
-#else
+#elif defined(__NetBSD__)
 	if (iopl(3) < 0) {
 		perror("iopl");
+#else
+	if (ioperm(0, 6000, 1) < 0) {
+		perror("ioperm");
 #endif
 		printf("Superiotool must be run as root.\n");
 		exit(1);

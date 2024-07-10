@@ -1,19 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include "pcf8523.h"
+
+#ifndef __DRIVERS_I2C_PCF8523_CHIP_H__
+#define __DRIVERS_I2C_PCF8523_CHIP_H__
 
 struct drivers_i2c_pcf8523_config {
 	unsigned char cap_sel;		/* Internal capacitor selection */
@@ -42,3 +32,5 @@ struct drivers_i2c_pcf8523_config {
 	unsigned char user_day;		/* User day to set */
 	unsigned char user_weekday;	/* User weekday to set */
 };
+
+#endif /* __DRIVERS_I2C_PCF8523_CHIP_H__ */

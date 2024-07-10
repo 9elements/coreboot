@@ -1,57 +1,49 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2003-2004 Eric Biederman
- * Copyright (C) 2005-2010 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
 #include <arch/cbconfig.h>
+#include <commonlib/bsd/ipchksum.h>
 #include <console/console.h>
 #include <console/uart.h>
-#include <ip_checksum.h>
+#include <identity.h>
 #include <boot/coreboot_tables.h>
 #include <boot/tables.h>
 #include <boot_device.h>
 #include <string.h>
-#include <version.h>
 #include <boardid.h>
 #include <device/device.h>
+#include <drivers/tpm/tpm_ppi.h>
 #include <fmap.h>
-#include <stdlib.h>
+#include <fw_config.h>
 #include <cbfs.h>
 #include <cbmem.h>
 #include <bootmem.h>
+#include <bootsplash.h>
+#include <inttypes.h>
 #include <spi_flash.h>
-#include <security/vboot/misc.h>
-#include <security/vboot/vbnv_layout.h>
+#include <smmstore.h>
+#include <types.h>
+#include <version.h>
+
 #if CONFIG(USE_OPTION_TABLE)
 #include <option_table.h>
 #endif
-#if CONFIG(CHROMEOS)
-#if CONFIG(HAVE_ACPI_TABLES)
-#include <arch/acpi.h>
+#if CONFIG(PLATFORM_USES_FSP2_0)
+#include <fsp/util.h>
+#else
+void lb_string_platform_blob_version(struct lb_header *header);
 #endif
-#include <vendorcode/google/chromeos/chromeos.h>
-#include <vendorcode/google/chromeos/gnvs.h>
-#endif
+
+__weak enum cb_err fill_lb_pcie(struct lb_pcie *pcie)
+{
+	return CB_ERR_NOT_IMPLEMENTED;
+}
 
 static struct lb_header *lb_table_init(unsigned long addr)
 {
 	struct lb_header *header;
 
-	/* 16 byte align the address */
-	addr += 15;
-	addr &= ~15;
+	addr = ALIGN_UP(addr, 16);
 
 	header = (void *)addr;
 	header->signature[0] = 'L';
@@ -85,9 +77,11 @@ struct lb_record *lb_new_record(struct lb_header *header)
 {
 	struct lb_record *rec;
 	rec = lb_last_record(header);
-	if (header->table_entries)
+	if (header->table_entries) {
+		assert(IS_ALIGNED(rec->size, LB_ENTRY_ALIGN));
 		header->table_bytes += rec->size;
-	rec = lb_last_record(header);
+		rec = lb_last_record(header);
+	}
 	header->table_entries++;
 	rec->tag = LB_TAG_UNUSED;
 	rec->size = sizeof(*rec);
@@ -105,20 +99,22 @@ static struct lb_memory *lb_memory(struct lb_header *header)
 	return mem;
 }
 
-void lb_add_serial(struct lb_serial *new_serial, void *data)
+static void lb_add_serial(struct lb_header *header)
 {
-	struct lb_header *header = (struct lb_header *)data;
-	struct lb_serial *serial;
+	struct lb_serial new_serial = { .tag = LB_TAG_SERIAL,
+					.size = sizeof(struct lb_serial),
+	};
+	if (fill_lb_serial(&new_serial) != CB_SUCCESS)
+		return;
 
-	serial = (struct lb_serial *)lb_new_record(header);
-	serial->tag = LB_TAG_SERIAL;
-	serial->size = sizeof(*serial);
-	serial->type = new_serial->type;
-	serial->baseaddr = new_serial->baseaddr;
-	serial->baud = new_serial->baud;
-	serial->regwidth = new_serial->regwidth;
-	serial->input_hertz = new_serial->input_hertz;
-	serial->uart_pci_addr = new_serial->uart_pci_addr;
+	struct lb_serial *serial = (struct lb_serial *)lb_new_record(header);
+	memcpy(serial, &new_serial, sizeof(*serial));
+	assert(serial->type == LB_SERIAL_TYPE_IO_MAPPED
+	       || serial->type == LB_SERIAL_TYPE_MEMORY_MAPPED)
+	if (serial->type == LB_SERIAL_TYPE_IO_MAPPED)
+		lb_add_console(LB_TAG_CONSOLE_SERIAL8250, header);
+	else
+		lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, header);
 }
 
 void lb_add_console(uint16_t consoletype, void *data)
@@ -130,6 +126,16 @@ void lb_add_console(uint16_t consoletype, void *data)
 	console->tag = LB_TAG_CONSOLE;
 	console->size = sizeof(*console);
 	console->type = consoletype;
+}
+
+static void lb_pcie(struct lb_header *header)
+{
+	struct lb_pcie pcie = { .tag = LB_TAG_PCIE, .size = sizeof(pcie) };
+
+	if (fill_lb_pcie(&pcie) != CB_SUCCESS)
+		return;
+
+	memcpy(lb_new_record(header), &pcie, sizeof(pcie));
 }
 
 static void lb_framebuffer(struct lb_header *header)
@@ -144,6 +150,15 @@ static void lb_framebuffer(struct lb_header *header)
 	memcpy(framebuffer, &fb, sizeof(*framebuffer));
 	framebuffer->tag = LB_TAG_FRAMEBUFFER;
 	framebuffer->size = sizeof(*framebuffer);
+
+	if (CONFIG(BOOTSPLASH)) {
+		uint8_t *fb_ptr = (uint8_t *)(uintptr_t)framebuffer->physical_address;
+		unsigned int width = framebuffer->x_resolution;
+		unsigned int height = framebuffer->y_resolution;
+		unsigned int bytes_per_line = framebuffer->bytes_per_line;
+		unsigned int depth = framebuffer->bits_per_pixel;
+		set_bootsplash(fb_ptr, width, height, bytes_per_line, depth);
+	}
 }
 
 void lb_add_gpios(struct lb_gpios *gpios, const struct lb_gpio *gpio_table,
@@ -156,7 +171,6 @@ void lb_add_gpios(struct lb_gpios *gpios, const struct lb_gpio *gpio_table,
 	gpios->size += table_size;
 }
 
-#if CONFIG(CHROMEOS)
 static void lb_gpios(struct lb_header *header)
 {
 	struct lb_gpios *gpios;
@@ -172,7 +186,7 @@ static void lb_gpios(struct lb_header *header)
 		"            NAME |       PORT | POLARITY |     VALUE\n",
 		gpios->count);
 	for (g = &gpios->gpios[0]; g < &gpios->gpios[gpios->count]; g++) {
-		printk(BIOS_INFO, "%16s | ", g->name);
+		printk(BIOS_INFO, "%16.16s | ", g->name);
 		if (g->port == -1)
 			printk(BIOS_INFO, " undefined | ");
 		else
@@ -195,79 +209,17 @@ static void lb_gpios(struct lb_header *header)
 	}
 }
 
-static void lb_vbnv(struct lb_header *header)
-{
-#if CONFIG(PC80_SYSTEM)
-	struct lb_range *vbnv;
-
-	vbnv = (struct lb_range *)lb_new_record(header);
-	vbnv->tag = LB_TAG_VBNV;
-	vbnv->size = sizeof(*vbnv);
-	vbnv->range_start = CONFIG_VBOOT_VBNV_OFFSET + 14;
-	vbnv->range_size = VBOOT_VBNV_BLOCK_SIZE;
-#endif
-}
-#endif /* CONFIG_CHROMEOS */
-
-static void lb_vboot_handoff(struct lb_header *header)
-{
-	void *addr;
-	uint32_t size;
-	struct lb_range *vbho;
-
-	if (vboot_get_handoff_info(&addr, &size))
-		return;
-
-	vbho = (struct lb_range *)lb_new_record(header);
-	vbho->tag = LB_TAG_VBOOT_HANDOFF;
-	vbho->size = sizeof(*vbho);
-	vbho->range_start = (intptr_t)addr;
-	vbho->range_size = size;
-}
-
-static void lb_vboot_workbuf(struct lb_header *header)
-{
-	struct lb_range *vbwb;
-	struct vboot_working_data *wd = vboot_get_working_data();
-
-	vbwb = (struct lb_range *)lb_new_record(header);
-	vbwb->tag = LB_TAG_VBOOT_WORKBUF;
-	vbwb->size = sizeof(*vbwb);
-	vbwb->range_start = (uintptr_t)wd + wd->buffer_offset;
-	vbwb->range_size = wd->buffer_size;
-}
-
 __weak uint32_t board_id(void) { return UNDEFINED_STRAPPING_ID; }
 __weak uint32_t ram_code(void) { return UNDEFINED_STRAPPING_ID; }
 __weak uint32_t sku_id(void) { return UNDEFINED_STRAPPING_ID; }
-
-static void lb_board_id(struct lb_header *header)
-{
-	struct lb_strapping_id  *rec;
-	uint32_t bid = board_id();
-
-	if (bid == UNDEFINED_STRAPPING_ID)
-		return;
-
-	rec = (struct lb_strapping_id *)lb_new_record(header);
-
-	rec->tag = LB_TAG_BOARD_ID;
-	rec->size = sizeof(*rec);
-	rec->id_code = bid;
-
-	printk(BIOS_INFO, "Board ID: %d\n", bid);
-}
+__weak uint64_t fw_config_get(void) { return UNDEFINED_FW_CONFIG; }
 
 static void lb_boot_media_params(struct lb_header *header)
 {
 	struct lb_boot_media_params *bmp;
-	struct cbfs_props props;
 	const struct region_device *boot_dev;
-	struct region_device fmrd;
-
-	boot_device_init();
-
-	if (cbfs_boot_region_properties(&props))
+	const struct cbfs_boot_device *cbd = cbfs_get_boot_device(false);
+	if (!cbd)
 		return;
 
 	boot_dev = boot_device_ro();
@@ -278,47 +230,11 @@ static void lb_boot_media_params(struct lb_header *header)
 	bmp->tag = LB_TAG_BOOT_MEDIA_PARAMS;
 	bmp->size = sizeof(*bmp);
 
-	bmp->cbfs_offset = props.offset;
-	bmp->cbfs_size = props.size;
+	bmp->cbfs_offset = region_device_offset(&cbd->rdev);
+	bmp->cbfs_size = region_device_sz(&cbd->rdev);
 	bmp->boot_media_size = region_device_sz(boot_dev);
 
-	bmp->fmap_offset = ~(uint64_t)0;
-	if (find_fmap_directory(&fmrd) == 0)
-		bmp->fmap_offset = region_device_offset(&fmrd);
-}
-
-static void lb_ram_code(struct lb_header *header)
-{
-	struct lb_strapping_id *rec;
-	uint32_t code = ram_code();
-
-	if (code == UNDEFINED_STRAPPING_ID)
-		return;
-
-	rec = (struct lb_strapping_id *)lb_new_record(header);
-
-	rec->tag = LB_TAG_RAM_CODE;
-	rec->size = sizeof(*rec);
-	rec->id_code = code;
-
-	printk(BIOS_INFO, "RAM code: %d\n", code);
-}
-
-static void lb_sku_id(struct lb_header *header)
-{
-	struct lb_strapping_id *rec;
-	uint32_t sid = sku_id();
-
-	if (sid == UNDEFINED_STRAPPING_ID)
-		return;
-
-	rec = (struct lb_strapping_id *)lb_new_record(header);
-
-	rec->tag = LB_TAG_SKU_ID;
-	rec->size = sizeof(*rec);
-	rec->id_code = sid;
-
-	printk(BIOS_INFO, "SKU ID: %d\n", sid);
+	bmp->fmap_offset = get_fmap_flash_offset();
 }
 
 static void lb_mmc_info(struct lb_header *header)
@@ -350,9 +266,13 @@ static void add_cbmem_pointers(struct lb_header *header)
 		{CBMEM_ID_TIMESTAMP, LB_TAG_TIMESTAMPS},
 		{CBMEM_ID_CONSOLE, LB_TAG_CBMEM_CONSOLE},
 		{CBMEM_ID_ACPI_GNVS, LB_TAG_ACPI_GNVS},
+		{CBMEM_ID_ACPI_CNVS, LB_TAG_ACPI_CNVS},
 		{CBMEM_ID_VPD, LB_TAG_VPD},
 		{CBMEM_ID_WIFI_CALIBRATION, LB_TAG_WIFI_CALIBRATION},
-		{CBMEM_ID_TCPA_LOG, LB_TAG_TCPA_LOG}
+		{CBMEM_ID_TPM_CB_LOG, LB_TAG_TPM_CB_LOG},
+		{CBMEM_ID_FMAP, LB_TAG_FMAP},
+		{CBMEM_ID_VBOOT_WORKBUF, LB_TAG_VBOOT_WORKBUF},
+		{CBMEM_ID_TYPE_C_INFO, LB_TAG_TYPE_C_INFO},
 	};
 	int i;
 
@@ -385,7 +305,7 @@ static struct lb_mainboard *lb_mainboard(struct lb_header *header)
 
 	mainboard->size = ALIGN_UP(sizeof(*mainboard) +
 		strlen(mainboard_vendor) + 1 +
-		strlen(mainboard_part_number) + 1, 8);
+		strlen(mainboard_part_number) + 1, LB_ENTRY_ALIGN);
 
 	mainboard->vendor_idx = 0;
 	mainboard->part_number_idx = strlen(mainboard_vendor) + 1;
@@ -396,6 +316,34 @@ static struct lb_mainboard *lb_mainboard(struct lb_header *header)
 		mainboard_part_number, strlen(mainboard_part_number) + 1);
 
 	return mainboard;
+}
+
+static struct lb_board_config *lb_board_config(struct lb_header *header)
+{
+	struct lb_record *rec;
+	struct lb_board_config *config;
+	rec = lb_new_record(header);
+	config = (struct lb_board_config *)rec;
+
+	config->tag = LB_TAG_BOARD_CONFIG;
+	config->size = sizeof(*config);
+
+	const uint64_t fw_config = fw_config_get();
+	config->board_id = board_id();
+	config->ram_code = ram_code();
+	config->sku_id = sku_id();
+	config->fw_config = fw_config;
+
+	if (config->board_id != UNDEFINED_STRAPPING_ID)
+		printk(BIOS_INFO, "Board ID: %d\n", config->board_id);
+	if (config->ram_code != UNDEFINED_STRAPPING_ID)
+		printk(BIOS_INFO, "RAM code: %d\n", config->ram_code);
+	if (config->sku_id != UNDEFINED_STRAPPING_ID)
+		printk(BIOS_INFO, "SKU ID: %d\n", config->sku_id);
+	if (fw_config != UNDEFINED_FW_CONFIG)
+		printk(BIOS_INFO, "FW config: %#" PRIx64 "\n", fw_config);
+
+	return config;
 }
 
 #if CONFIG(USE_OPTION_TABLE)
@@ -436,7 +384,7 @@ static void lb_strings(struct lb_header *header)
 		rec = (struct lb_string *)lb_new_record(header);
 		len = strlen(strings[i].string);
 		rec->tag = strings[i].tag;
-		rec->size = ALIGN_UP(sizeof(*rec) + len + 1, 8);
+		rec->size = ALIGN_UP(sizeof(*rec) + len + 1, LB_ENTRY_ALIGN);
 		memcpy(rec->string, strings[i].string, len+1);
 	}
 
@@ -478,25 +426,36 @@ static unsigned long lb_table_fini(struct lb_header *head)
 {
 	struct lb_record *rec, *first_rec;
 	rec = lb_last_record(head);
-	if (head->table_entries)
+	if (head->table_entries) {
+		assert(IS_ALIGNED(rec->size, LB_ENTRY_ALIGN));
 		head->table_bytes += rec->size;
+	}
 
 	first_rec = lb_first_record(head);
-	head->table_checksum = compute_ip_checksum(first_rec,
-		head->table_bytes);
+	head->table_checksum = ipchksum(first_rec, head->table_bytes);
 	head->header_checksum = 0;
-	head->header_checksum = compute_ip_checksum(head, sizeof(*head));
+	head->header_checksum = ipchksum(head, sizeof(*head));
 	printk(BIOS_DEBUG,
 	       "Wrote coreboot table at: %p, 0x%x bytes, checksum %x\n",
 	       head, head->table_bytes, head->table_checksum);
 	return (unsigned long)rec + rec->size;
 }
 
+static void lb_add_acpi_rsdp(struct lb_header *head)
+{
+	struct lb_acpi_rsdp *acpi_rsdp;
+	struct lb_record *rec = lb_new_record(head);
+	acpi_rsdp = (struct lb_acpi_rsdp *)rec;
+	acpi_rsdp->tag = LB_TAG_ACPI_RSDP;
+	acpi_rsdp->size = sizeof(*acpi_rsdp);
+	acpi_rsdp->rsdp_pointer = get_coreboot_rsdp();
+}
+
 size_t write_coreboot_forwarding_table(uintptr_t entry, uintptr_t target)
 {
 	struct lb_header *head;
 
-	printk(BIOS_DEBUG, "Writing table forward entry at 0x%p\n",
+	printk(BIOS_DEBUG, "Writing table forward entry at %p\n",
 		(void *)entry);
 
 	head = lb_table_init(entry);
@@ -517,15 +476,14 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 #if CONFIG(USE_OPTION_TABLE)
 	{
 		struct cmos_option_table *option_table =
-			cbfs_boot_map_with_leak("cmos_layout.bin",
-				CBFS_COMPONENT_CMOS_LAYOUT, NULL);
+			cbfs_map("cmos_layout.bin", NULL);
 		if (option_table) {
 			struct lb_record *rec_dest = lb_new_record(head);
 			/* Copy the option config table, it's already a
 			 * lb_record...
 			 */
 			memcpy(rec_dest,  option_table, option_table->size);
-			/* Create cmos checksum entry in coreboot table */
+			/* Create CMOS checksum entry in coreboot table */
 			lb_cmos_checksum(head);
 		} else {
 			printk(BIOS_ERR,
@@ -541,39 +499,30 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 	lb_mainboard(head);
 
 	/* Record the serial ports and consoles */
-#if CONFIG(CONSOLE_SERIAL)
-	uart_fill_lb(head);
-#endif
-#if CONFIG(CONSOLE_USB)
-	lb_add_console(LB_TAG_CONSOLE_EHCI, head);
-#endif
+	if (CONFIG(CONSOLE_SERIAL))
+		lb_add_serial(head);
+
+	if (CONFIG(CONSOLE_USB))
+		lb_add_console(LB_TAG_CONSOLE_EHCI, head);
+
+	if (CONFIG(PCI))
+		lb_pcie(head);
 
 	/* Record our various random string information */
 	lb_strings(head);
+	if (CONFIG(PLATFORM_USES_FSP2_0))
+		lb_string_platform_blob_version(head);
 	lb_record_version_timestamp(head);
 	/* Record our framebuffer */
 	lb_framebuffer(head);
 
-#if CONFIG(CHROMEOS)
 	/* Record our GPIO settings (ChromeOS specific) */
-	lb_gpios(head);
+	if (CONFIG(CHROMEOS))
+		lb_gpios(head);
 
 	/* pass along VBNV offsets in CMOS */
-	lb_vbnv(head);
-#endif
-
-	if (CONFIG(VBOOT)) {
-		/* pass along the vboot_handoff address. */
-		lb_vboot_handoff(head);
-
-		/* pass along the vboot workbuf address. */
-		lb_vboot_workbuf(head);
-	}
-
-	/* Add strapping IDs if available */
-	lb_board_id(head);
-	lb_ram_code(head);
-	lb_sku_id(head);
+	if (CONFIG(VBOOT_VBNV_CMOS))
+		lb_table_add_vbnv_cmos(head);
 
 	/* Pass mmc early init status */
 	lb_mmc_info(head);
@@ -584,20 +533,32 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 
 	add_cbmem_pointers(head);
 
+	/* SMMSTORE v2 */
+	if (CONFIG(SMMSTORE_V2))
+		lb_smmstorev2(head);
+
 	/* Add board-specific table entries, if any. */
 	lb_board(head);
 
-#if CONFIG(CHROMEOS_RAMOOPS)
-	lb_ramoops(head);
-#endif
+	if (CONFIG(CHROMEOS_RAMOOPS))
+		lb_ramoops(head);
 
 	lb_boot_media_params(head);
+
+	/* Board configuration information (including straps) */
+	lb_board_config(head);
+
+	if (CONFIG(TPM_PPI))
+		lb_tpm_ppi(head);
 
 	/* Add architecture records. */
 	lb_arch_add_records(head);
 
 	/* Add all cbmem entries into the coreboot tables. */
 	cbmem_add_records_to_cbtable(head);
+
+	if (CONFIG(HAVE_ACPI_TABLES))
+		lb_add_acpi_rsdp(head);
 
 	/* Remember where my valid memory ranges are */
 	return lb_table_fini(head);

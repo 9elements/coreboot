@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _NHLT_H_
 #define _NHLT_H_
@@ -40,7 +27,7 @@ struct nhlt_format_config;
  * Most code should use the SoC variants of the functions because
  * there is required logic needed to be performed by the SoC. The SoC
  * code should be abstracting the inner details of these functions that
- * specically apply to NHLT objects for that SoC.
+ * specifically apply to NHLT objects for that SoC.
  *
  * An example sequence:
  *
@@ -159,7 +146,7 @@ uintptr_t nhlt_serialize(struct nhlt *nhlt, uintptr_t acpi_addr);
  * Serialize NHLT object to ACPI table. Take in the beginning address of where
  * the table will reside oem_id and oem_table_id and return the address of the
  * next ACPI table. On error 0 will be returned. The NHLT object is no longer
- * valid after thisfunction is called.
+ * valid after this function is called.
  */
 uintptr_t nhlt_serialize_oem_overrides(struct nhlt *nhlt, uintptr_t acpi_addr,
 		const char *oem_id, const char *oem_table_id,
@@ -200,6 +187,7 @@ enum {
 
 enum {
 	NHLT_PDM_DEV,
+	NHLT_PDM_DEV_CAVS15,	// NHLT_PDM_DEV on cAVS1.5 (KBL) based platforms
 };
 
 /* Endpoint direction. */
@@ -231,7 +219,6 @@ enum {
 	SPEAKER_TOP_BACK_CENTER = 1 << 16,
 	SPEAKER_TOP_BACK_RIGHT = 1 << 17,
 };
-
 
 /* Supporting structures. Only SoC/chipset and the library code directly should
  * be manipulating these structures. */
@@ -312,6 +299,17 @@ struct nhlt_tdm_config {
 enum {
 	NHLT_TDM_BASIC,
 	NHLT_TDM_MIC_ARRAY,
+	NHLT_TDM_RENDER_WITH_LOOPBACK,
+	NHLT_TDM_RENDER_FEEDBACK,
+	NHLT_TDM_MULTI_MODE,
+	NHLT_TDM_MULTI_MODE_MIC_ARRAY = NHLT_TDM_MULTI_MODE | NHLT_TDM_MIC_ARRAY
+};
+
+struct nhlt_feedback_config {
+	struct nhlt_tdm_config tdm_config;
+	uint8_t feedback_virtual_slot;
+	uint16_t feedback_channels;
+	uint16_t feedback_valid_bits_per_sample;
 };
 
 struct nhlt_dmic_array_config {

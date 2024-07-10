@@ -1,45 +1,26 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2015 Damien Zammit <damien@zamaudio.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbmem.h>
 #include <console/console.h>
+#include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <stdint.h>
 #include <device/device.h>
-#include <device/pci.h>
-#include <stdlib.h>
-#include <cpu/cpu.h>
 #include <boot/tables.h>
-#include <arch/acpi.h>
-#include <northbridge/intel/x4x/iomap.h>
+#include <acpi/acpi.h>
+#include <northbridge/intel/x4x/memmap.h>
 #include <northbridge/intel/x4x/chip.h>
 #include <northbridge/intel/x4x/x4x.h>
-#include <cpu/intel/smm/gen1/smi.h>
-
-static const int legacy_hole_base_k = 0xa0000 / 1024;
+#include <cpu/intel/smm_reloc.h>
+#include <cpu/intel/speedstep.h>
+#include <cpu/x86/smm.h>
 
 static void mch_domain_read_resources(struct device *dev)
 {
 	u8 index;
 	u64 tom, touud;
-	u32 tomk, tolud, delta_cbmem;
-	u32 pcie_config_base, pcie_config_size;
-	u32 uma_sizek = 0;
+	u32 tolud;
 
-	const u32 top32memk = 4 * (GiB / KiB);
 	index = 3;
 
 	pci_domain_read_resources(dev);
@@ -58,81 +39,30 @@ static void mch_domain_read_resources(struct device *dev)
 	tom = pci_read_config16(mch, D0F0_TOM) & 0x01ff;
 	tom <<= 26;
 
-	printk(BIOS_DEBUG, "TOUUD 0x%llx TOLUD 0x%08x TOM 0x%llx\n",
-	       touud, tolud, tom);
-
-	tomk = tolud >> 10;
-
-	/* Graphics memory comes next */
-
-	const u16 ggc = pci_read_config16(mch, D0F0_GGC);
-	printk(BIOS_DEBUG, "IGD decoded, subtracting ");
-
-	/* Graphics memory */
-	const u32 gms_sizek = decode_igd_memory_size((ggc >> 4) & 0xf);
-	printk(BIOS_DEBUG, "%uM UMA", gms_sizek >> 10);
-	tomk -= gms_sizek;
-	uma_sizek += gms_sizek;
-
-	/* GTT Graphics Stolen Memory Size (GGMS) */
-	const u32 gsm_sizek = decode_igd_gtt_size((ggc >> 8) & 0xf);
-	printk(BIOS_DEBUG, " and %uM GTT\n", gsm_sizek >> 10);
-	tomk -= gsm_sizek;
-	uma_sizek += gsm_sizek;
-
-	printk(BIOS_DEBUG, "TSEG decoded, subtracting ");
-	const u32 tseg_sizek = decode_tseg_size(
-		pci_read_config8(dev, D0F0_ESMRAMC)) >> 10;
-	uma_sizek += tseg_sizek;
-	tomk -= tseg_sizek;
-
-	printk(BIOS_DEBUG, "%dM\n", tseg_sizek >> 10);
-
-	/* cbmem_top can be shifted downwards due to alignment.
-	   Mark the region between cbmem_top and tomk as unusable */
-	delta_cbmem = tomk - ((uint32_t)cbmem_top() >> 10);
-	tomk -= delta_cbmem;
-	uma_sizek += delta_cbmem;
-
-	printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOM: 0x%xK\n",
-	       delta_cbmem);
-
-	printk(BIOS_INFO, "Available memory below 4GB: %uM\n", tomk >> 10);
+	printk(BIOS_DEBUG, "TOUUD 0x%llx TOLUD 0x%08x TOM 0x%llx\n", touud, tolud, tom);
 
 	/* Report the memory regions */
-	ram_resource(dev, index++, 0, legacy_hole_base_k);
-	mmio_resource(dev, index++, legacy_hole_base_k,
-			(0xc0000 >> 10) - legacy_hole_base_k);
-	reserved_ram_resource(dev, index++, 0xc0000 >> 10,
-			(0x100000 - 0xc0000) >> 10);
-	ram_resource(dev, index++, 0x100000 >> 10, (tomk - (0x100000 >> 10)));
+	ram_from_to(dev, index++, 0, 0xa0000);
+	mmio_from_to(dev, index++, 0xa0000, 0xc0000);
+	reserved_ram_from_to(dev, index++, 0xc0000, 1 * MiB);
+	ram_from_to(dev, index++, 1 * MiB, (uintptr_t)cbmem_top());
 
 	/*
 	 * If >= 4GB installed then memory from TOLUD to 4GB
 	 * is remapped above TOM, TOUUD will account for both
 	 */
-	touud >>= 10; /* Convert to KB */
-	if (touud > top32memk) {
-		ram_resource(dev, index++, top32memk, touud - top32memk);
-		printk(BIOS_INFO, "Available memory above 4GB: %lluM\n",
-		       (touud - top32memk) >> 10);
-	}
+	upper_ram_end(dev, index++, touud);
 
-	printk(BIOS_DEBUG, "Adding UMA memory area base=0x%08x "
-		"size=0x%08x\n", tomk << 10, uma_sizek << 10);
-	uma_resource(dev, index++, tomk, uma_sizek);
+	uintptr_t tseg_base;
+	size_t tseg_size;
+	smm_region(&tseg_base, &tseg_size);
+	mmio_from_to(dev, index++, tseg_base, tolud);
+	reserved_ram_from_to(dev, index++, (uintptr_t)cbmem_top(), tseg_base);
 
 	/* Reserve high memory where the NB BARs are up to 4GiB */
-	fixed_mem_resource(dev, index++, DEFAULT_HECIBAR >> 10,
-				top32memk - (DEFAULT_HECIBAR >> 10),
-				IORESOURCE_RESERVE);
+	mmio_from_to(dev, index++, DEFAULT_HECIBAR, 4ull * GiB);
 
-	if (decode_pciebar(&pcie_config_base, &pcie_config_size)) {
-		printk(BIOS_DEBUG, "Adding PCIe config bar base=0x%08x "
-		       "size=0x%x\n", pcie_config_base, pcie_config_size);
-		fixed_mem_resource(dev, index++, pcie_config_base >> 10,
-			pcie_config_size >> 10, IORESOURCE_RESERVE);
-	}
+	mmconf_resource(dev, index++);
 }
 
 static void mch_domain_set_resources(struct device *dev)
@@ -142,17 +72,13 @@ static void mch_domain_set_resources(struct device *dev)
 	for (res = dev->resource_list; res; res = res->next)
 		report_resource_stored(dev, res, "");
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void mch_domain_init(struct device *dev)
 {
-	u32 reg32;
-
 	/* Enable SERR */
-	reg32 = pci_read_config32(dev, PCI_COMMAND);
-	reg32 |= PCI_COMMAND_SERR;
-	pci_write_config32(dev, PCI_COMMAND, reg32);
+	pci_or_config16(dev, PCI_COMMAND, PCI_COMMAND_SERR);
 }
 
 static const char *northbridge_acpi_name(const struct device *dev)
@@ -160,7 +86,7 @@ static const char *northbridge_acpi_name(const struct device *dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN)
 		return "PCI0";
 
-	if (dev->path.type != DEVICE_PATH_PCI || dev->bus->secondary != 0)
+	if (!is_pci_dev_on_bus(dev, 0))
 		return NULL;
 
 	switch (dev->path.pci.devfn) {
@@ -175,84 +101,52 @@ void northbridge_write_smram(u8 smram)
 {
 	struct device *dev = pcidev_on_root(0, 0);
 
-	if (dev == NULL)
+	if (!dev)
 		die("could not find pci 00:00.0!\n");
 
 	pci_write_config8(dev, D0F0_SMRAM, smram);
 }
 
-static struct device_operations pci_domain_ops = {
+struct device_operations x4x_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
 	.init             = mch_domain_init,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 	.write_acpi_tables = northbridge_write_acpi_tables,
-	.acpi_fill_ssdt_generator = generate_cpu_entries,
+	.acpi_fill_ssdt   = generate_cpu_entries,
 	.acpi_name        = northbridge_acpi_name,
 };
 
-
-static void cpu_bus_init(struct device *dev)
-{
-	bsp_init_and_start_aps(dev->link_list);
-}
-
-static struct device_operations cpu_bus_ops = {
-	.read_resources   = DEVICE_NOOP,
-	.set_resources    = DEVICE_NOOP,
-	.enable_resources = DEVICE_NOOP,
-	.init             = cpu_bus_init,
+struct device_operations x4x_cpu_bus_ops = {
+	.read_resources   = noop_read_resources,
+	.set_resources    = noop_set_resources,
+	.init             = mp_cpu_bus_init,
 };
 
-
-static void enable_dev(struct device *dev)
+static void hide_pci_fn(const int dev_bit_base, const struct device *dev)
 {
-	/* Set the operations if it is a special bus type */
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		dev->ops = &pci_domain_ops;
-	else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER)
-		dev->ops = &cpu_bus_ops;
+	if (!dev || dev->enabled)
+		return;
+	const unsigned int fn = PCI_FUNC(dev->path.pci.devfn);
+	const struct device *const d0f0 = pcidev_on_root(0, 0);
+	pci_update_config32(d0f0, D0F0_DEVEN, ~(1 << (dev_bit_base + fn)), 0);
+}
+
+static void hide_pci_dev(const int dev, int functions, const int dev_bit_base)
+{
+	for (; functions >= 0; functions--)
+		hide_pci_fn(dev_bit_base, pcidev_on_root(dev, functions));
 }
 
 static void x4x_init(void *const chip_info)
 {
-	int dev, fn, bit_base;
-
 	struct device *const d0f0 = pcidev_on_root(0x0, 0);
 
 	/* Hide internal functions based on devicetree info. */
-	for (dev = 6; dev > 0; --dev) {
-		switch (dev) {
-		case 6: /* PEG1: only on P45 */
-			fn = 0;
-			bit_base = 13;
-			break;
-		case 3: /* ME */
-			fn = 3;
-			bit_base = 6;
-			break;
-		case 2: /* IGD */
-			fn = 1;
-			bit_base = 3;
-			break;
-		case 1: /* PEG0 */
-			fn = 0;
-			bit_base = 1;
-			break;
-		case 4: /* Nothing to do */
-		case 5:
-			continue;
-		}
-		for (; fn >= 0; --fn) {
-			const struct device *const d =
-				pcidev_on_root(dev, fn);
-			if (!d || d->enabled)
-				continue;
-			const u32 deven = pci_read_config32(d0f0, D0F0_DEVEN);
-			pci_write_config32(d0f0, D0F0_DEVEN,
-					   deven & ~(1 << (bit_base + fn)));
-		}
-	}
+	hide_pci_dev(6, 0, 13); /* PEG1: only on P45 */
+	hide_pci_dev(3, 3, 6); /* ME */
+	hide_pci_dev(2, 1, 3); /* IGD */
+	hide_pci_dev(1, 0, 1); /* PEG0 */
 
 	const u32 deven = pci_read_config32(d0f0, D0F0_DEVEN);
 	if (!(deven & (0xf << 6)))
@@ -260,7 +154,11 @@ static void x4x_init(void *const chip_info)
 }
 
 struct chip_operations northbridge_intel_x4x_ops = {
-	CHIP_NAME("Intel 4-Series Northbridge")
-	.enable_dev = enable_dev,
+	.name = "Intel 4-Series Northbridge",
 	.init = x4x_init,
 };
+
+bool northbridge_support_slfm(void)
+{
+	return false;
+}

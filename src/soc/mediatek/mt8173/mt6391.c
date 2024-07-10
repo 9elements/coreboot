@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include <assert.h>
 #include <console/console.h>
 #include <delay.h>
@@ -38,7 +25,7 @@ int mt6391_configure_ca53_voltage(int uv)
 
 	/* For buck delay, default slew rate is 6.25mv/0.5us */
 	if (buck_val > current_val)
-		return ((buck_val - current_val) / 2) ;
+		return ((buck_val - current_val) / 2);
 	else
 		return 0;
 }
@@ -201,7 +188,7 @@ static void mt6391_init_setting(void)
 	pwrap_write_field(PMIC_RG_VSRMCA15_CON8, 0x17, 0x7F, 0);
 	/* [6:0]: VSRMCA15_VOSEL_SLEEP; Sleep mode setting on */
 	pwrap_write_field(PMIC_RG_VSRMCA15_CON11, 0x00, 0x7F, 0);
-	/* [8:8]: VSRMCA15_VSLEEP_EN; set sleep mode referenc */
+	/* [8:8]: VSRMCA15_VSLEEP_EN; set sleep mode reference */
 	pwrap_write_field(PMIC_RG_VSRMCA15_CON18, 0x1, 0x1, 8);
 	/* [5:4]: VSRMCA15_VOSEL_TRANS_EN; rising & falling e */
 	pwrap_write_field(PMIC_RG_VSRMCA15_CON18, 0x3, 0x3, 4);
@@ -359,7 +346,7 @@ static void mt6391_init_setting(void)
 	pwrap_write_field(PMIC_RG_VDRM_CON9, 0x43, 0x7F, 0);
 	pwrap_write_field(PMIC_RG_VDRM_CON10, 0x43, 0x7F, 0);
 
-	/* 26M clock amplitute adjust */
+	/* 26M clock amplitude adjust */
 	pwrap_write_field(PMIC_RG_DCXO_ANALOG_CON1, 0x0, 0x3, 2);
 	pwrap_write_field(PMIC_RG_DCXO_ANALOG_CON1, 0x1, 0x3, 11);
 

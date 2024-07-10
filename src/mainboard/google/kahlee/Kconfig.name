@@ -1,14 +1,21 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 comment "Kahlee"
 
 config BOARD_GOOGLE_ALEENA
-	bool "->  Aleena"
-	select BOARD_GOOGLE_BASEBOARD_KAHLEE
+	bool "->  Aleena/Kasumi (Acer Chromebook  315 (CB315-2H), 311 (C721) / Spin 311 (R721T))"
+
 config BOARD_GOOGLE_CAREENA
-	bool "->  Careena"
-	select BOARD_GOOGLE_BASEBOARD_KAHLEE
+	bool "->  Barla/Careena (HP Chromebook 11A G6/G8 EE, 14A G5/G6)"
+
 config BOARD_GOOGLE_GRUNT
 	bool "->  Grunt"
-	select BOARD_GOOGLE_BASEBOARD_KAHLEE
+
 config BOARD_GOOGLE_LIARA
-	bool "->  Liara"
-	select BOARD_GOOGLE_BASEBOARD_KAHLEE
+	bool "->  Liara (Lenovo 14e Chromebook, Chromebook S345-14)"
+
+config BOARD_GOOGLE_NUWANI
+	bool "->  Nuwani"
+
+config BOARD_GOOGLE_TREEYA
+	bool "->  Treeya (Lenovo 100e/300e Gen2 AMD)"

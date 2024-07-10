@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 
 /* Board powers on with button or PME# from on-board GbE wake-on-lan.
@@ -45,13 +32,7 @@ Scope (\_GPE)
 	/* PME# */
 	Method (_L0B, 0, NotSerialized)
 	{
-#if 1
 		Notify (\_SB.LID0, 0x02)
-#else
-		Notify (\_SB.PCI0.HLIB.P64B.ETH0, 0x02)
-		Notify (\_SB.PCI0.HLIB.P64B, 0x02)
-		Notify (\_SB.PCI0.HLIB.P64A, 0x02)
-#endif
 	}
 
 	Method (_L0C, 0, NotSerialized)
@@ -69,22 +50,22 @@ Scope (\_GPE)
 /* Clear power buttons */
 Method (\_INI, 0, NotSerialized)
 {
-	Or (\_SB.PCI0.ICH0.PS1H, 0x09, \_SB.PCI0.ICH0.PS1H)
-	Or (\_SB.PCI0.ICH0.PE1H, 0x01, \_SB.PCI0.ICH0.PE1H)
+	\_SB.PCI0.ICH0.PS1H |= 9
+	\_SB.PCI0.ICH0.PE1H |= 1
 }
 
 /* Prepare To Sleep */
 Method (\_PTS, 1, NotSerialized)
 {
-	Or (\_SB.PCI0.ICH0.GS0H, 0x19, \_SB.PCI0.ICH0.GS0H)
-	Or (\_SB.PCI0.ICH0.GS0L, 0x11, \_SB.PCI0.ICH0.GS0L)
+	\_SB.PCI0.ICH0.GS0H |= 0x19
+	\_SB.PCI0.ICH0.GS0L |= 0x11
 }
 
 /* System Wake */
 Method (\_WAK, 1, NotSerialized)
 {
-	Or (\_SB.PCI0.ICH0.GS0H, 0x19, \_SB.PCI0.ICH0.GS0H)
-	Or (\_SB.PCI0.ICH0.GS0L, 0x11, \_SB.PCI0.ICH0.GS0L)
+	\_SB.PCI0.ICH0.GS0H |= 0x19
+	\_SB.PCI0.ICH0.GS0L |= 0x11
 
 	Return ( Package() { 0x0, 0x0 } )
 }

@@ -7,10 +7,6 @@ chip soc/intel/apollolake
 	register "pcie_rp_clkreq_pin[4]" = "CLKREQ_DISABLED"
 	register "pcie_rp_clkreq_pin[5]" = "CLKREQ_DISABLED"
 
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
-
 	device domain 0 on
 		device pci 00.0 on end	# - Host Bridge
 		device pci 00.1 on end	# - DPTF
@@ -22,8 +18,12 @@ chip soc/intel/apollolake
 		device pci 0d.2 on end	# - SPI
 		device pci 0d.3 on end	# - Shared SRAM
 		device pci 0e.0 on end	# - Audio
+		device pci 0f.0 on end	# - CSE
 		device pci 11.0 on end	# - ISH
-		device pci 12.0 on end	# - SATA
+		device pci 12.0 on	# - SATA
+			register "sata_ports_enable[0]" = "1"
+			register "sata_ports_enable[1]" = "1"
+		end
 		device pci 13.0 on end	# - PCIe-A 0
 		device pci 13.2 on end	# - Onboard Lan
 		device pci 13.3 on end	# - PCIe-A 3

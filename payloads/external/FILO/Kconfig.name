@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config PAYLOAD_FILO
 	bool "FILO"
 	depends on ARCH_X86
@@ -6,4 +8,4 @@ config PAYLOAD_FILO
 	  with a FILO payload. If you don't know what this is
 	  about, just leave it enabled.
 
-	  See https://coreboot.org/Payloads for more information.
+	  See https://doc.coreboot.org/payloads.html for more information.

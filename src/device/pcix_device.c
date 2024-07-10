@@ -1,24 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2005 Linux Networx
- * (Written by Eric Biederman <ebiederman@lnxi.com> for Linux Networx)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
 #include <device/pcix.h>
+#include <stdint.h>
 
 static void pcix_tune_dev(struct device *dev)
 {
@@ -120,11 +107,11 @@ void pcix_scan_bridge(struct device *dev)
 	sstatus = pci_read_config16(dev, pos + PCI_X_SEC_STATUS);
 
 	if (PCI_X_SSTATUS_MFREQ(sstatus) != PCI_X_SSTATUS_CONVENTIONAL_PCI)
-		pcix_tune_bus(dev->link_list);
+		pcix_tune_bus(dev->downstream);
 
 	/* Print the PCI-X bus speed. */
-	printk(BIOS_DEBUG, "PCI: %02x: %s\n", dev->link_list->secondary,
-	       pcix_speed(sstatus));
+	printk(BIOS_DEBUG, "PCI: %02x:%02x: %s\n", dev->downstream->segment_group,
+	       dev->downstream->secondary, pcix_speed(sstatus));
 }
 
 /** Default device operations for PCI-X bridges */
@@ -136,9 +123,7 @@ struct device_operations default_pcix_ops_bus = {
 	.read_resources   = pci_bus_read_resources,
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_bus_enable_resources,
-	.init             = 0,
 	.scan_bus         = pcix_scan_bridge,
-	.enable           = 0,
 	.reset_bus        = pci_bus_reset,
 	.ops_pci          = &pcix_bus_ops_pci,
 };

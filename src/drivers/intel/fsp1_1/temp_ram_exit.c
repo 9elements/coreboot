@@ -1,14 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <cbmem.h>
+#include <cbfs.h>
 #include <console/console.h>
 #include <fsp/util.h>
 
@@ -17,9 +10,13 @@ asmlinkage void chipset_teardown_car_main(void)
 	FSP_INFO_HEADER *fih;
 	uint32_t status;
 	FSP_TEMP_RAM_EXIT temp_ram_exit;
-	struct prog fsp = PROG_INIT(PROG_REFCODE, "fsp.bin");
 
-	if (prog_locate(&fsp)) {
+	/* CBMEM_ID_VBOOT_WORKBUF is used as vboot workbuffer.
+	 * Init CBMEM before loading fsp, to have buffer available */
+	cbmem_initialize();
+
+	void *fsp = cbfs_map("fsp.bin", NULL);
+	if (!fsp) {
 		die("Unable to locate fsp.bin\n");
 	} else {
 		/* This leaks a mapping which this code assumes is benign as
@@ -29,7 +26,7 @@ asmlinkage void chipset_teardown_car_main(void)
 		   as it casts error values to FSP_INFO_HEADER pointers.
 		   Checking for return values can only be done sanely once
 		   that is fixed. */
-		fih = find_fsp((uintptr_t)rdev_mmap_full(prog_rdev(&fsp)));
+		fih = find_fsp((uintptr_t)fsp);
 	}
 
 	temp_ram_exit = (FSP_TEMP_RAM_EXIT)(fih->TempRamExitEntryOffset +

@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Scope (EC0)
 
@@ -27,7 +13,7 @@ Device (BATX)
 	// Battery X Information
 	// Battery X Status
 	//
-	Name (BXST, Zero)
+	Name (BXST, 0)
 
 	//
 	// Default Static Battery Information
@@ -37,7 +23,7 @@ Device (BATX)
 		0,            //  0: Power Unit
 		0xFFFFFFFF,   //  1: Design Capacity
 		0xFFFFFFFF,   //  2: Last Full Charge Capacity
-		1,            //  3: Battery Technology(Rechargable)
+		1,            //  3: Battery Technology(Rechargeable)
 		10800,        //  4: Design Voltage 10.8V
 		0,            //  5: Design capacity of warning
 		0,            //  6: Design capacity of low
@@ -58,31 +44,31 @@ Device (BATX)
 	})
 
 	// Workaround for full battery status, enabled by default
-	Name (BFWK, One)
+	Name (BFWK, 1)
 
 	// Method to enable full battery workaround
 	Method (BFWE)
 	{
-		Store (One, BFWK)
+		BFWK = 1
 	}
 
 	// Method to disable full battery workaround
 	Method (BFWD)
 	{
-		Store (Zero, BFWK)
+		BFWK = 0
 	}
 
 	// Method to wait for EC to be ready after changing the Battery Info ID
 	// Selector
 	Method (WAEC)
 	{
-		Store (20, Local0)	// Timeout 100 msec
-		While (LEqual (HSID, Zero))
+		Local0 = 20	// Timeout 100 msec
+		While (HSID == 0)
 		{
 			// EC Is not ready
 			Sleep (5)
-			Decrement (Local0)
-			If (LEqual (Local0, Zero))
+			Local0--
+			If (Local0 == 0)
 			{
 				Break
 			}
@@ -92,7 +78,7 @@ Device (BATX)
 	// Battery Slot Status
 	Method (_STA, 0, Serialized)
 	{
-		Store (MBTS, BXST)
+		BXST = MBTS
 		If (BXST)
 		{
 			// Battery is present
@@ -111,7 +97,7 @@ Device (BATX)
 		//
 		// Information ID 1 -
 		//
-		Store (One, HIID)
+		HIID = 1
 		WAEC ()
 
 		//
@@ -119,13 +105,13 @@ Device (BATX)
 		//   SMART battery : 1 - 10mWh : 0 - mAh
 		//   ACPI spec     : 0 - mWh   : 1 - mAh
 		//
-		Store(SBCM, Local7)
-		XOr (Local7, One, Index (PBIF, 0))
+		Local7 = SBCM
+		PBIF[0] = Local7 ^ 1
 
 		//
 		// Information ID 0 -
 		//
-		Store (Zero, HIID)
+		HIID = 0
 		WAEC ()
 
 		//
@@ -133,17 +119,17 @@ Device (BATX)
 		//
 		If (Local7)
 		{
-			Multiply (SBFC, 10, Index (PBIF, 2))
+			PBIF[2] = SBFC * 10
 		}
 		Else
 		{
-			Store (SBFC, Index (PBIF, 2))
+			PBIF[2] = SBFC
 		}
 
 		//
 		// Information ID 2 -
 		//
-		Store (2, HIID)
+		HIID = 2
 		WAEC ()
 
 		//
@@ -151,63 +137,63 @@ Device (BATX)
 		//
 		If (Local7)
 		{
-			Multiply (SBDC, 10, Local0)
+			Local0 = SBDC * 10
 		}
 		Else
 		{
-			Store (SBDC, Local0)
+			Local0 = SBDC
 		}
-		Store (Local0, Index(PBIF, One))
+		PBIF[1] = Local0
 
 		//
 		//  Design capacity of High (5%)
 		//  Design capacity of Low (1%)
 		//
-		Divide (Local0,  20, , Index (PBIF, 5))
-		Divide (Local0, 100, , Index (PBIF, 6))
+		PBIF[5] = Local0 / 20
+		PBIF[6] = Local0 / 100
 
 		//
 		//  Design voltage
 		//
-		Store (SBDV, Index (PBIF, 4))
+		PBIF[4] = SBDV
 
 		//
 		// Serial Number
 		//
-		Store (ToHexString (SBSN), Index (PBIF, 10))
+		PBIF[10] = ToHexString (SBSN)
 
 		//
 		// Information ID 4 -
 		//
-		Store (4, HIID)
+		HIID = 4
 		WAEC ()
 
 		//
 		//  Battery Type - Device Chemistry
 		//
-		Store (ToString (Concatenate(SBCH, 0x00)), Index (PBIF, 11))
+		PBIF[11] = ToString (Concatenate(SBCH, 0x00))
 
 		//
 		// Information ID 5 -
 		//
-		Store (5, HIID)
+		HIID = 5
 		WAEC ()
 
 		//
 		// OEM Information - Manufacturer Name
 		//
-		Store (ToString (Concatenate(SBMN, 0x00)), Index (PBIF, 12))
+		PBIF[12] = ToString (Concatenate(SBMN, 0x00))
 
 		//
 		// Information ID 6 -
 		//
-		Store (6, HIID)
+		HIID = 6
 		WAEC ()
 
 		//
 		// Model Number - Device Name
 		//
-		Store (ToString (Concatenate(SBDN, 0x00)), Index (PBIF, 9))
+		PBIF[9] = ToString (Concatenate(SBDN, 0x00))
 
 		Return (PBIF)
 	}
@@ -230,80 +216,80 @@ Device (BATX)
 		//
 
 		// Get battery state from EC
-		If (And (HB0S, 0x20))
+		If (HB0S & 0x20)
 		{
-			Store (2, Local0)
+			Local0 = 2
 		}
 		Else
 		{
-			if (And (HB0S, 0x40))
+			if (HB0S & 0x40)
 			{
-				Store (One, Local0)
+				Local0 = 1
 			}
 			Else
 			{
-				Store (Zero, Local0)
+				Local0 = 0
 			}
 		}
 
 		// Set critical flag if battery is empty
-		If (LEqual (And (HB0S, 0x0F), 0))
+		If (HB0S & 0x0F == 0)
 		{
-			Or (Local0, 4, Local0)
+			Local0 |= 4
 		}
 
-		Store (Zero, Local1)
+		Local1 = 0
 
 		// Check if AC is present
 		If (ACPW)
 		{
 			// Set only charging/discharging bits
-			And (Local0, 0x03, Local1)
+			Local1 = Local0 & 3
 		}
 		Else
 		{
 			// Always discharging when on battery power
-			Store (One, Local1)
+			Local1 = 1
 		}
 
 		// Flag if the battery level is critical
-		And (Local0, 0x04, Local4)
-		Or (Local1, Local4, Local1)
-		Store (Local1, Index (PBST, 0))
+		Local4 = Local0 & 4
+		Local1 |= Local4
+		PBST[0] = Local1
 
 		//
 		// 1: BATTERY PRESENT RATE/CURRENT
 		//
-		Store (ECAC, Local1)
-		If (LGreaterEqual (Local1, 0x8000))
+		Local1 = ECAC
+		If (Local1 >= 0x8000)
 		{
-			If (And (Local0, 1))
+			If (Local0 & 1)
 			{
-				Subtract (0x10000, Local1, Local1)
+				Local1 = 0x10000 - Local1
 			}
 			Else
 			{
 				// Error
-				Store (Zero, Local1)
+				Local1 = 0
 			}
 		}
 		Else
 		{
-			If (LNot (AND (Local0, 2)))
+			If (!(Local0 & 2))
 			{
 				// Battery is not charging
-				Store (Zero, Local1)
+				Local1 = 0
 			}
 		}
 
-		XOr (DerefOf (Index (PBIF, Zero)), One, Local6)
+		Local6 = DerefOf (PBIF[0]) ^ 1
 
 		If (Local6)
 		{
-			Multiply (ECVO, Local1, Local1)
-			Divide (Local1, 1000, , Local1)
+			Local1 *= ECVO
+			Local1 /= 1000
 		}
-		Store (Local1, Index (PBST, One))
+		PBST[1] = Local1
 
 		//
 		// 2: BATTERY REMAINING CAPACITY
@@ -313,36 +299,35 @@ Device (BATX)
 		//   ACPI spec     : 0 - mWh   : 1 - mAh
 		If (Local6)
 		{
-			Multiply (ECRC, 10, Local1)
+			Local1 = ECRC * 10
 		}
 		Else
 		{
-			Store (ECRC, Local1)
+			Local1 = ECRC
 		}
 
-		If (LAnd (BFWK, LAnd (ACPW, LNot (Local0))))
+		If (BFWK && ACPW && !Local0)
 		{
 			// On AC power and battery is neither charging
 			// nor discharging.  Linux expects a full battery
 			// to report same capacity as last full charge.
 			// https://bugzilla.kernel.org/show_bug.cgi?id=12632
 			// TODO: Is SBRS the "battery gas gauge"?
-			Store (SBRS, Local2)
+			Local2 = SBRS
 
 			// See if within ~3% of full
-			ShiftRight (Local2, 5, Local3)
-			If (LAnd (LGreater (Local1, Subtract (Local2, Local3)),
-			          LLess (Local1, Add (Local2, Local3))))
+			Local3 = Local2 >> 5
+			If (Local1 > Local2 - Local3 && Local1 < Local2 + Local3)
 			{
-				Store (Local2, Local1)
+				Local1 = Local2
 			}
 		}
-		Store (Local1, Index (PBST, 2))
+		PBST[2] = Local1
 
 		//
 		// 3: BATTERY PRESENT VOLTAGE
 		//
-		Store (ECVO, Index (PBST, 3))
+		PBST[3] = ECVO
 
 		Return (PBST)
 	}

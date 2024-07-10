@@ -1,20 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <arch/cpu.h>
+#include <cpu/intel/microcode.h>
 #include <string.h>
 #include <southbridge/intel/lynxpoint/pch.h>
 #include <device/pci_ops.h>
@@ -27,7 +15,6 @@ static void report_cpu_info(void)
 	u32 i, index, cpu_id, cpu_feature_flag;
 	char cpu_string[50], *cpu_name = cpu_string; /* 48 bytes are reported */
 	int vt, txt, aes;
-	msr_t microcode_ver;
 	const char *mode[] = {"NOT ", ""};
 
 	index = 0x80000000;
@@ -35,7 +22,7 @@ static void report_cpu_info(void)
 	if (cpuidr.eax < 0x80000004) {
 		strcpy(cpu_string, "Platform info not available");
 	} else {
-		u32 *p = (u32*) cpu_string;
+		u32 *p = (u32 *)cpu_string;
 		for (i = 2; i <= 4; i++) {
 			cpuidr = cpuid(index + i);
 			*p++ = cpuidr.eax;
@@ -48,13 +35,9 @@ static void report_cpu_info(void)
 	while (cpu_name[0] == ' ')
 		cpu_name++;
 
-	microcode_ver.lo = 0;
-	microcode_ver.hi = 0;
-	wrmsr(IA32_BIOS_SIGN_ID, microcode_ver);
 	cpu_id = cpu_get_cpuid();
-	microcode_ver = rdmsr(IA32_BIOS_SIGN_ID);
 	printk(BIOS_DEBUG, "CPU id(%x) ucode:%08x %s\n", cpu_id,
-		microcode_ver.hi, cpu_name);
+		get_current_microcode_rev(), cpu_name);
 
 	cpu_feature_flag = cpu_get_feature_flags_ecx();
 	aes = (cpu_feature_flag & CPUID_AES) ? 1 : 0;
@@ -84,6 +67,11 @@ static struct {
 	{0x8c54, "C224"},
 	{0x8c56, "C226"},
 	{0x8c5c, "H81"},
+	{0x8cc1, "Mobile Engineering Sample (9 series)"},
+	{0x8cc2, "Desktop Engineering Sample (9 series)"},
+	{0x8cc3, "HM97"},
+	{0x8cc4, "Z97"},
+	{0x8cc6, "H97"},
 	{0x9c41, "LP Full Featured Engineering Sample"},
 	{0x9c43, "LP Premium"},
 	{0x9c45, "LP Mainstream"},
@@ -95,7 +83,6 @@ static void report_pch_info(void)
 	int i;
 	u16 dev_id = pci_read_config16(PCH_LPC_DEV, 2);
 
-
 	const char *pch_type = "Unknown";
 	for (i = 0; i < ARRAY_SIZE(pch_table); i++) {
 		if (pch_table[i].dev_id == dev_id) {
@@ -103,7 +90,7 @@ static void report_pch_info(void)
 			break;
 		}
 	}
-	printk (BIOS_DEBUG, "PCH type: %s, device id: %x, rev id %x\n",
+	printk(BIOS_DEBUG, "PCH type: %s, device id: %x, rev id %x\n",
 		pch_type, dev_id, pci_read_config8(PCH_LPC_DEV, 8));
 }
 

@@ -1,20 +1,15 @@
-/*
- * sconfig, coreboot device tree compiler
- *
- * Copyright (C) 2010 coresystems GmbH
- *   written by Patrick Georgi <patrick@georgi-clan.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* sconfig, coreboot device tree compiler */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <ctype.h>
+#include <getopt.h>
+#include <inttypes.h>
+#include <libgen.h>
+/* stat.h needs to be included before commonlib/helpers.h to avoid errors.*/
+#include <sys/stat.h>
+#include <commonlib/helpers.h>
+#include <stdint.h>
 #include "sconfig.h"
 #include "sconfig.tab.h"
 
@@ -26,12 +21,6 @@ extern int linenum;
  * generate headers for all chips added by both the trees.
  */
 static struct chip chip_header;
-
-/*
- * This is intentionally shared between chip and device structure ids because it
- * is easier to track the order of parsing for chip and device.
- */
-static int count = 0;
 
 typedef enum {
 	UNSLASH,
@@ -83,19 +72,20 @@ typedef enum {
 /* Root device of primary tree. */
 static struct device base_root_dev;
 
+/* Root device of chipset tree. */
+static struct device chipset_root_dev;
+
 /* Root device of override tree (if applicable). */
 static struct device override_root_dev;
 
 static struct chip_instance mainboard_instance;
 
 static struct bus base_root_bus = {
-	.id = 0,
 	.dev = &base_root_dev,
 };
 
 static struct device base_root_dev = {
 	.name = "dev_root",
-	.id = 0,
 	.chip_instance = &mainboard_instance,
 	.path = " .type = DEVICE_PATH_ROOT ",
 	.parent = &base_root_bus,
@@ -103,14 +93,25 @@ static struct device base_root_dev = {
 	.bus = &base_root_bus,
 };
 
+static struct bus chipset_root_bus = {
+	.dev = &chipset_root_dev,
+};
+
+static struct device chipset_root_dev = {
+	.name = "chipset_root",
+	.chip_instance = &mainboard_instance,
+	.path = " .type = DEVICE_PATH_ROOT ",
+	.parent = &chipset_root_bus,
+	.enabled = 1,
+	.bus = &chipset_root_bus,
+};
+
 static struct bus override_root_bus = {
-	.id = 0,
 	.dev = &override_root_dev,
 };
 
 static struct device override_root_dev = {
 	.name = "override_root",
-	.id = 0,
 	/*
 	 * Override tree root device points to the same mainboard chip instance
 	 * as the base tree root device. It should not cause any side-effects
@@ -133,7 +134,6 @@ static struct chip mainboard_chip = {
 static struct chip_instance mainboard_instance = {
 	.id = 0,
 	.chip = &mainboard_chip,
-	.ref_count = 2,
 };
 
 /* This is the parent of all devices added by parsing the devicetree file. */
@@ -144,6 +144,9 @@ struct queue_entry {
 	struct queue_entry *next;
 	struct queue_entry *prev;
 };
+
+/* Global list of all `struct device_operations` identifiers to declare. */
+static struct identifier *device_operations;
 
 #define S_ALLOC(_s)	s_alloc(__func__, _s)
 
@@ -311,7 +314,7 @@ static struct chip *get_chip(char *path)
 	sprintf(chip_h, "src/%s", path);
 	if ((stat(chip_h, &st) == -1) && (errno == ENOENT)) {
 		/* root_complex gets away without a separate directory, but
-		 * exists on on pretty much all AMD chipsets.
+		 * exists on pretty much all AMD chipsets.
 		 */
 		if (!strstr(path, "/root_complex")) {
 			fprintf(stderr, "ERROR: Chip component %s does not exist.\n",
@@ -335,7 +338,6 @@ struct chip_instance *new_chip_instance(char *path)
 	struct chip *chip = get_chip(path);
 	struct chip_instance *instance = S_ALLOC(sizeof(*instance));
 
-	instance->id = ++count;
 	instance->chip = chip;
 	instance->next = chip->instance;
 	chip->instance = instance;
@@ -343,78 +345,388 @@ struct chip_instance *new_chip_instance(char *path)
 	return instance;
 }
 
-static void delete_chip_instance(struct chip_instance *ins)
-{
+/* List of fw_config fields added during parsing. */
+static struct fw_config_field *fw_config_fields;
 
-	if (ins->ref_count == 0) {
-		printf("ERROR: ref count for chip instance is zero!!\n");
+static struct fw_config_option *find_fw_config_option(struct fw_config_field *field,
+						      const char *name)
+{
+	struct fw_config_option *option = field->options;
+
+	while (option && option->name) {
+		if (!strcmp(option->name, name))
+			return option;
+		option = option->next;
+	}
+	return NULL;
+}
+
+static struct fw_config_field *find_fw_config_field(const char *name)
+{
+	struct fw_config_field *field = fw_config_fields;
+
+	while (field && field->name) {
+		if (!strcmp(field->name, name))
+			return field;
+		field = field->next;
+	}
+	return NULL;
+}
+
+struct fw_config_field *get_fw_config_field(const char *name)
+{
+	struct fw_config_field *field = find_fw_config_field(name);
+
+	/* Fail if the field does not exist, new fields must be added with a mask. */
+	if (!field) {
+		printf("ERROR: fw_config field not found: %s\n", name);
+		exit(1);
+	}
+	return field;
+}
+
+static void append_fw_config_field(struct fw_config_field *add)
+{
+	struct fw_config_field *field = fw_config_fields;
+
+	if (!fw_config_fields) {
+		fw_config_fields = add;
+	} else {
+		while (field && field->next)
+			field = field->next;
+		field->next = add;
+	}
+}
+
+void append_fw_config_bits(struct fw_config_field_bits **bits,
+			   unsigned int start_bit, unsigned int end_bit)
+{
+	struct fw_config_field_bits *new_bits = S_ALLOC(sizeof(*new_bits));
+	new_bits->start_bit = start_bit;
+	new_bits->end_bit = end_bit;
+	new_bits->next = NULL;
+
+	if (*bits == NULL) {
+		*bits = new_bits;
+		return;
+	}
+
+	struct fw_config_field_bits *tmp = *bits;
+	while (tmp->next)
+		tmp = tmp->next;
+
+	tmp->next = new_bits;
+}
+
+int fw_config_masks_overlap(struct fw_config_field *existing,
+			     unsigned int start_bit, unsigned int end_bit)
+{
+	struct fw_config_field_bits *bits = existing->bits;
+	while (bits) {
+		if (start_bit <= bits->end_bit && end_bit >= bits->start_bit) {
+			printf("ERROR: fw_config field [%u-%u] overlaps %s[%u-%u]\n",
+			       start_bit, end_bit,
+			       existing->name, bits->start_bit, bits->end_bit);
+			return 1;
+		}
+		bits = bits->next;
+	}
+
+	return 0;
+}
+
+struct fw_config_field *new_fw_config_field(const char *name, struct fw_config_field_bits *bits)
+{
+	struct fw_config_field *field = find_fw_config_field(name);
+	struct fw_config_field_bits *tmp;
+
+	/* Don't allow re-defining a field, only adding new fields. */
+	if (field) {
+		printf("ERROR: fw_config field %s already exists\n", name);
 		exit(1);
 	}
 
-	if (--ins->ref_count)
-		return;
-
-	struct chip *c = ins->chip;
-
-	/* Get pointer to first instance of the chip. */
-	struct chip_instance *i = c->instance;
-
-	/*
-	 * If chip instance to be deleted is the first instance, then update
-	 * instance pointer of the chip as well.
-	 */
-	if (i == ins) {
-		c->instance = ins->next;
-		free(ins);
-		return;
-	}
-
-	/*
-	 * Loop through the instances list of the chip to find and remove the
-	 * given instance.
-	 */
-	while (1) {
-		if (i == NULL) {
-			printf("ERROR: chip instance not found!\n");
+	/* Check that each field is within 64 bits. */
+	tmp = bits;
+	while (tmp) {
+		if (tmp->start_bit > tmp->end_bit || tmp->end_bit > 63) {
+			printf("ERROR: fw_config field %s has invalid range %u-%u\n", name,
+			       tmp->start_bit, tmp->end_bit);
 			exit(1);
 		}
 
-		if (i->next != ins) {
-			i = i->next;
-			continue;
+		/* Check for overlap with an existing field. */
+		struct fw_config_field *existing = fw_config_fields;
+		while (existing) {
+			if (fw_config_masks_overlap(existing, tmp->start_bit, tmp->end_bit))
+				exit(1);
+			existing = existing->next;
 		}
 
-		i->next = ins->next;
-		break;
+		tmp = tmp->next;
 	}
 
-	free(ins);
+	field = S_ALLOC(sizeof(*field));
+	field->name = name;
+	field->bits = bits;
+	append_fw_config_field(field);
+
+	return field;
 }
 
-/*
- * Allocate a new bus for the provided device.
- *   - If this is the first bus being allocated under this device, then its id
- *     is set to 0 and bus and last_bus are pointed to the newly allocated bus.
- *   - If this is not the first bus under this device, then its id is set to 1
- *     plus the id of last bus and newly allocated bus is added to the list of
- *     buses under the device. last_bus is updated to point to the newly
- *     allocated bus.
- */
+static void append_fw_config_option_to_field(struct fw_config_field *field,
+					     struct fw_config_option *add)
+{
+	struct fw_config_option *option = field->options;
+
+	if (!option) {
+		field->options = add;
+	} else {
+		while (option && option->next)
+			option = option->next;
+		option->next = add;
+	}
+}
+
+static uint64_t calc_max_field_value(const struct fw_config_field *field)
+{
+	unsigned int bit_count = 0;
+
+	const struct fw_config_field_bits *bits = field->bits;
+	while (bits) {
+		bit_count += 1 + bits->end_bit - bits->start_bit;
+		bits = bits->next;
+	};
+
+	return (1ull << bit_count) - 1ull;
+}
+
+void add_fw_config_option(struct fw_config_field *field, const char *name, uint64_t value)
+{
+	struct fw_config_option *option;
+
+	/* Check that option value fits within field mask. */
+	uint64_t field_max_value = calc_max_field_value(field);
+	if (value > field_max_value) {
+		printf("ERROR: fw_config option %s:%s value %" PRIx64 " larger than field max %"
+		       PRIx64 "\n",
+		       field->name, name, value, field_max_value);
+		exit(1);
+	}
+
+	/* Check for existing option with this name or value. */
+	option = field->options;
+	while (option) {
+		if (!strcmp(option->name, name)) {
+			printf("ERROR: fw_config option name %s:%s already exists\n",
+			       field->name, name);
+			exit(1);
+		}
+		/* Compare values. */
+		if (value == option->value) {
+			printf("ERROR: fw_config option %s:%s[%" PRIx64 "] redefined as %s\n",
+			       field->name, option->name, value, name);
+			exit(1);
+		}
+		option = option->next;
+	}
+
+	option = S_ALLOC(sizeof(*option));
+	option->name = name;
+	option->value = value;
+
+	/* Add option to the current field. */
+	append_fw_config_option_to_field(field, option);
+}
+
+static void append_fw_config_probe_to_dev(struct device *dev, struct fw_config_probe *add)
+{
+	struct fw_config_probe *probe = dev->probe;
+
+	if (!probe) {
+		dev->probe = add;
+	} else {
+		while (probe && probe->next)
+			probe = probe->next;
+		probe->next = add;
+	}
+}
+
+static int check_probe_exists(struct fw_config_probe *probe, const char *field,
+			      const char *option)
+{
+	while (probe) {
+		if (!strcmp(probe->field, field) && !strcmp(probe->option, option)) {
+			return 1;
+		}
+		probe = probe->next;
+	}
+
+	return 0;
+}
+
+void add_fw_config_probe(struct bus *bus, const char *field, const char *option)
+{
+	struct fw_config_probe *probe;
+
+	if (check_probe_exists(bus->dev->probe, field, option)) {
+		printf("ERROR: fw_config probe %s:%s already exists\n", field, option);
+		exit(1);
+	}
+
+	probe = S_ALLOC(sizeof(*probe));
+	probe->field = field;
+	probe->option = option;
+
+	append_fw_config_probe_to_dev(bus->dev, probe);
+}
+
+static uint64_t compute_fw_config_mask(const struct fw_config_field_bits *bits)
+{
+	uint64_t mask = 0;
+
+	while (bits) {
+		/* Compute mask from start and end bit. */
+		uint64_t tmp = ((1ull << (1ull + bits->end_bit - bits->start_bit)) - 1ull);
+		tmp <<= bits->start_bit;
+		mask |= tmp;
+		bits = bits->next;
+	}
+
+	return mask;
+}
+
+static unsigned int bits_width(const struct fw_config_field_bits *bits)
+{
+	return 1 + bits->end_bit - bits->start_bit;
+}
+
+static uint64_t calc_option_value(const struct fw_config_field *field,
+				  const struct fw_config_option *option)
+{
+	uint64_t value = 0;
+	uint64_t original = option->value;
+
+	struct fw_config_field_bits *bits = field->bits;
+	while (bits) {
+		const unsigned int width = bits_width(bits);
+		const uint64_t orig_mask = (1ull << width) - 1ull;
+		const uint64_t orig = (original & orig_mask);
+		value |= (orig << bits->start_bit);
+
+		original >>= width;
+		bits = bits->next;
+	}
+
+	return value;
+}
+
+static void emit_fw_config(FILE *fil)
+{
+	struct fw_config_field *field = fw_config_fields;
+
+	if (!field)
+		return;
+
+	while (field) {
+		struct fw_config_option *option = field->options;
+		uint64_t mask;
+
+		fprintf(fil, "#define FW_CONFIG_FIELD_%s_NAME \"%s\"\n",
+			field->name, field->name);
+
+		mask = compute_fw_config_mask(field->bits);
+		fprintf(fil, "#define FW_CONFIG_FIELD_%s_MASK 0x%" PRIx64 "\n",
+			field->name, mask);
+
+		while (option) {
+			const uint64_t value = calc_option_value(field, option);
+			fprintf(fil, "#define FW_CONFIG_FIELD_%s_OPTION_%s_NAME \"%s\"\n",
+				field->name, option->name, option->name);
+			fprintf(fil, "#define FW_CONFIG_FIELD_%s_OPTION_%s_VALUE 0x%"
+				PRIx64 "\n", field->name, option->name, value);
+			option = option->next;
+		}
+
+		field = field->next;
+	}
+
+	fprintf(fil, "\n");
+}
+
+static int emit_fw_config_probe(FILE *fil, struct device *dev)
+{
+	struct fw_config_probe *probe = dev->probe;
+
+	fprintf(fil, "STORAGE struct fw_config %s_probe_list[] = {\n", dev->name);
+
+	while (probe) {
+		/* Find matching field. */
+		struct fw_config_field *field;
+		struct fw_config_option *option;
+		uint64_t mask, value;
+
+		field = find_fw_config_field(probe->field);
+		if (!field) {
+			printf("ERROR: fw_config_probe field %s not found\n", probe->field);
+			return -1;
+		}
+		option = find_fw_config_option(field, probe->option);
+		if (!option) {
+			printf("ERROR: fw_config_probe field %s option %s not found\n",
+			       probe->field, probe->option);
+			return -1;
+		}
+
+		/* Fill out the probe structure with values from emit_fw_config(). */
+		fprintf(fil, "\t{\n");
+		fprintf(fil, "\t\t.field_name = FW_CONFIG_FIELD_%s_NAME,\n", probe->field);
+		fprintf(fil, "\t\t.option_name = FW_CONFIG_FIELD_%s_OPTION_%s_NAME,\n",
+			probe->field, probe->option);
+		fprintf(fil, "\t\t.mask = FW_CONFIG_FIELD_%s_MASK,\n", probe->field);
+		fprintf(fil, "\t\t.value = FW_CONFIG_FIELD_%s_OPTION_%s_VALUE,\n",
+			probe->field, probe->option);
+		fprintf(fil, "\t},\n");
+
+		probe = probe->next;
+	}
+
+	/* Add empty entry to mark end of list. */
+	fprintf(fil, "\t{ }\n};\n");
+	return 0;
+}
+
+/* Enqueue identifier to list with head `*it`, if not already present. */
+void add_identifier(struct identifier **it, const char *id)
+{
+	for (; *it != NULL; it = &(*it)->next) {
+		if (!strcmp((*it)->id, id))
+			return;
+	}
+
+	*it = S_ALLOC(sizeof(**it));
+	(*it)->id = id;
+}
+
+void add_device_ops(struct bus *bus, char *ops_id)
+{
+	if (bus->dev->ops_id) {
+		printf("ERROR: Device operations may only be specified once,\n"
+		       "       found '%s', '%s'.\n", bus->dev->ops_id, ops_id);
+		exit(1);
+	}
+
+	add_identifier(&device_operations, ops_id);
+	bus->dev->ops_id = ops_id;
+}
+
+/* Allocate a new bus for the provided device. */
 static void alloc_bus(struct device *dev)
 {
 	struct bus *bus = S_ALLOC(sizeof(*bus));
 
 	bus->dev = dev;
-
-	if (dev->last_bus == NULL)  {
-		bus->id = 0;
-		dev->bus = bus;
-	} else {
-		bus->id = dev->last_bus->id + 1;
-		dev->last_bus->next_bus = bus;
-	}
-
-	dev->last_bus = bus;
+	dev->bus = bus;
 }
 
 /*
@@ -426,7 +738,6 @@ static struct device *alloc_dev(struct bus *parent)
 {
 	struct device *dev = S_ALLOC(sizeof(*dev));
 
-	dev->id = ++count;
 	dev->parent = parent;
 	dev->subsystem_vendor = -1;
 	dev->subsystem_device = -1;
@@ -477,27 +788,38 @@ static void set_new_child(struct bus *parent, struct device *child)
 	child->parent = parent;
 }
 
-struct device *new_device(struct bus *parent,
-			  struct chip_instance *chip_instance,
-			  const int bustype, const char *devnum,
-			  int status)
+static const struct device *find_alias(const struct device *const parent,
+				       const char *const alias)
 {
-	char *tmp;
-	int path_a;
-	int path_b = 0;
-	struct device *new_d;
+	if (parent->alias && !strcmp(parent->alias, alias))
+		return parent;
 
-	path_a = strtol(devnum, &tmp, 16);
-	if (*tmp == '.') {
-		tmp++;
-		path_b = strtol(tmp, NULL, 16);
+	const struct bus *bus = parent->bus;
+	if (!bus)
+		return NULL;
+
+	const struct device *child;
+	for (child = bus->children; child; child = child->sibling) {
+		const struct device *const ret = find_alias(child, alias);
+		if (ret)
+			return ret;
 	}
 
-	/* If device is found under parent, no need to allocate new device. */
+	return NULL;
+}
+
+static struct device *new_device_with_path(struct bus *parent,
+					   struct chip_instance *chip_instance,
+					   const int bustype, int path_a, int path_b,
+					   char *alias, int status)
+{
+	struct device *new_d;
+
+	/* We don't allow duplicate devices in devicetree. */
 	new_d = get_dev(parent, path_a, path_b, bustype, chip_instance);
 	if (new_d) {
-		alloc_bus(new_d);
-		return new_d;
+		printf("ERROR: Duplicate device! %s\n", new_d->name);
+		exit(1);
 	}
 
 	new_d = alloc_dev(parent);
@@ -506,15 +828,12 @@ struct device *new_device(struct bus *parent,
 
 	new_d->path_a = path_a;
 	new_d->path_b = path_b;
-
-	char *name = S_ALLOC(10);
-	sprintf(name, "_dev%d", new_d->id);
-	new_d->name = name;
+	new_d->alias = alias;
 
 	new_d->enabled = status & 0x01;
 	new_d->hidden = (status >> 1) & 0x01;
+	new_d->mandatory = (status >> 2) & 0x01;
 	new_d->chip_instance = chip_instance;
-	chip_instance->ref_count++;
 
 	set_new_child(parent, new_d);
 
@@ -531,10 +850,6 @@ struct device *new_device(struct bus *parent,
 		new_d->path = ".type=DEVICE_PATH_I2C,{.i2c={ .device = 0x%x, .mode_10bit = %d }}";
 		break;
 
-	case APIC:
-		new_d->path = ".type=DEVICE_PATH_APIC,{.apic={ .apic_id = 0x%x }}";
-		break;
-
 	case CPU_CLUSTER:
 		new_d->path = ".type=DEVICE_PATH_CPU_CLUSTER,{.cpu_cluster={ .cluster = 0x%x }}";
 		break;
@@ -545,10 +860,6 @@ struct device *new_device(struct bus *parent,
 
 	case DOMAIN:
 		new_d->path = ".type=DEVICE_PATH_DOMAIN,{.domain={ .domain = 0x%x }}";
-		break;
-
-	case IOAPIC:
-		new_d->path = ".type=DEVICE_PATH_IOAPIC,{.ioapic={ .ioapic_id = 0x%x }}";
 		break;
 
 	case GENERIC:
@@ -566,9 +877,57 @@ struct device *new_device(struct bus *parent,
 	case MMIO:
 		new_d->path = ".type=DEVICE_PATH_MMIO,{.mmio={ .addr = 0x%x }}";
 		break;
+
+	case GPIO:
+		new_d->path = ".type=DEVICE_PATH_GPIO,{.gpio={ .id = 0x%x }}";
+		break;
+
+	case MDIO:
+		new_d->path = ".type=DEVICE_PATH_MDIO,{.mdio={ .addr = 0x%x }}";
+		break;
 	}
 
 	return new_d;
+}
+
+struct device *new_device_reference(struct bus *parent,
+				    struct chip_instance *chip_instance,
+				    const char *reference, int status)
+{
+	const struct device *dev = find_alias(&base_root_dev, reference);
+
+	if (!dev) {
+		printf("ERROR: Unable to find device reference %s\n", reference);
+		exit(1);
+	}
+
+	return new_device_with_path(parent, chip_instance, dev->bustype, dev->path_a,
+				    dev->path_b, NULL, status);
+}
+
+struct device *new_device_raw(struct bus *parent,
+			      struct chip_instance *chip_instance,
+			      const int bustype, const char *devnum,
+			      char *alias, int status)
+{
+	char *tmp;
+	int path_a;
+	int path_b = 0;
+
+	/* Check for alias name conflicts. */
+	if (alias && find_alias(root_parent->dev, alias)) {
+		printf("ERROR: Alias already exists: %s\n", alias);
+		exit(1);
+	}
+
+	path_a = strtol(devnum, &tmp, 16);
+	if (*tmp == '.') {
+		tmp++;
+		path_b = strtol(tmp, NULL, 16);
+	}
+
+	return new_device_with_path(parent, chip_instance, bustype, path_a, path_b, alias,
+				    status);
 }
 
 static void new_resource(struct device *dev, int type, int index, int base)
@@ -593,33 +952,63 @@ void add_resource(struct bus *bus, int type, int index, int base)
 	new_resource(bus->dev, type, index, base);
 }
 
-void add_register(struct chip_instance *chip_instance, char *name, char *val)
+static void add_reg(struct reg **const head, char *const name, char *const val)
 {
-	struct reg *r = S_ALLOC(sizeof(struct reg));
+	struct reg *const r = S_ALLOC(sizeof(struct reg));
+	struct reg *prev = NULL;
+	struct reg *cur;
 
 	r->key = name;
 	r->value = val;
-	if (chip_instance->reg) {
-		struct reg *head = chip_instance->reg;
-		// sorting to be equal to sconfig's behaviour
-		int sort = strcmp(r->key, head->key);
+
+	for (cur = *head; cur != NULL; prev = cur, cur = cur->next) {
+		const int sort = strcmp(r->key, cur->key);
 		if (sort == 0) {
-			printf("ERROR: duplicate 'register' key.\n");
+			printf("ERROR: duplicate 'register' key '%s'.\n", r->key);
 			exit(1);
 		}
-		if (sort < 0) {
-			r->next = head;
-			chip_instance->reg = r;
-		} else {
-			while ((head->next)
-			       && (strcmp(head->next->key, r->key) < 0))
-				head = head->next;
-			r->next = head->next;
-			head->next = r;
-		}
-	} else {
-		chip_instance->reg = r;
+		if (sort < 0)
+			break;
 	}
+	r->next = cur;
+	if (prev)
+		prev->next = r;
+	else
+		*head = r;
+}
+
+void add_register(struct chip_instance *chip_instance, char *name, char *val)
+{
+	add_reg(&chip_instance->reg, name, val);
+}
+
+void add_reference(struct chip_instance *const chip_instance,
+		   char *const name, char *const alias)
+{
+	add_reg(&chip_instance->ref, name, alias);
+}
+
+static void set_reference(struct chip_instance *const chip_instance,
+			  char *const name, char *const alias)
+{
+	const struct device *const dev = find_alias(&base_root_dev, alias);
+	if (!dev) {
+		printf("ERROR: Cannot find device alias '%s'.\n", alias);
+		exit(1);
+	}
+
+	char *const ref_name = S_ALLOC(strlen(dev->name) + 2);
+	sprintf(ref_name, "&%s", dev->name);
+	add_register(chip_instance, name, ref_name);
+}
+
+static void update_references(FILE *file, FILE *head, struct device *dev,
+			      struct device *next)
+{
+	struct reg *ref;
+
+	for (ref = dev->chip_instance->ref; ref; ref = ref->next)
+		set_reference(dev->chip_instance, ref->key, ref->value);
 }
 
 void add_slot_desc(struct bus *bus, char *type, char *length, char *designation,
@@ -638,6 +1027,25 @@ void add_slot_desc(struct bus *bus, char *type, char *length, char *designation,
 	dev->smbios_slot_designation = designation;
 }
 
+void add_smbios_dev_info(struct bus *bus, long instance_id, const char *refdes)
+{
+	struct device *dev = bus->dev;
+
+	if (dev->bustype != PCI && dev->bustype != DOMAIN) {
+		printf("ERROR: 'dev_info' only allowed for PCI devices\n");
+		exit(1);
+	}
+
+	if (instance_id < 0 || instance_id > UINT8_MAX) {
+		printf("ERROR: SMBIOS dev info instance ID '%ld' out of range\n", instance_id);
+		exit(1);
+	}
+
+	dev->smbios_instance_id_valid = 1;
+	dev->smbios_instance_id = (unsigned int)instance_id;
+	dev->smbios_refdes = refdes;
+}
+
 void add_pci_subsystem_ids(struct bus *bus, int vendor, int device,
 			   int inherit)
 {
@@ -653,60 +1061,44 @@ void add_pci_subsystem_ids(struct bus *bus, int vendor, int device,
 	dev->inherit_subsystem = inherit;
 }
 
-void add_ioapic_info(struct bus *bus, int apicid, const char *_srcpin,
-		     int irqpin)
-{
-	int srcpin;
-	struct device *dev = bus->dev;
-
-	if (!_srcpin || strlen(_srcpin) < 4 || strncasecmp(_srcpin, "INT", 3) ||
-	    _srcpin[3] < 'A' || _srcpin[3] > 'D') {
-		printf("ERROR: malformed ioapic_irq args: %s\n", _srcpin);
-		exit(1);
-	}
-
-	srcpin = _srcpin[3] - 'A';
-
-	if (dev->bustype != PCI && dev->bustype != DOMAIN) {
-		printf("ERROR: ioapic config only allowed for PCI devices\n");
-		exit(1);
-	}
-
-	if (srcpin > 3) {
-		printf("ERROR: srcpin '%d' invalid\n", srcpin);
-		exit(1);
-	}
-	dev->pci_irq_info[srcpin].ioapic_irq_pin = irqpin;
-	dev->pci_irq_info[srcpin].ioapic_dst_id = apicid;
-}
-
 static int dev_has_children(struct device *dev)
 {
 	struct bus *bus = dev->bus;
 
-	while (bus) {
-		if (bus->children)
-			return 1;
-		bus = bus->next_bus;
-	}
+	if (bus && bus->children)
+		return 1;
 
 	return 0;
 }
 
-static void pass0(FILE *fil, struct device *ptr, struct device *next)
+static void pass0(FILE *fil, FILE *head, struct device *ptr, struct device *next)
 {
+	static int dev_id;
+
 	if (ptr == &base_root_dev) {
-		fprintf(fil, "DEVTREE_CONST struct bus %s_links[];\n",
+		fprintf(fil, "STORAGE struct bus %s_bus;\n",
 			ptr->name);
 		return;
 	}
 
-	fprintf(fil, "static DEVTREE_CONST struct device %s;\n", ptr->name);
+	char *name;
+
+	if (ptr->alias) {
+		name = S_ALLOC(6 + strlen(ptr->alias));
+		sprintf(name, "_dev_%s", ptr->alias);
+	} else {
+		name = S_ALLOC(11);
+		sprintf(name, "_dev_%d", dev_id++);
+	}
+
+	ptr->name = name;
+
+	fprintf(fil, "STORAGE struct device %s;\n", ptr->name);
 	if (ptr->res)
-		fprintf(fil, "DEVTREE_CONST struct resource %s_res[];\n",
+		fprintf(fil, "STORAGE struct resource %s_res[];\n",
 			ptr->name);
 	if (dev_has_children(ptr))
-		fprintf(fil, "DEVTREE_CONST struct bus %s_links[];\n",
+		fprintf(fil, "STORAGE struct bus %s_bus;\n",
 			ptr->name);
 
 	if (next)
@@ -717,13 +1109,44 @@ static void pass0(FILE *fil, struct device *ptr, struct device *next)
 		ptr->name);
 }
 
+static void emit_smbios_data(FILE *fil, struct device *ptr)
+{
+	fprintf(fil, "#if !DEVTREE_EARLY\n");
+	fprintf(fil, "#if CONFIG(GENERATE_SMBIOS_TABLES)\n");
+
+	/* SMBIOS types start at 1, if zero it hasn't been set */
+	if (ptr->smbios_slot_type)
+		fprintf(fil, "\t.smbios_slot_type = %s,\n",
+			ptr->smbios_slot_type);
+	if (ptr->smbios_slot_data_width)
+		fprintf(fil, "\t.smbios_slot_data_width = %s,\n",
+			ptr->smbios_slot_data_width);
+	if (ptr->smbios_slot_designation)
+		fprintf(fil, "\t.smbios_slot_designation = \"%s\",\n",
+			ptr->smbios_slot_designation);
+	if (ptr->smbios_slot_length)
+		fprintf(fil, "\t.smbios_slot_length = %s,\n",
+			ptr->smbios_slot_length);
+
+	/* Fill in SMBIOS type41 fields */
+	if (ptr->smbios_instance_id_valid) {
+		fprintf(fil, "\t.smbios_instance_id_valid = true,\n");
+		fprintf(fil, "\t.smbios_instance_id = %u,\n", ptr->smbios_instance_id);
+		if (ptr->smbios_refdes)
+			fprintf(fil, "\t.smbios_refdes = \"%s\",\n", ptr->smbios_refdes);
+	}
+
+	fprintf(fil, "#endif\n");
+	fprintf(fil, "#endif\n");
+}
+
 static void emit_resources(FILE *fil, struct device *ptr)
 {
 	if (ptr->res == NULL)
 		return;
 
 	int i = 1;
-	fprintf(fil, "DEVTREE_CONST struct resource %s_res[] = {\n", ptr->name);
+	fprintf(fil, "STORAGE struct resource %s_res[] = {\n", ptr->name);
 	struct resource *r = ptr->res;
 	while (r) {
 		fprintf(fil,
@@ -747,80 +1170,76 @@ static void emit_resources(FILE *fil, struct device *ptr)
 	fprintf(fil, "\t };\n");
 }
 
-static void emit_bus(FILE *fil, struct bus *bus)
+static void emit_dev_bus(FILE *fil, struct device *ptr)
 {
-	fprintf(fil, "\t\t[%d] = {\n", bus->id);
-	fprintf(fil, "\t\t\t.link_num = %d,\n", bus->id);
-	fprintf(fil, "\t\t\t.dev = &%s,\n", bus->dev->name);
-	if (bus->children)
-		fprintf(fil, "\t\t\t.children = &%s,\n", bus->children->name);
-
-	if (bus->next_bus)
-		fprintf(fil, "\t\t\t.next=&%s_links[%d],\n", bus->dev->name,
-			bus->id + 1);
-	else
-		fprintf(fil, "\t\t\t.next = NULL,\n");
-	fprintf(fil, "\t\t},\n");
-}
-
-static void emit_dev_links(FILE *fil, struct device *ptr)
-{
-	fprintf(fil, "DEVTREE_CONST struct bus %s_links[] = {\n",
+	fprintf(fil, "STORAGE struct bus %s_bus = {\n",
 		ptr->name);
 
+	assert(ptr->bus && ptr->bus->children);
 	struct bus *bus = ptr->bus;
 
-	while (bus) {
-		emit_bus(fil, bus);
-		bus = bus->next_bus;
-	}
+	fprintf(fil, "\t.dev = &%s,\n", bus->dev->name);
+	fprintf(fil, "\t.children = &%s,\n", bus->children->name);
 
-	fprintf(fil, "\t};\n");
+	fprintf(fil, "};\n");
 }
 
-static void pass1(FILE *fil, struct device *ptr, struct device *next)
+static struct chip_instance *get_chip_instance(const struct device *dev)
 {
-	int pin;
-	struct chip_instance *chip_ins = ptr->chip_instance;
+	struct chip_instance *chip_ins = dev->chip_instance;
+	/*
+	 * If the chip instance of device has base_chip_instance pointer set, then follow that
+	 * to update the chip instance for current device.
+	 */
+	if (chip_ins->base_chip_instance)
+		chip_ins = chip_ins->base_chip_instance;
+
+	return chip_ins;
+}
+
+static void pass1(FILE *fil, FILE *head, struct device *ptr, struct device *next)
+{
+	struct chip_instance *chip_ins = get_chip_instance(ptr);
 	int has_children = dev_has_children(ptr);
 
-	if (ptr != &base_root_dev)
-		fprintf(fil, "static ");
-	fprintf(fil, "DEVTREE_CONST struct device %s = {\n", ptr->name);
+	/* Emit probe structures. */
+	if (ptr->probe && (emit_fw_config_probe(fil, ptr) < 0)) {
+		if (head)
+			fclose(head);
+		fclose(fil);
+		exit(1);
+	}
+
+	if (ptr == &base_root_dev)
+		fprintf(fil, "DEVTREE_CONST struct device %s = {\n", ptr->name);
+	else
+		fprintf(fil, "STORAGE struct device %s = {\n", ptr->name);
+
 	fprintf(fil, "#if !DEVTREE_EARLY\n");
 
 	/*
-	 * ops field is set to default_dev_ops_root only for the root
-	 * device. For all other devices, it is set by the driver at runtime.
+	 * ops field can be set in the devicetree. If unspecified, it is set
+	 * to default_dev_ops_root only for the root device, other devices
+	 * get it set by the driver at runtime.
 	 */
-	if (ptr == &base_root_dev)
+	if (ptr->ops_id)
+		fprintf(fil, "\t.ops = &%s,\n", ptr->ops_id);
+	else if (ptr == &base_root_dev)
 		fprintf(fil, "\t.ops = &default_dev_ops_root,\n");
 	else
 		fprintf(fil, "\t.ops = NULL,\n");
 	fprintf(fil, "#endif\n");
-	fprintf(fil, "\t.bus = &%s_links[%d],\n", ptr->parent->dev->name,
-		ptr->parent->id);
+	fprintf(fil, "\t.upstream = &%s_bus,\n", ptr->parent->dev->name);
 	fprintf(fil, "\t.path = {");
 	fprintf(fil, ptr->path, ptr->path_a, ptr->path_b);
 	fprintf(fil, "},\n");
 	fprintf(fil, "\t.enabled = %d,\n", ptr->enabled);
 	fprintf(fil, "\t.hidden = %d,\n", ptr->hidden);
+	fprintf(fil, "\t.mandatory = %d,\n", ptr->mandatory);
 	fprintf(fil, "\t.on_mainboard = 1,\n");
 	if (ptr->subsystem_vendor > 0)
 		fprintf(fil, "\t.subsystem_vendor = 0x%04x,\n",
 			ptr->subsystem_vendor);
-
-	for (pin = 0; pin < 4; pin++) {
-		if (ptr->pci_irq_info[pin].ioapic_irq_pin > 0)
-			fprintf(fil,
-				"\t.pci_irq_info[%d].ioapic_irq_pin = %d,\n",
-				pin, ptr->pci_irq_info[pin].ioapic_irq_pin);
-
-		if (ptr->pci_irq_info[pin].ioapic_dst_id > 0)
-			fprintf(fil,
-				"\t.pci_irq_info[%d].ioapic_dst_id = %d,\n",
-				pin, ptr->pci_irq_info[pin].ioapic_dst_id);
-	}
 
 	if (ptr->subsystem_device > 0)
 		fprintf(fil, "\t.subsystem_device = 0x%04x,\n",
@@ -831,12 +1250,16 @@ static void pass1(FILE *fil, struct device *ptr, struct device *next)
 			ptr->name);
 	}
 	if (has_children)
-		fprintf(fil, "\t.link_list = &%s_links[0],\n",
+		fprintf(fil, "\t.downstream = &%s_bus,\n",
 			ptr->name);
 	else
-		fprintf(fil, "\t.link_list = NULL,\n");
+		fprintf(fil, "\t.downstream = NULL,\n");
 	if (ptr->sibling)
 		fprintf(fil, "\t.sibling = &%s,\n", ptr->sibling->name);
+	else
+		fprintf(fil, "\t.sibling = NULL,\n");
+	if (ptr->probe)
+		fprintf(fil, "\t.probe_list = %s_probe_list,\n", ptr->name);
 	fprintf(fil, "#if !DEVTREE_EARLY\n");
 	fprintf(fil, "\t.chip_ops = &%s_ops,\n",
 		chip_ins->chip->name_underscore);
@@ -848,35 +1271,49 @@ static void pass1(FILE *fil, struct device *ptr, struct device *next)
 			chip_ins->chip->name_underscore, chip_ins->id);
 	if (next)
 		fprintf(fil, "\t.next=&%s,\n", next->name);
-	if (ptr->smbios_slot_type || ptr->smbios_slot_data_width ||
-	    ptr->smbios_slot_designation || ptr->smbios_slot_length) {
-		fprintf(fil, "#if !DEVTREE_EARLY\n");
-		fprintf(fil, "#if CONFIG(GENERATE_SMBIOS_TABLES)\n");
-	}
-	/* SMBIOS types start at 1, if zero it hasn't been set */
-	if (ptr->smbios_slot_type)
-		fprintf(fil, "\t.smbios_slot_type = %s,\n",
-			ptr->smbios_slot_type);
-	if (ptr->smbios_slot_data_width)
-		fprintf(fil, "\t.smbios_slot_data_width = %s,\n",
-			ptr->smbios_slot_data_width);
-	if (ptr->smbios_slot_designation)
-		fprintf(fil, "\t.smbios_slot_designation = \"%s\",\n",
-			ptr->smbios_slot_designation);
-	if (ptr->smbios_slot_length)
-		fprintf(fil, "\t.smbios_slot_length = %s,\n",
-			ptr->smbios_slot_length);
-	if (ptr->smbios_slot_type || ptr->smbios_slot_data_width ||
-	    ptr->smbios_slot_designation || ptr->smbios_slot_length) {
-		fprintf(fil, "#endif\n");
-		fprintf(fil, "#endif\n");
-	}
+
+	emit_smbios_data(fil, ptr);
+
 	fprintf(fil, "};\n");
 
 	emit_resources(fil, ptr);
 
 	if (has_children)
-		emit_dev_links(fil, ptr);
+		emit_dev_bus(fil, ptr);
+}
+
+static void expose_device_names(FILE *fil, FILE *head, struct device *ptr, struct device *next)
+{
+	struct chip_instance *chip_ins = get_chip_instance(ptr);
+
+	/* Only devices on root bus here. */
+	if (ptr->bustype == PCI && ptr->parent->dev->bustype == DOMAIN) {
+		fprintf(head, "extern DEVTREE_CONST struct device *const __pci_%d_%02x_%d;\n",
+			ptr->parent->dev->path_a, ptr->path_a, ptr->path_b);
+		fprintf(fil, "DEVTREE_CONST struct device *const __pci_%d_%02x_%d = &%s;\n",
+			ptr->parent->dev->path_a, ptr->path_a, ptr->path_b, ptr->name);
+
+		if (chip_ins->chip->chiph_exists) {
+			fprintf(head, "extern DEVTREE_CONST void *const __pci_%d_%02x_%d_config;\n",
+				ptr->parent->dev->path_a, ptr->path_a, ptr->path_b);
+			fprintf(fil, "DEVTREE_CONST void *const __pci_%d_%02x_%d_config = &%s_info_%d;\n",
+				ptr->parent->dev->path_a, ptr->path_a, ptr->path_b,
+				chip_ins->chip->name_underscore, chip_ins->id);
+		}
+	}
+
+	if (ptr->bustype == PNP) {
+		fprintf(head, "extern DEVTREE_CONST struct device *const __pnp_%04x_%02x;\n",
+			ptr->path_a, ptr->path_b);
+		fprintf(fil, "DEVTREE_CONST struct device *const __pnp_%04x_%02x = &%s;\n",
+			ptr->path_a, ptr->path_b, ptr->name);
+	}
+
+	if (ptr->alias) {
+		fprintf(head, "extern DEVTREE_CONST struct device *const %s_ptr;\n", ptr->name);
+		fprintf(fil, "DEVTREE_CONST struct device *const %s_ptr = &%s;\n",
+			ptr->name, ptr->name);
+	}
 }
 
 static void add_siblings_to_queue(struct queue_entry **bfs_q_head,
@@ -893,15 +1330,12 @@ static void add_children_to_queue(struct queue_entry **bfs_q_head,
 {
 	struct bus *bus = d->bus;
 
-	while (bus) {
-		if (bus->children)
-			add_siblings_to_queue(bfs_q_head, bus->children);
-		bus = bus->next_bus;
-	}
+	if (dev_has_children(d))
+		add_siblings_to_queue(bfs_q_head, bus->children);
 }
 
-static void walk_device_tree(FILE *fil, struct device *ptr,
-			     void (*func)(FILE *, struct device *,
+static void walk_device_tree(FILE *fil, FILE *head, struct device *ptr,
+			     void (*func)(FILE *, FILE *, struct device *,
 					  struct device *))
 {
 	struct queue_entry *bfs_q_head = NULL;
@@ -910,16 +1344,13 @@ static void walk_device_tree(FILE *fil, struct device *ptr,
 
 	while ((ptr = dequeue_head(&bfs_q_head))) {
 		add_children_to_queue(&bfs_q_head, ptr);
-		func(fil, ptr, peek_queue_head(bfs_q_head));
+		func(fil, head, ptr, peek_queue_head(bfs_q_head));
 	}
 }
 
 static void emit_chip_headers(FILE *fil, struct chip *chip)
 {
 	struct chip *tmp = chip;
-
-	fprintf(fil, "#include <device/device.h>\n");
-	fprintf(fil, "#include <device/pci.h>\n");
 
 	while (chip) {
 		if (chip->chiph_exists)
@@ -932,9 +1363,16 @@ static void emit_chip_headers(FILE *fil, struct chip *chip)
 
 	chip = tmp;
 	while (chip) {
-		fprintf(fil,
-			"__attribute__((weak)) struct chip_operations %s_ops = {};\n",
-			chip->name_underscore);
+		/* A lot of cpus do not define chip_operations at all, and the ones
+		   that do only initialise .name. */
+		if (strstr(chip->name_underscore, "cpu_") == chip->name_underscore) {
+			fprintf(fil,
+				"__attribute__((weak)) struct chip_operations %s_ops = {};\n",
+				chip->name_underscore);
+		} else {
+			fprintf(fil, "extern struct chip_operations %s_ops;\n",
+				chip->name_underscore);
+		}
 		chip = chip->next;
 	}
 	fprintf(fil, "#endif\n");
@@ -942,7 +1380,7 @@ static void emit_chip_headers(FILE *fil, struct chip *chip)
 
 static void emit_chip_instance(FILE *fil, struct chip_instance *instance)
 {
-	fprintf(fil, "DEVTREE_CONST struct %s_config %s_info_%d = {",
+	fprintf(fil, "STORAGE struct %s_config %s_info_%d = {",
 		instance->chip->name_underscore,
 		instance->chip->name_underscore,
 		instance->id);
@@ -958,26 +1396,39 @@ static void emit_chip_instance(FILE *fil, struct chip_instance *instance)
 	fprintf(fil, "};\n\n");
 }
 
-static void emit_chips(FILE *fil)
+static void emit_chip_configs(FILE *fil)
 {
 	struct chip *chip = chip_header.next;
 	struct chip_instance *instance;
-
-	emit_chip_headers(fil, chip);
+	int chip_id;
 
 	for (; chip; chip = chip->next) {
 		if (!chip->chiph_exists)
 			continue;
 
+		chip_id = 1;
 		instance = chip->instance;
 		while (instance) {
-			emit_chip_instance(fil, instance);
+			/*
+			 * Emit this chip instance only if there is no forwarding pointer to the
+			 * base tree chip instance.
+			 */
+			if (instance->base_chip_instance == NULL) {
+				instance->id = chip_id++;
+				emit_chip_instance(fil, instance);
+			}
 			instance = instance->next;
 		}
 	}
 }
 
-static void inherit_subsystem_ids(FILE *file, struct device *dev,
+static void emit_identifiers(FILE *fil, const char *decl, const struct identifier *it)
+{
+	for (; it != NULL; it = it->next)
+		fprintf(fil, "extern %s %s;\n", decl, it->id);
+}
+
+static void inherit_subsystem_ids(FILE *file, FILE *head, struct device *dev,
 				  struct device *next)
 {
 	struct device *p;
@@ -1000,22 +1451,6 @@ static void inherit_subsystem_ids(FILE *file, struct device *dev,
 	}
 }
 
-static void usage(void)
-{
-	printf("usage: sconfig devicetree_file output_file [override_devicetree_file]\n");
-	exit(1);
-}
-
-enum {
-	DEVICEFILE_ARG = 1,
-	OUTPUTFILE_ARG,
-	OVERRIDE_DEVICEFILE_ARG,
-};
-
-#define MANDATORY_ARG_COUNT		3
-#define OPTIONAL_ARG_COUNT		1
-#define TOTAL_ARG_COUNT		(MANDATORY_ARG_COUNT + OPTIONAL_ARG_COUNT)
-
 static void parse_devicetree(const char *file, struct bus *parent)
 {
 	FILE *filec = fopen(file, "r");
@@ -1034,6 +1469,56 @@ static void parse_devicetree(const char *file, struct bus *parent)
 	fclose(filec);
 }
 
+static int device_probe_count(struct fw_config_probe *probe)
+{
+	int count = 0;
+	while (probe) {
+		probe = probe->next;
+		count++;
+	}
+
+	return count;
+}
+
+/*
+ * When overriding devices, use the following rules:
+ * 1. If probe count matches and:
+ *    a. Entire probe list matches for both devices -> Same device, override.
+ *    b. No probe entries match -> Different devices, do not override.
+ *    c. Partial list matches -> Bad device tree entries, fail build.
+ *
+ * 2. If probe counts do not match and:
+ *    a. No probe entries match -> Different devices, do not override.
+ *    b. Partial list matches -> Bad device tree entries, fail build.
+ */
+static int device_probes_match(struct device *a, struct device *b)
+{
+	struct fw_config_probe *a_probe = a->probe;
+	struct fw_config_probe *b_probe = b->probe;
+	int a_probe_count = device_probe_count(a_probe);
+	int b_probe_count = device_probe_count(b_probe);
+	int match_count = 0;
+
+	while (a_probe) {
+		if (check_probe_exists(b_probe, a_probe->field, a_probe->option))
+			match_count++;
+		a_probe = a_probe->next;
+	}
+
+	if ((a_probe_count == b_probe_count) && (a_probe_count == match_count))
+		return 1;
+
+	if (match_count) {
+		printf("ERROR: devices with overlapping probes: ");
+		printf(a->path, a->path_a, a->path_b);
+		printf(b->path, b->path_a, b->path_b);
+		printf("\n");
+		exit(1);
+	}
+
+	return 0;
+}
+
 /*
  * Match device nodes from base and override tree to see if they are the same
  * node.
@@ -1048,26 +1533,13 @@ static int device_match(struct device *a, struct device *b)
 }
 
 /*
- * Walk through the override subtree in breadth-first manner starting at node to
- * see if chip_instance pointer of the node is same as chip_instance pointer of
- * override parent that is passed into the function. If yes, then update the
- * chip_instance pointer of the node to chip_instance pointer of the base
- * parent.
+ * Match resource nodes from base and override tree to see if they are the same
+ * node.
  */
-static void update_chip_pointers(struct device *node,
-				 struct chip_instance *base_parent_ci,
-				 struct chip_instance *override_parent_ci)
+static int res_match(struct resource *a, struct resource *b)
 {
-	struct queue_entry *q_head = NULL;
-
-	enqueue_tail(&q_head, node);
-
-	while ((node = dequeue_head(&q_head))) {
-		if (node->chip_instance != override_parent_ci)
-			continue;
-		node->chip_instance = base_parent_ci;
-		add_children_to_queue(&q_head, node);
-	}
+	return ((a->type == b->type) &&
+		(a->index == b->index));
 }
 
 /*
@@ -1079,8 +1551,7 @@ static void update_resource(struct device *dev, struct resource *res)
 	struct resource *base_res = dev->res;
 
 	while (base_res) {
-		if (base_res->type == res->type) {
-			base_res->index = res->index;
+		if (res_match(base_res, res)) {
 			base_res->base = res->base;
 			return;
 		}
@@ -1094,9 +1565,9 @@ static void update_resource(struct device *dev, struct resource *res)
  * Add register to chip instance. If register is already present, then update
  * its value. If not, then add a new register to the chip instance.
  */
-static void update_register(struct chip_instance *c, struct reg *reg)
+static void update_register(struct reg **const head, struct reg *reg)
 {
-	struct reg *base_reg = c->reg;
+	struct reg *base_reg = *head;
 
 	while (base_reg) {
 		if (!strcmp(base_reg->key, reg->key)) {
@@ -1106,7 +1577,7 @@ static void update_register(struct chip_instance *c, struct reg *reg)
 		base_reg = base_reg->next;
 	}
 
-	add_register(c, reg->key, reg->value);
+	add_reg(head, reg->key, reg->value);
 }
 
 static void override_devicetree(struct bus *base_parent,
@@ -1170,12 +1641,31 @@ static void override_devicetree(struct bus *base_parent,
  * |                    |                                            |
  * | res                | Each resource that is present in override  |
  * |                    | device is copied over to base device:      |
- * |                    | 1. If resource of same type is present in  |
- * |                    |    base device, then index and base of the |
- * |                    |    resource is copied.                     |
+ * |                    | 1. If resource of same type and index is   |
+ * |                    |    present in base device, then base of    |
+ * |                    |    the resource is copied.                 |
  * |                    | 2. If not, then a new resource is allocated|
  * |                    |    under the base device using type, index |
  * |                    |    and base from override res.             |
+ * |                    |                                            |
+ * +-----------------------------------------------------------------+
+ * |                    |                                            |
+ * | ref                | Each reference that is present in override |
+ * |                    | device is copied over to base device with  |
+ * |                    | the same rules as registers.               |
+ * |                    |                                            |
+ * +-----------------------------------------------------------------+
+ * |                    |                                            |
+ * | alias              | Base device alias is copied to override.   |
+ * |                    | Override devices cannot change/remove an   |
+ * |                    | existing alias, but they can add an alias  |
+ * |                    | if one does not exist.                     |
+ * |                    |                                            |
+ * +-----------------------------------------------------------------+
+ * |                    |                                            |
+ * | smbios_slot info   | Copy SMBIOS slot information from override.|
+ * |                    | This allows variants to override PCI(e)    |
+ * |                    | slot information in SMBIOS tables.         |
  * |                    |                                            |
  * +-----------------------------------------------------------------+
  * |                    |                                            |
@@ -1191,12 +1681,9 @@ static void override_devicetree(struct bus *base_parent,
  * +-----------------------------------------------------------------+
  * |                    |                                            |
  * | bus                | Recursively call override_devicetree on    |
- * | last_bus           | each bus of override device. It is assumed |
+ * |                    | each bus of override device. It is assumed |
  * |                    | that bus with id X under base device       |
- * |                    | to bus with id X under override device. If |
- * |                    | override device has more buses than base   |
- * |                    | device, then new buses are allocated under |
- * |                    | base device.                               |
+ * |                    | to bus with id X under override device.    |
  * |                    |                                            |
  * +-----------------------------------------------------------------+
  */
@@ -1207,6 +1694,12 @@ static void update_device(struct device *base_dev, struct device *override_dev)
 	 * override tree to enable or disable a particular device.
 	 */
 	base_dev->enabled = override_dev->enabled;
+
+	/*
+	 * Copy the hidden state of override device to base device. This allows
+	 * override tree to hide or unhide a particular device.
+	 */
+	base_dev->hidden = override_dev->hidden;
 
 	/*
 	 * Copy subsystem vendor and device ids from override device to base
@@ -1249,39 +1742,73 @@ static void update_device(struct device *base_dev, struct device *override_dev)
 	 */
 	struct reg *reg = override_dev->chip_instance->reg;
 	while (reg) {
-		update_register(base_dev->chip_instance, reg);
+		update_register(&base_dev->chip_instance->reg, reg);
 		reg = reg->next;
 	}
+
+	/* Copy references just as with registers. */
+	reg = override_dev->chip_instance->ref;
+	while (reg) {
+		update_register(&base_dev->chip_instance->ref, reg);
+		reg = reg->next;
+	}
+
+	/* Check for alias name conflicts. */
+	if (override_dev->alias && find_alias(&base_root_dev, override_dev->alias)) {
+		printf("ERROR: alias already exists: %s\n", override_dev->alias);
+		exit(1);
+	}
+
+	/*
+	 * Copy alias from base device.
+	 *
+	 * Override devices cannot change/remove an existing alias,
+	 * but they can add an alias to a device if one does not exist yet.
+	 */
+	if (base_dev->alias)
+		override_dev->alias = base_dev->alias;
+	else
+		base_dev->alias = override_dev->alias;
+
+	/*
+	 * Use probe list from override device in place of base device, in order
+	 * to allow an override to remove a probe from the base device.
+	 */
+	base_dev->probe = override_dev->probe;
+
+	/* Copy SMBIOS slot information from base device */
+	base_dev->smbios_slot_type = override_dev->smbios_slot_type;
+	base_dev->smbios_slot_length = override_dev->smbios_slot_length;
+	base_dev->smbios_slot_data_width = override_dev->smbios_slot_data_width;
+	base_dev->smbios_slot_designation = override_dev->smbios_slot_designation;
+
+	/*
+	 * Update base_chip_instance member in chip instance of override tree to forward it to
+	 * the chip instance in base tree.
+	 */
+	override_dev->chip_instance->base_chip_instance = get_chip_instance(base_dev);
+
+	/* Allow to override the ops of a device */
+	if (override_dev->ops_id)
+		base_dev->ops_id = override_dev->ops_id;
 
 	/*
 	 * Now that the device properties are all copied over, look at each bus
 	 * of the override device and run override_devicetree in a recursive
-	 * manner. The assumption here is that first bus of override device
-	 * corresponds to first bus of base device and so on. If base device has
-	 * lesser buses than override tree, then new buses are allocated for it.
+	 * manner. If base device has no bus but the override tree has, then a new
+	 * bus is allocated for it.
 	 */
 	struct bus *override_bus = override_dev->bus;
 	struct bus *base_bus = base_dev->bus;
 
-	while (override_bus) {
+	/*
+	 * If we have more buses in override tree device, then allocate
+	 * a new bus for the base tree device as well.
+	 */
+	if (!base_bus)
+		alloc_bus(base_dev);
 
-		/*
-		 * If we have more buses in override tree device, then allocate
-		 * a new bus for the base tree device as well.
-		 */
-		if (!base_bus) {
-			alloc_bus(base_dev);
-			base_bus = base_dev->last_bus;
-		}
-
-		override_devicetree(base_dev->bus, override_dev->bus);
-
-		override_bus = override_bus->next_bus;
-		base_bus = base_bus->next_bus;
-	}
-
-	delete_chip_instance(override_dev->chip_instance);
-	override_dev->chip_instance = NULL;
+	override_devicetree(base_dev->bus, override_dev->bus);
 }
 
 /*
@@ -1308,7 +1835,16 @@ static void override_devicetree(struct bus *base_parent,
 		/* Look for a matching device in base tree. */
 		for (base_child = base_parent->children;
 		     base_child; base_child = base_child->sibling) {
-			if (device_match(base_child, override_child))
+			if (!device_match(base_child, override_child))
+				continue;
+			/* If base device has no probe statement, nothing else to compare. */
+			if (base_child->probe == NULL)
+				break;
+			/*
+			 * If base device has probe statements, ensure that all probe conditions
+			 * match for base and override device.
+			 */
+			if (device_probes_match(base_child, override_child))
 				break;
 		}
 
@@ -1326,42 +1862,156 @@ static void override_devicetree(struct bus *base_parent,
 			 * as a new child of base_parent.
 			 */
 			set_new_child(base_parent, override_child);
-			/*
-			 * Ensure all nodes in override tree pointing to
-			 * override parent chip_instance now point to base
-			 * parent chip_instance.
-			 */
-			update_chip_pointers(override_child,
-					base_parent->dev->chip_instance,
-					override_parent->dev->chip_instance);
 		}
 
 		override_child = next_child;
 	}
 }
 
+static void parse_override_devicetree(const char *file, struct device *dev)
+{
+	parse_devicetree(file, dev->bus);
+
+	if (!dev_has_children(dev)) {
+		fprintf(stderr, "ERROR: Override tree needs at least one device!\n");
+		exit(1);
+	}
+
+	override_devicetree(&base_root_bus, dev->bus);
+}
+
+static void generate_outputh(FILE *f, const char *fw_conf_header, const char *device_header)
+{
+	fprintf(f, "#ifndef __STATIC_DEVICE_TREE_H\n");
+	fprintf(f, "#define __STATIC_DEVICE_TREE_H\n\n");
+
+	fprintf(f, "#include <%s>\n", fw_conf_header);
+	fprintf(f, "#include <%s>\n\n", device_header);
+
+	fprintf(f, "\n#endif /* __STATIC_DEVICE_TREE_H */\n");
+}
+
+static void generate_outputc(FILE *f, const char *static_header)
+{
+	fprintf(f, "#include <boot/coreboot_tables.h>\n");
+	fprintf(f, "#include <device/device.h>\n");
+	fprintf(f, "#include <device/pci.h>\n");
+	fprintf(f, "#include <fw_config.h>\n");
+	fprintf(f, "#include <identity.h>\n");
+	fprintf(f, "#include <%s>\n", static_header);
+	emit_chip_headers(f, chip_header.next);
+	emit_identifiers(f, "struct device_operations", device_operations);
+	fprintf(f, "\n#define STORAGE static __maybe_unused DEVTREE_CONST\n\n");
+
+	walk_device_tree(NULL, NULL, &base_root_dev, inherit_subsystem_ids);
+	fprintf(f, "\n/* pass 0 */\n");
+	walk_device_tree(f, NULL, &base_root_dev, pass0);
+	walk_device_tree(NULL, NULL, &base_root_dev, update_references);
+	fprintf(f, "\n/* chip configs */\n");
+	emit_chip_configs(f);
+	fprintf(f, "\n/* pass 1 */\n");
+	walk_device_tree(f, NULL, &base_root_dev, pass1);
+}
+
+static void generate_outputd(FILE *gen, FILE *dev)
+{
+	fprintf(dev, "#ifndef __STATIC_DEVICES_H\n");
+	fprintf(dev, "#define __STATIC_DEVICES_H\n\n");
+	fprintf(dev, "#include <device/device.h>\n\n");
+	fprintf(dev, "/* expose_device_names */\n");
+	walk_device_tree(gen, dev, &base_root_dev, expose_device_names);
+	fprintf(dev, "\n#endif /* __STATIC_DEVICE_NAMES_H */\n");
+}
+
+static void generate_outputf(FILE *f)
+{
+	fprintf(f, "#ifndef __STATIC_FW_CONFIG_H\n");
+	fprintf(f, "#define __STATIC_FW_CONFIG_H\n\n");
+	emit_fw_config(f);
+	fprintf(f, "\n#endif /* __STATIC_FW_CONFIG_H */\n");
+}
+
+static void usage(void)
+{
+	printf("Usage: sconfig <options>\n");
+	printf("  -c | --output_c          : Path to output static.c file (required)\n");
+	printf("  -r | --output_h          : Path to header static.h file (required)\n");
+	printf("  -d | --output_d          : Path to header static_devices.h file (required)\n");
+	printf("  -f | --output_f          : Path to header static_fw_config.h file (required)\n");
+	printf("  -m | --mainboard_devtree : Path to mainboard devicetree file (required)\n");
+	printf("  -o | --override_devtree  : Path to override devicetree file (optional)\n");
+	printf("  -p | --chipset_devtree   : Path to chipset/SOC devicetree file (optional)\n");
+
+	exit(1);
+}
+
 int main(int argc, char **argv)
 {
-	if ((argc < MANDATORY_ARG_COUNT) || (argc > TOTAL_ARG_COUNT))
+	static const struct option long_options[] = {
+		{ "mainboard_devtree", required_argument, NULL, 'm' },
+		{ "override_devtree", required_argument, NULL, 'o' },
+		{ "chipset_devtree", required_argument, NULL, 'p' },
+		{ "output_c", required_argument, NULL, 'c' },
+		{ "output_h", required_argument, NULL, 'r' },
+		{ "output_d", required_argument, NULL, 'd' },
+		{ "output_f", required_argument, NULL, 'f' },
+		{ "help", no_argument, NULL, 'h' },
+		{ }
+	};
+	const char *override_devtree = NULL;
+	const char *base_devtree = NULL;
+	const char *chipset_devtree = NULL;
+	const char *outputc = NULL;
+	const char *outputh = NULL;
+	const char *outputd = NULL;
+	const char *outputf = NULL;
+	int opt, option_index;
+
+	while ((opt = getopt_long(argc, argv, "m:o:p:c:r:d:f:h", long_options,
+				  &option_index)) != EOF) {
+		switch (opt) {
+		case 'm':
+			base_devtree = strdup(optarg);
+			break;
+		case 'o':
+			override_devtree = strdup(optarg);
+			break;
+		case 'p':
+			chipset_devtree = strdup(optarg);
+			break;
+		case 'c':
+			outputc = strdup(optarg);
+			break;
+		case 'r':
+			outputh = strdup(optarg);
+			break;
+		case 'd':
+			outputd = strdup(optarg);
+			break;
+		case 'f':
+			outputf = strdup(optarg);
+			break;
+		case 'h':
+		default:
+			usage();
+		}
+	}
+
+	if (!base_devtree || !outputc || !outputh || !outputd || !outputf)
 		usage();
 
-	const char *base_devtree = argv[DEVICEFILE_ARG];
-	const char *outputc = argv[OUTPUTFILE_ARG];
-	const char *override_devtree;
-
-	parse_devicetree(base_devtree, &base_root_bus);
-
-	if (argc == TOTAL_ARG_COUNT) {
-		override_devtree = argv[OVERRIDE_DEVICEFILE_ARG];
-		parse_devicetree(override_devtree, &override_root_bus);
-
-		if (!dev_has_children(&override_root_dev)) {
-			fprintf(stderr, "ERROR: Override tree needs at least one device!\n");
-			exit(1);
-		}
-
-		override_devicetree(&base_root_bus, &override_root_bus);
+	if (chipset_devtree) {
+		/* Use the chipset devicetree as the base, then override
+		   with the mainboard "base" devicetree. */
+		parse_devicetree(chipset_devtree, &base_root_bus);
+		parse_override_devicetree(base_devtree, &chipset_root_dev);
+	} else {
+		parse_devicetree(base_devtree, &base_root_bus);
 	}
+
+	if (override_devtree)
+		parse_override_devicetree(override_devtree, &override_root_dev);
+
 
 	FILE *autogen = fopen(outputc, "w");
 	if (!autogen) {
@@ -1371,15 +2021,56 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	emit_chips(autogen);
+	FILE *autohead = fopen(outputh, "w");
+	if (!autohead) {
+		fprintf(stderr, "Could not open file '%s' for writing: ", outputh);
+		perror(NULL);
+		fclose(autogen);
+		exit(1);
+	}
 
-	walk_device_tree(autogen, &base_root_dev, inherit_subsystem_ids);
-	fprintf(autogen, "\n/* pass 0 */\n");
-	walk_device_tree(autogen, &base_root_dev, pass0);
-	fprintf(autogen, "\n/* pass 1 */\n");
-	walk_device_tree(autogen, &base_root_dev, pass1);
+	FILE *autodev = fopen(outputd, "w");
+	if (!autodev) {
+		fprintf(stderr, "Could not open file '%s' for writing: ", outputd);
+		perror(NULL);
+		fclose(autogen);
+		fclose(autohead);
+		exit(1);
+	}
 
+	FILE *autofwconf = fopen(outputf, "w");
+	if (!autofwconf) {
+		fprintf(stderr, "Could not open file '%s' for writing: ", outputf);
+		perror(NULL);
+		fclose(autogen);
+		fclose(autohead);
+		fclose(autodev);
+		exit(1);
+	}
+
+	char *f = strdup(outputf);
+	assert(f);
+	char *d = strdup(outputd);
+	assert(d);
+	char *h = strdup(outputh);
+	assert(h);
+
+	const char *fw_conf_header = basename(f);
+	const char *device_header = basename(d);
+	const char *static_header = basename(h);
+
+	generate_outputh(autohead, fw_conf_header, device_header);
+	generate_outputc(autogen, static_header);
+	generate_outputd(autogen, autodev);
+	generate_outputf(autofwconf);
+
+	fclose(autohead);
 	fclose(autogen);
+	fclose(autodev);
+	fclose(autofwconf);
+	free(f);
+	free(d);
+	free(h);
 
 	return 0;
 }

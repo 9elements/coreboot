@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <boardid.h>
 #include <cbfs.h>
@@ -57,7 +44,7 @@ static enum dram_speeds get_sdram_target_mhz(void)
 	return dram_928MHz;
 }
 
-const struct rk3399_sdram_params *get_sdram_config()
+const struct rk3399_sdram_params *get_sdram_config(void)
 {
 	char config_file[64];
 	uint32_t ramcode;
@@ -66,8 +53,7 @@ const struct rk3399_sdram_params *get_sdram_config()
 	if (ramcode >= ARRAY_SIZE(sdram_configs) ||
 	    !snprintf(config_file, sizeof(config_file), "%s-%d",
 	    sdram_configs[ramcode], get_sdram_target_mhz()) ||
-	    (cbfs_boot_load_file(config_file, &params, sizeof(params),
-				 CBFS_TYPE_STRUCT) != sizeof(params)))
+	    (cbfs_load(config_file, &params, sizeof(params)) != sizeof(params)))
 		die("Cannot load SDRAM parameter file!");
 
 	return &params;

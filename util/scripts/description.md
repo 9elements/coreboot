@@ -3,8 +3,11 @@ __scripts__
               line `Bash`
   * _cross-repo-cherrypick_ - Pull in patches from another tree from a
                               gerrit repository. `Shell`
+  * _decode_spd.sh_ - Decodes Serial Presence Detect (SPD) files into
+                      various human readable formats. `Bash`
   * _dts-to-fmd.sh_ -Converts a depthcharge fmap.dts into an fmaptool
                      compatible .fmd format `Bash`
+  * _find_new_user_commits.sh_ - Finds new gerrit committers `Bash`
   * _find-unused-kconfig-symbols.sh_ - Points out Kconfig variables
                                        that may be unused. There are
                                        some false positives, but it
@@ -21,5 +24,10 @@ __scripts__
                             headers `Shell`
   * _parse-maintainers.pl_ - Script to alphabetize MAINTAINERS file
                              `Perl`
+  * _rm_unused_code_ - Remove all code not used for a platform from the local
+                 git repository for auditing or release `Bash`
+  * _show_platforms.sh_ - Makes a list of platforms in the tree. Does
+                          not show variants.
+                          `Shell`
   * _ucode_h_to_bin.sh_ - Microcode conversion tool `Bash`
   * _update_submodules_ - Check all submodules for updates `Bash`

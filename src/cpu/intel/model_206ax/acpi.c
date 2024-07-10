@@ -1,122 +1,164 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2009 coresystems GmbH
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <types.h>
+#include <acpi/acpi.h>
+#include <acpi/acpigen.h>
 #include <console/console.h>
-#include <arch/acpi.h>
-#include <arch/acpigen.h>
-#include <arch/cpu.h>
-#include <cpu/x86/msr.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/intel/turbo.h>
+#include <cpu/x86/msr.h>
 #include <device/device.h>
+#include <stdint.h>
+
 #include "model_206ax.h"
 #include "chip.h"
 
-static int get_cores_per_package(void)
+#define MWAIT_RES(state, sub_state)                         \
+	{                                                   \
+		.addrl = (((state) << 4) | (sub_state)),    \
+		.space_id = ACPI_ADDRESS_SPACE_FIXED,       \
+		.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,    \
+		.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,    \
+		.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD, \
+	}
+
+/*
+ * List of supported C-states in this processor
+ *
+ * Latencies are typical worst-case package exit time in uS
+ * taken from the SandyBridge BIOS specification.
+ */
+static acpi_cstate_t cstate_map[NUM_C_STATES] = {
+	[C_STATE_C0] = { },
+	[C_STATE_C1] = {
+		.latency = 1,
+		.power = 1000,
+		.resource = MWAIT_RES(0, 0),
+	},
+	[C_STATE_C1E] = {
+		.latency = 1,
+		.power = 1000,
+		.resource = MWAIT_RES(0, 1),
+	},
+	[C_STATE_C3] = {
+		.latency = 63,
+		.power = 500,
+		.resource = MWAIT_RES(1, 0),
+	},
+	[C_STATE_C6] = {
+		.latency = 87,
+		.power = 350,
+		.resource = MWAIT_RES(2, 0),
+	},
+	[C_STATE_C7] = {
+		.latency = 90,
+		.power = 200,
+		.resource = MWAIT_RES(3, 0),
+	},
+	[C_STATE_C7S] = {
+		.latency = 90,
+		.power = 200,
+		.resource = MWAIT_RES(3, 1),
+	},
+};
+
+static const char *const c_state_names[] = {"C0", "C1", "C1E", "C3", "C6", "C7", "C7S"};
+
+static int get_logical_cores_per_package(void)
 {
-	struct cpuinfo_x86 c;
-	struct cpuid_result result;
-	int cores = 1;
-
-	get_fms(&c, cpuid_eax(1));
-	if (c.x86 != 6)
-		return 1;
-
-	result = cpuid_ext(0xb, 1);
-	cores = result.ebx & 0xff;
-
-	return cores;
+	msr_t msr = rdmsr(MSR_CORE_THREAD_COUNT);
+	return msr.lo & 0xffff;
 }
 
-static void generate_cstate_entries(acpi_cstate_t *cstates,
-				    int c1, int c2, int c3)
+static void print_supported_cstates(void)
 {
-	int cstate_count = 0;
+	uint8_t state, substate;
 
+	printk(BIOS_DEBUG, "Supported C-states: ");
+
+	for (size_t i = 0; i < ARRAY_SIZE(cstate_map); i++) {
+		state = (cstate_map[i].resource.addrl >> 4) + 1;
+		substate = cstate_map[i].resource.addrl & 0xf;
+
+		/* CPU C0 is always supported */
+		if (i == 0 || cpu_get_c_substate_support(state) > substate)
+			printk(BIOS_DEBUG, " %s", c_state_names[i]);
+	}
+	printk(BIOS_DEBUG, "\n");
+}
+
+/*
+ * Returns the supported C-state or the next lower one that
+ * is supported.
+ */
+static int get_supported_cstate(int cstate)
+{
+	uint8_t state, substate;
+	size_t i;
+
+	assert(cstate < NUM_C_STATES);
+
+	for (i = cstate; i > 0; i--) {
+		state = (cstate_map[i].resource.addrl >> 4) + 1;
+		substate = cstate_map[i].resource.addrl & 0xf;
+		if (cpu_get_c_substate_support(state) > substate)
+			break;
+	}
+
+	if (cstate != i)
+		printk(BIOS_INFO, "Requested C-state %s not supported, using %s instead\n",
+		       c_state_names[cstate], c_state_names[i]);
+
+	return i;
+}
+
+static void generate_C_state_entries(const struct device *dev)
+{
+	struct cpu_intel_model_206ax_config *conf = dev->chip_info;
+
+	int acpi_cstates[3] = { conf->acpi_c1, conf->acpi_c2, conf->acpi_c3 };
+
+	acpi_cstate_t acpi_cstate_map[ARRAY_SIZE(acpi_cstates)] = { 0 };
 	/* Count number of active C-states */
-	if (c1 > 0)
-		++cstate_count;
-	if (c2 > 0)
-		++cstate_count;
-	if (c3 > 0)
-		++cstate_count;
-	if (!cstate_count)
-		return;
+	int count = 0;
 
-	acpigen_write_package(cstate_count + 1);
-	acpigen_write_byte(cstate_count);
+	for (int i = 0; i < ARRAY_SIZE(acpi_cstates); i++) {
+		/* Remove invalid states */
+		if (acpi_cstates[i] >= ARRAY_SIZE(cstate_map)) {
+			printk(BIOS_ERR, "Invalid C-state in devicetree: %d\n",
+			       acpi_cstates[i]);
+			acpi_cstates[i] = 0;
+			continue;
+		}
+		/* Skip C0, it's always supported */
+		if (acpi_cstates[i] == 0)
+			continue;
 
-	/* Add an entry if the level is enabled */
-	if (c1 > 0) {
-		cstates[c1].ctype = 1;
-		acpigen_write_CST_package_entry(&cstates[c1]);
+		/* Find supported state. Might downgrade a state. */
+		acpi_cstates[i] = get_supported_cstate(acpi_cstates[i]);
+
+		/* Remove duplicate states */
+		for (int j = i - 1; j >= 0; j--) {
+			if (acpi_cstates[i] == acpi_cstates[j]) {
+				acpi_cstates[i] = 0;
+				break;
+			}
+		}
 	}
-	if (c2 > 0) {
-		cstates[c2].ctype = 2;
-		acpigen_write_CST_package_entry(&cstates[c2]);
+
+	/* Convert C-state to ACPI C-states */
+	for (int i = 0; i < ARRAY_SIZE(acpi_cstates); i++) {
+		if (acpi_cstates[i] == 0)
+			continue;
+		acpi_cstate_map[count] = cstate_map[acpi_cstates[i]];
+		acpi_cstate_map[count].ctype = i + 1;
+
+		count++;
+		printk(BIOS_DEBUG, "Advertising ACPI C State type C%d as CPU %s\n",
+		       i + 1, c_state_names[acpi_cstates[i]]);
 	}
-	if (c3 > 0) {
-		cstates[c3].ctype = 3;
-		acpigen_write_CST_package_entry(&cstates[c3]);
-	}
 
-	acpigen_pop_len();
-}
-
-static void generate_C_state_entries(void)
-{
-	struct cpu_info *info;
-	struct cpu_driver *cpu;
-	struct device *lapic;
-	struct cpu_intel_model_206ax_config *conf = NULL;
-
-	/* Find the SpeedStep CPU in the device tree using magic APIC ID */
-	lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
-	if (!lapic)
-		return;
-	conf = lapic->chip_info;
-	if (!conf)
-		return;
-
-	/* Find CPU map of supported C-states */
-	info = cpu_info();
-	if (!info)
-		return;
-	cpu = find_cpu_driver(info->cpu);
-	if (!cpu || !cpu->cstates)
-		return;
-
-	acpigen_write_method("_CST", 0);
-
-	/* If running on AC power */
-	acpigen_emit_byte(0xa0);		/* IfOp */
-	acpigen_write_len_f();		/* PkgLength */
-	acpigen_emit_namestring("PWRS");
-	acpigen_emit_byte(0xa4);	/* ReturnOp */
-	generate_cstate_entries(cpu->cstates, conf->c1_acpower,
-				conf->c2_acpower, conf->c3_acpower);
-	acpigen_pop_len();
-
-	/* Else on battery power */
-	acpigen_emit_byte(0xa4);	/* ReturnOp */
-	generate_cstate_entries(cpu->cstates, conf->c1_battery,
-				conf->c2_battery, conf->c3_battery);
-	acpigen_pop_len();
+	acpigen_write_CST_package(acpi_cstate_map, count);
 }
 
 static acpi_tstate_t tss_table_fine[] = {
@@ -280,7 +322,6 @@ static void generate_P_state_entries(int core, int cores_per_package)
 	/* Generate the remaining entries */
 	for (ratio = ratio_min + ((num_entries - 1) * ratio_step);
 	     ratio >= ratio_min; ratio -= ratio_step) {
-
 		/* Calculate power at this ratio */
 		power = calculate_power(power_max, ratio_max, ratio);
 		clock = ratio * SANDYBRIDGE_BCLK;
@@ -298,42 +339,37 @@ static void generate_P_state_entries(int core, int cores_per_package)
 	acpigen_pop_len();
 }
 
-void generate_cpu_entries(struct device *device)
+static void generate_cpu_entry(const struct device *device, int cpu, int core, int cores_per_package)
 {
-	int coreID, cpuID, pcontrol_blk = PMB0_BASE, plen = 6;
+	/* Generate Scope(\_SB) { Device(CPUx */
+	acpigen_write_processor_device(cpu * cores_per_package + core);
+
+	/* Generate P-state tables */
+	generate_P_state_entries(cpu, cores_per_package);
+
+	/* Generate C-state tables */
+	generate_C_state_entries(device);
+
+	/* Generate T-state tables */
+	generate_T_state_entries(cpu, cores_per_package);
+
+	acpigen_write_processor_device_end();
+}
+
+void generate_cpu_entries(const struct device *device)
+{
 	int totalcores = dev_count_cpu();
-	int cores_per_package = get_cores_per_package();
-	int numcpus = totalcores/cores_per_package;
+	int cores_per_package = get_logical_cores_per_package();
+	int numcpus = totalcores / cores_per_package;
 
 	printk(BIOS_DEBUG, "Found %d CPU(s) with %d core(s) each.\n",
 	       numcpus, cores_per_package);
 
-	for (cpuID = 1; cpuID <= numcpus; cpuID++) {
-		for (coreID = 1; coreID <= cores_per_package; coreID++) {
-			if (coreID > 1) {
-				pcontrol_blk = 0;
-				plen = 0;
-			}
+	print_supported_cstates();
 
-			/* Generate processor \_PR.CPUx */
-			acpigen_write_processor(
-				(cpuID-1)*cores_per_package+coreID-1,
-				pcontrol_blk, plen);
-
-			/* Generate P-state tables */
-			generate_P_state_entries(
-				cpuID-1, cores_per_package);
-
-			/* Generate C-state tables */
-			generate_C_state_entries();
-
-			/* Generate T-state tables */
-			generate_T_state_entries(
-				cpuID-1, cores_per_package);
-
-			acpigen_pop_len();
-		}
-	}
+	for (int cpu_id = 0; cpu_id < numcpus; cpu_id++)
+		for (int core_id = 0; core_id < cores_per_package; core_id++)
+			generate_cpu_entry(device, cpu_id, core_id, cores_per_package);
 
 	/* PPKG is usually used for thermal management
 	   of the first and only package. */
@@ -344,5 +380,5 @@ void generate_cpu_entries(struct device *device)
 }
 
 struct chip_operations cpu_intel_model_206ax_ops = {
-	CHIP_NAME("Intel SandyBridge/IvyBridge CPU")
+	.name = "Intel SandyBridge/IvyBridge CPU",
 };

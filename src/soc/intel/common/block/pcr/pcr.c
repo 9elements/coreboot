@@ -1,25 +1,18 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <device/mmio.h>
+#define __SIMPLE_DEVICE__
+
 #include <assert.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
-#include <intelblocks/pcr.h>
+#include <device/mmio.h>
+#include <device/pci_def.h>
 #include <device/pci_ops.h>
+#include <device/pci_type.h>
+#include <intelblocks/pcr.h>
 #include <soc/pci_devs.h>
 #include <timer.h>
+#include <types.h>
 
 #if (CONFIG_PCR_BASE_ADDRESS == 0)
 #error "PCR_BASE_ADDRESS need to be non-zero!"
@@ -221,11 +214,7 @@ void pcr_or8(uint8_t pid, uint16_t offset, uint8_t ordata)
 
 #if !CONFIG(PCR_COMMON_IOSF_1_0)
 
-#ifdef __SIMPLE_DEVICE__
-static int pcr_wait_for_completion(pci_devfn_t dev)
-#else
-static int pcr_wait_for_completion(struct device *dev)
-#endif
+static int pcr_wait_for_completion(const pci_devfn_t dev)
 {
 	struct stopwatch sw;
 
@@ -255,14 +244,9 @@ static int pcr_wait_for_completion(struct device *dev)
  * 0: SBI message is successfully completed
  * -1: SBI message failure
  */
-int pcr_execute_sideband_msg(struct pcr_sbi_msg *msg, uint32_t *data,
+int pcr_execute_sideband_msg(pci_devfn_t dev, struct pcr_sbi_msg *msg, uint32_t *data,
 		uint8_t *response)
 {
-#if defined(__SIMPLE_DEVICE__)
-	pci_devfn_t dev = PCH_DEV_P2SB;
-#else
-	struct device *dev = PCH_DEV_P2SB;
-#endif
 	uint32_t sbi_data;
 	uint16_t sbi_status;
 	uint16_t sbi_rid;
@@ -287,7 +271,6 @@ int pcr_execute_sideband_msg(struct pcr_sbi_msg *msg, uint32_t *data,
 			printk(BIOS_ERR, "SBI Failure: Wrong Input = %x!\n",
 					msg->opcode);
 			return -1;
-			break;
 	}
 
 	if (pci_read_config16(dev, PCI_VENDOR_ID) == 0xffff) {
@@ -349,6 +332,7 @@ int pcr_execute_sideband_msg(struct pcr_sbi_msg *msg, uint32_t *data,
 		case MEM_WRITE:
 		case PCI_CONFIG_WRITE:
 		case PCR_WRITE:
+		case GPIO_LOCK_UNLOCK:
 			/*
 			 * 6. Write P2SB PCI offset D4h[31:0] with the
 			 * intended data accordingly

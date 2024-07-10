@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <soc/iomap.h>
 #include <soc/irq.h>
@@ -36,9 +22,11 @@ Device (GPSC)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-		Add (IO_BASE_ADDRESS, IO_BASE_OFFSET_GPSCORE, RBAS)
+		RBAS = IO_BASE_ADDRESS + IO_BASE_OFFSET_GPSCORE
 		Return (^RBUF)
 	}
+
+	Method (_HRV, 0, NotSerialized) { Return (0x06) }
 
 	Method (_STA)
 	{
@@ -65,9 +53,11 @@ Device (GPNC)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-		Add (IO_BASE_ADDRESS, IO_BASE_OFFSET_GPNCORE, RBAS)
+		RBAS = IO_BASE_ADDRESS + IO_BASE_OFFSET_GPNCORE
 		Return (^RBUF)
 	}
+
+	Method (_HRV, 0, NotSerialized) { Return (0x06) }
 
 	Method (_STA)
 	{
@@ -94,9 +84,11 @@ Device (GPSS)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^RMEM._BAS, RBAS)
-		Add (IO_BASE_ADDRESS, IO_BASE_OFFSET_GPSSUS, RBAS)
+		RBAS = IO_BASE_ADDRESS + IO_BASE_OFFSET_GPSSUS
 		Return (^RBUF)
 	}
+
+	Method (_HRV, 0, NotSerialized) { Return (0x06) }
 
 	Method (_STA)
 	{

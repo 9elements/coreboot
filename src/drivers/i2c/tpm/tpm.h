@@ -1,32 +1,18 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * Copyright (C) 2011 Infineon Technologies
- *
- * Authors:
- * Peter Huewe <huewe.external@infineon.com>
- *
- * Version: 2.1.1
- *
  * Description:
  * Device driver for TCG/TCPA TPM (trusted platform module).
  * Specifications at www.trustedcomputinggroup.org
  *
  * It is based on the Linux kernel driver tpm.c from Leendert van
  * Dorn, Dave Safford, Reiner Sailer, and Kyleen Hall.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation, version 2 of the
- * License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #ifndef __DRIVERS_TPM_SLB9635_I2C_TPM_H__
 #define __DRIVERS_TPM_SLB9635_I2C_TPM_H__
 
+#include <security/tpm/tss_errors.h>
 #include <stdint.h>
 
 enum tpm_timeout {
@@ -52,30 +38,21 @@ enum tpm_timeout {
 #define	TPM_DATA_FIFO(l)		(0x0005 | ((l) << 4))
 #define	TPM_DID_VID(l)			(0x0006 | ((l) << 4))
 
-struct tpm_chip;
-
-struct tpm_vendor_specific {
+struct tpm_chip {
 	uint8_t req_complete_mask;
 	uint8_t req_complete_val;
 	uint8_t req_canceled;
-	int (*recv)(struct tpm_chip *, uint8_t *, size_t);
-	int (*send)(struct tpm_chip *, uint8_t *, size_t);
-	void (*cancel)(struct tpm_chip *);
-	uint8_t (*status)(struct tpm_chip *);
-	int locality;
-};
 
-struct tpm_chip {
-	int is_open;
-	struct tpm_vendor_specific vendor;
+	int (*recv)(uint8_t *buf, size_t len);
+	int (*send)(uint8_t *buf, size_t len);
+	void (*cancel)(void);
+	uint8_t (*status)(void);
 };
 
 /* ---------- Interface for TPM vendor ------------ */
 
-int tpm_vendor_probe(unsigned int bus, uint32_t addr);
+tpm_result_t tpm_vendor_probe(unsigned int bus, uint32_t addr);
 
-int tpm_vendor_init(struct tpm_chip *chip, unsigned int bus, uint32_t dev_addr);
-
-void tpm_vendor_cleanup(struct tpm_chip *chip);
+tpm_result_t tpm_vendor_init(struct tpm_chip *chip, unsigned int bus, uint32_t dev_addr);
 
 #endif /* __DRIVERS_TPM_SLB9635_I2C_TPM_H__ */

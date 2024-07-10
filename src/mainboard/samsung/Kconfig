@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if VENDOR_SAMSUNG
 
 choice
@@ -10,7 +12,6 @@ endchoice
 source "src/mainboard/samsung/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "SAMSUNG"
 
 endif # VENDOR_SAMSUNG

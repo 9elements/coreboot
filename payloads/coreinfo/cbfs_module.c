@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreinfo project.
- *
- * Copyright (C) 2009 Uwe Hermann <uwe@hermann-uwe.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include "coreinfo.h"
 #include "endian.h"
@@ -44,7 +31,7 @@ struct cbheader {
 	u32 align;
 	u32 offset;
 	u32 architecture;
-	u32 pad[1];
+	u32 pad[];
 } __packed;
 
 struct cbfile {
@@ -53,7 +40,7 @@ struct cbfile {
 	u32 type;
 	u32 checksum;
 	u32 offset;
-	char filename[0];
+	char filename[];
 } __packed;
 
 static int filecount = 0, selected = 0, start_row = 0;
@@ -81,7 +68,7 @@ static struct cbfile *firstfile(void)
 
 static struct cbfile *nextfile(struct cbfile *f)
 {
-	f = (struct cbfile *)((u8 *)f + ALIGN(ntohl(f->len) + ntohl(f->offset),
+	f = (struct cbfile *)((u8 *)f + ALIGN_UP(ntohl(f->len) + ntohl(f->offset),
 			      ntohl(header->align)));
 	return getfile(f);
 }

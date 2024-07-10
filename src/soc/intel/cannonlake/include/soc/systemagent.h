@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2008 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_CANNONLAKE_SYSTEMAGENT_H
 #define SOC_CANNONLAKE_SYSTEMAGENT_H
@@ -50,19 +35,10 @@
 #define IMRBASE			0x6A40
 #define IMRLIMIT		0x6A48
 
-#if CONFIG(SOC_INTEL_COFFEELAKE) || CONFIG(SOC_INTEL_WHISKEYLAKE) \
-				 || CONFIG(SOC_INTEL_COMETLAKE)
 static const struct sa_mmio_descriptor soc_vtd_resources[] = {
 	{ GFXVTBAR, GFXVT_BASE_ADDRESS, GFXVT_BASE_SIZE, "GFXVTBAR" },
 	{ VTVC0BAR, VTVC0_BASE_ADDRESS, VTVC0_BASE_SIZE, "VTVC0BAR" },
 };
-#else
-static const struct sa_mmio_descriptor soc_vtd_resources[] = {
-	{ GFXVTBAR, GFXVT_BASE_ADDRESS, GFXVT_BASE_SIZE, "GFXVTBAR" },
-	{ IPUVTBAR, IPUVT_BASE_ADDRESS, IPUVT_BASE_SIZE, "IPUVTBAR" },
-	{ VTVC0BAR, VTVC0_BASE_ADDRESS, VTVC0_BASE_SIZE, "VTVC0BAR" },
-};
-#endif
 
 #define V_P2SB_CFG_IBDF_BUS	0
 #define V_P2SB_CFG_IBDF_DEV	30

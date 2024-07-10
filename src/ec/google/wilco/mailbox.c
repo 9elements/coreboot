@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
 #include <console/console.h>
 #include <delay.h>
 #include <ec/google/common/mec.h>
-#include <stdint.h>
 #include <string.h>
 #include <timer.h>
 #include <types.h>
@@ -195,7 +181,7 @@ static int wilco_ec_transfer(struct wilco_ec_message *msg)
 	skip_size = (msg->type == WILCO_EC_MSG_DEFAULT) ? 1 : 0;
 
 	if (msg->response_size > rs.data_size - skip_size) {
-		printk(BIOS_ERR, "%s: data too short (%lu bytes, expected %zu)",
+		printk(BIOS_ERR, "%s: data too short (%zu bytes, expected %zu)",
 		       __func__, rs.data_size - skip_size, msg->response_size);
 		return -1;
 	}

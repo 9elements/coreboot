@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  *
@@ -57,4 +56,4 @@ ENDPROC(_entry)
 1:
 .word	cb_header_ptr
 2:
-.word	_stack
+.word	_estack

@@ -1,17 +1,4 @@
-/*
- *  Copyright (C) 2012 Samsung Electronics
- *  Rajeshwari Shinde <rajeshwari.s@samsung.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef __MAX77802_H_
 #define __MAX77802_H_
@@ -212,7 +199,7 @@ enum {
 #define MAX77802_BUCK_TYPE2_ON	(1 << 4)
 #define MAX77802_BUCK_TYPE2_IGNORE_PWRREQ (1 << 5)
 
-/* LDO35 1.2 volt value for bridge ic */
+/* LDO35 1.2 volt value for bridge IC */
 #define MAX77802_LDO35CTRL1_1_2V (1 << 4)
 #define MAX77802_LOD35CTRL1_ON	 (1 << 6)
 

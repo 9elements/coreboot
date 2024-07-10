@@ -14,48 +14,77 @@
 #          docker build command, the 'COPY' keyword isn't valid.
 
 FROM coreboot/coreboot-sdk:{{SDK_VERSION}}
-MAINTAINER Martin Roth <martin@coreboot.org>
 USER root
 
 RUN apt-get -y update && \
 	apt-get -y install \
-	lua5.3 liblua5.3-dev default-jre-headless openssh-server && \
-	apt-get clean
-
-# Because of the way that the variables are being replaced, docker's 'COPY'
-# command does not work
-RUN mkdir -p /home/coreboot/.ssh && \
-	echo "{{SSH_KEY}}" > /home/coreboot/.ssh/authorized_keys && \
-	chown -R coreboot:coreboot /home/coreboot/.ssh && \
-	chmod 0700 /home/coreboot/.ssh && \
-	chmod 0600 /home/coreboot/.ssh/authorized_keys
+		default-jre-headless \
+		libcmocka-dev \
+		liblua5.4-dev \
+		linkchecker \
+		lua5.4 \
+		openssh-server \
+		parallel \
+		ruby-full \
+		sdcc \
+		python3-pip \
+		pykwalify \
+		python3-venv \
+		python3-yaml \
+		python3-pyelftools \
+		python3-jsonschema \
+		python3-colorama \
+		python3-pyrsistent \
+		swig \
+	&& apt-get clean \
+	&& gem install mdl
 
 RUN mkdir /var/run/sshd && \
 	chmod 0755 /var/run/sshd && \
 	/usr/bin/ssh-keygen -A
 
-# Create /cb-build as a tmpfs directory to build in
+# Create tmpfs directories to build in
 RUN mkdir /cb-build && \
 	chown coreboot:coreboot /cb-build && \
-	echo "tmpfs /cb-build tmpfs rw,mode=1777 0 0" > /etc/fstab && \
-	mkdir -p /home/coreboot/slave-root/workspace && \
-	chown -R coreboot:coreboot /home/coreboot/slave-root && \
-	echo "tmpfs /home/coreboot/slave-root/workspace tmpfs rw,mode=1777 0 0" >> /etc/fstab && \
+	echo "tmpfs /cb-build tmpfs rw,mode=1777,noatime 0 0" > /etc/fstab && \
+	mkdir -p /home/coreboot/node-root/workspace && \
+	chown -R coreboot:coreboot /home/coreboot/node-root && \
+	echo "tmpfs /home/coreboot/node-root/workspace tmpfs rw,mode=1777,strictatime,atime 0 0" >> /etc/fstab && \
 	chown coreboot:coreboot /home/coreboot/.ccache && \
 	echo "tmpfs /home/coreboot/.ccache tmpfs rw,mode=1777 0 0" >> /etc/fstab
 
 # Build encapsulate tool
-ADD https://raw.githubusercontent.com/pgeorgi/encapsulate/master/encapsulate.c /tmp/encapsulate.c
+ADD https://raw.githubusercontent.com/coreboot/encapsulate/master/encapsulate.c /tmp/encapsulate.c
 RUN gcc -o /usr/sbin/encapsulate /tmp/encapsulate.c && \
 	chown root /usr/sbin/encapsulate && \
 	chmod +s /usr/sbin/encapsulate
 
 VOLUME /data/cache
 ENTRYPOINT mount /cb-build && \
-	mount /home/coreboot/slave-root/workspace && \
-	chown -R coreboot:coreboot /home/coreboot/slave-root && \
+	mount /home/coreboot/node-root/workspace && \
+	chown -R coreboot:coreboot /home/coreboot/node-root && \
 	mount /home/coreboot/.ccache && \
 	chown coreboot:coreboot /home/coreboot/.ccache && \
 	/usr/sbin/sshd -p 49151 -D
 EXPOSE 49151
-ENV PATH $PATH:/usr/sbin
+
+USER coreboot
+ENV VIRTUAL_ENV="/home/coreboot/python3"
+ENV PATH=$VIRTUAL_ENV/bin:$PATH:/home/coreboot/.local/bin
+RUN echo 'export PATH=$PATH:/opt/xgcc/bin' >> /home/coreboot/.bashrc && \
+	echo "source ${VIRTUAL_ENV}/bin/activate"  >> /home/coreboot/.bashrc && \
+	python3 -m venv /home/coreboot/python3 && \
+	pip3 install --upgrade --no-cache-dir pip && \
+	pip3 install --no-cache-dir \
+		setuptools==58.2.0 \
+		jinja2==3.1.2 \
+		recommonmark===0.7.1 \
+		sphinx===6.2.1 \
+		sphinxcontrib-ditaa===1.0.2 \
+		sphinx_autobuild===2021.3.14 \
+		sphinx_rtd_theme===1.2.2 \
+	&& mkdir -p /home/coreboot/.ssh && \
+	echo "{{SSH_KEY}}" > /home/coreboot/.ssh/authorized_keys && \
+	chmod 0700 /home/coreboot/.ssh && \
+	chmod 0600 /home/coreboot/.ssh/authorized_keys
+USER root

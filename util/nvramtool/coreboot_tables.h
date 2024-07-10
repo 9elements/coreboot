@@ -45,33 +45,11 @@
  * 64bit system, a uint64_t would be aligned to 64bit boundaries,
  * breaking the table format.
  *
- * lb_uint64 will keep 64bit coreboot table values aligned to 32bit
- * to ensure compatibility. They can be accessed with the two functions
- * below: unpack_lb64() and pack_lb64()
- *
- * See also: util/lbtdump/lbtdump.c
+ * lb_uint64_t will keep 64bit coreboot table values aligned to 32bit
+ * to ensure compatibility.
  */
 
-struct lb_uint64 {
-	uint32_t lo;
-	uint32_t hi;
-};
-
-static inline uint64_t unpack_lb64(struct lb_uint64 value)
-{
-	uint64_t result;
-	result = value.hi;
-	result = (result << 32) + value.lo;
-	return result;
-}
-
-static inline struct lb_uint64 pack_lb64(uint64_t value)
-{
-	struct lb_uint64 result;
-	result.lo = (value >> 0) & 0xffffffff;
-	result.hi = (value >> 32) & 0xffffffff;
-	return result;
-}
+typedef __attribute__((aligned(4))) uint64_t lb_uint64_t;
 
 struct lb_header {
 	union {
@@ -101,8 +79,8 @@ struct lb_record {
 #define LB_TAG_MEMORY		0x0001
 
 struct lb_memory_range {
-	struct lb_uint64 start;
-	struct lb_uint64 size;
+	lb_uint64_t start;
+	lb_uint64_t size;
 	uint32_t type;
 #define LB_MEM_RAM	1	/* Memory anyone can use */
 #define LB_MEM_RESERVED	2	/* Don't use this memory region */
@@ -112,7 +90,7 @@ struct lb_memory_range {
 struct lb_memory {
 	uint32_t tag;
 	uint32_t size;
-	struct lb_memory_range map[0];
+	struct lb_memory_range map[];
 };
 
 #define LB_TAG_HWRPB		0x0002
@@ -128,7 +106,7 @@ struct lb_mainboard {
 	uint32_t size;
 	uint8_t vendor_idx;
 	uint8_t part_number_idx;
-	uint8_t strings[0];
+	uint8_t strings[];
 };
 
 #define LB_TAG_VERSION		0x0004
@@ -144,7 +122,7 @@ struct lb_mainboard {
 struct lb_string {
 	uint32_t tag;
 	uint32_t size;
-	uint8_t string[0];
+	uint8_t string[];
 };
 #define LB_TAG_SERIAL		0x000f
 #define LB_TAG_CONSOLE		0x0010

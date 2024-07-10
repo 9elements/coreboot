@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __I2C_GENERIC_CHIP_H__
 #define __I2C_GENERIC_CHIP_H__
 
-#include <arch/acpi_device.h>
+#include <acpi/acpi_device.h>
 #include <device/i2c_simple.h>
 
 #define MAX_GENERIC_PROPERTY_LIST 10
@@ -24,11 +11,13 @@
 struct drivers_i2c_generic_config {
 	const char *hid;	/* ACPI _HID (required) */
 	const char *cid;	/* ACPI _CID */
+	const char *sub;	/* ACPI _SUB */
 	const char *name;	/* ACPI Device Name */
 	const char *desc;	/* Device Description */
-	unsigned uid;		/* ACPI _UID */
+	unsigned int uid;		/* ACPI _UID */
 	enum i2c_speed speed;	/* Bus speed in Hz, default is I2C_SPEED_FAST */
-	unsigned wake;		/* Wake GPE */
+	const char *compat_string;	/* Compatible string for _HID=PRP0001 */
+	unsigned int wake;		/* Wake GPE */
 	struct acpi_irq irq;	/* Interrupt */
 
 	/* Use GPIO based interrupt instead of PIRQ */
@@ -43,12 +32,20 @@ struct drivers_i2c_generic_config {
 	 */
 	int probed;
 
-	/* GPIO used to indicate if this device is present */
-	unsigned device_present_gpio;
-	unsigned device_present_gpio_invert;
+	/*
+	 * This flag will add a device property which will indicate
+	 * that coreboot should attempt to detect the device on the i2c
+	 * bus before generating a device entry in the SSDT.
+	 *
+	 * This can be used to declare a device that may not exist on
+	 * the board, for example to support multiple touchpads and/or
+	 * touchscreens.
+	 */
+	int detect;
 
-	/* Disable reset and enable GPIO export in _CRS */
-	bool disable_gpio_export_in_crs;
+	/* GPIO used to indicate if this device is present */
+	unsigned int device_present_gpio;
+	unsigned int device_present_gpio_invert;
 
 	/* Does the device have a power resource? */
 	bool has_power_resource;
@@ -72,6 +69,19 @@ struct drivers_i2c_generic_config {
 	/* Delay to be inserted after enabling stop. */
 	unsigned int stop_off_delay_ms;
 
+	/*
+	 * The Rotation Matrix' allows specifying a 3x3 matrix representing
+	 * the orientation of devices, such as accelerometers. Each value in
+	 * the matrix can be one of -1, 0, or 1, indicating the transformation
+	 * applied to the device's axes.
+	 *
+	 * It is expected by linux and required for the OS to correctly interpret
+	 * the data from the device.
+	 */
+	bool has_rotation_matrix;
+	int rotation_matrix[9];
+
+
 	/* Generic properties for exporting device-specific data to the OS */
 	struct acpi_dp property_list[MAX_GENERIC_PROPERTY_LIST];
 	int property_count;
@@ -87,8 +97,8 @@ struct drivers_i2c_generic_config {
  * callback: Callback to fill in device-specific information
  * config: Pointer to drivers_i2c_generic_config structure
  */
-void i2c_generic_fill_ssdt(struct device *dev,
-			void (*callback)(struct device *dev),
+void i2c_generic_fill_ssdt(const struct device *dev,
+			void (*callback)(const struct device *dev),
 			struct drivers_i2c_generic_config *config);
 
 #endif /* __I2C_GENERIC_CHIP_H__ */

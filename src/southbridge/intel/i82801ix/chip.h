@@ -1,22 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *               2012 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801IX_CHIP_H
 #define SOUTHBRIDGE_INTEL_I82801IX_CHIP_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 enum {
@@ -69,17 +56,17 @@ struct southbridge_intel_i82801ix_config {
 
 	/* IDE configuration */
 	uint8_t sata_port_map : 6;
-	int sata_clock_request : 1;
-	int sata_traffic_monitor : 1;
+	bool sata_clock_request;
+	bool sata_traffic_monitor;
 
-	int c4onc3_enable:1;
-	int c5_enable : 1;
-	int c6_enable : 1;
+	bool c4onc3_enable;
+	bool c5_enable;
+	bool c6_enable;
 
-	int throttle_duty : 3;
+	unsigned int throttle_duty : 3;
 
 	/* Bit mask to tell whether a PCIe slot is implemented as slot. */
-	int pcie_slot_implemented : 6;
+	unsigned int pcie_slot_implemented : 6;
 
 	/* Power limits for PCIe ports. Values are in 10^(-scale) watts. */
 	struct {
@@ -87,7 +74,13 @@ struct southbridge_intel_i82801ix_config {
 		uint8_t scale : 2;
 	} pcie_power_limits[6];
 
-	uint8_t pcie_hotplug_map[8];
+	bool pcie_hotplug_map[8];
+
+	/* Additional LPC IO decode ranges */
+	uint32_t gen1_dec;
+	uint32_t gen2_dec;
+	uint32_t gen3_dec;
+	uint32_t gen4_dec;
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_I82801IX_CHIP_H */

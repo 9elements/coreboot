@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2011 secunet Security Networks AG
  *
@@ -30,6 +29,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef __TEST__
+
+/* CMocka function redefinition */
+void mock_assert(const int result, const char *const expression, const char *const file,
+		 const int line);
+
+#define MOCK_ASSERT(result, expression) mock_assert((result), (expression), __FILE__, __LINE__)
+#define assert(statement) MOCK_ASSERT(!!(statement), #statement)
+
+#else
+
 // assert's existence depends on NDEBUG state on _last_ inclusion of assert.h,
 // so don't guard this against double-includes.
 #ifdef NDEBUG
@@ -40,7 +50,9 @@
 	if ((statement) == 0) {					\
 		fprintf(stderr, "assertion failed in file %s, "	\
 			"function %s(), line %d\n",		\
-			 __FILE__, __FUNCTION__, __LINE__);	\
+			 __FILE__, __func__, __LINE__);	\
 		abort();					\
 	}
 #endif
+
+#endif /* __TEST__ */

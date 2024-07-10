@@ -1,20 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2008 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef RAMINIT_H
 #define RAMINIT_H
+
+#include <types.h>
 
 #define DIMM_SOCKETS 2
 
@@ -37,11 +26,11 @@ struct sys_info {
 	u8 cas;			/* 3, 4 or 5 */
 	u8 refresh;		/* 0 = 15.6us, 1 = 7.8us */
 
-	u8 dual_channel;	/* 0 or 1 */
-	u8 interleaved;
+	bool dual_channel;
+	bool interleaved;
 
 	u8 mvco4x;		/* 0 (8x) or 1 (4x) */
-	u8 clkcfg_bit7;
+	bool clkcfg_bit7;
 	u8 boot_path;
 #define BOOT_PATH_NORMAL	0
 #define BOOT_PATH_RESET		1
@@ -60,13 +49,12 @@ struct sys_info {
 #define SYSINFO_DIMM_NOT_POPULATED	0x04
 
 	u8 banks[2 * DIMM_SOCKETS];
-	u8 banksize[2 * 2 * DIMM_SOCKETS];
+	size_t banksize[2 * 2 * DIMM_SOCKETS];
 	const u8 *spd_addresses;
 
 } __packed;
 
 void receive_enable_adjust(struct sys_info *sysinfo);
 void sdram_initialize(int boot_path, const u8 *sdram_addresses);
-int fixup_i945_errata(void);
-void udelay(u32 us);
+int fixup_i945gm_errata(void);
 #endif				/* RAMINIT_H */

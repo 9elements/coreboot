@@ -1,27 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- * Copyright (C) 2017-2018 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <commonlib/helpers.h>
 #include <baseboard/variants.h>
 
-/*
- * Pad configuration in ramstage. The order largely follows the 'GPIO Muxing'
- * table found in EDS vol 1, but some pins aren't grouped functionally in
- * the table so those were moved for more logical grouping.
- */
+/* Pad configuration in ramstage. The order largely follows the 'GPIO Muxing' table found in
+   EDS vol 1, but some pins aren't grouped functionally in the table so those were moved for
+   more logical grouping. */
 static const struct pad_config gpio_table[] = {
 	/* Southwest Community */
 
@@ -47,7 +31,7 @@ static const struct pad_config gpio_table[] = {
 	/* SDIO - unused */
 	PAD_CFG_GPI(GPIO_166, DN_20K, DEEP),
 	PAD_CFG_GPI(GPIO_167, DN_20K, DEEP),
-	PAD_CFG_GPI(GPIO_168, DN_20K, DEEP),
+	PAD_CFG_NF(GPIO_168, UP_20K, DEEP, NF1),
 	PAD_CFG_GPI(GPIO_169, DN_20K, DEEP),
 	PAD_CFG_GPI(GPIO_170, DN_20K, DEEP),
 	PAD_CFG_GPI(GPIO_171, DN_20K, DEEP),
@@ -60,11 +44,9 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_NF(GPIO_176, UP_20K, DEEP, NF1),	/* SDCARD_D3 */
 	PAD_CFG_NF(GPIO_177, UP_20K, DEEP, NF1),	/* SDCARD_CD_N */
 	PAD_CFG_NF(GPIO_178, UP_20K, DEEP, NF1),	/* SDCARD_CMD */
-	/*
-	 * SDCARD_CLK_FB - APL EDS Vol1 remarks:
-	 * This is not a physical GPIO that can be used. This Signal is not Ball
-	 * out on the SoC, only the buffer exists.
-	*/
+	/* SDCARD_CLK_FB - APL EDS Vol1 remarks:
+	   This is not a physical GPIO that can be used. This Signal is not Ball out on the
+	   SoC, only the buffer exists. */
 	PAD_CFG_NF(GPIO_179, DN_20K, DEEP, NF1),
 	PAD_CFG_NF(GPIO_186, UP_20K, DEEP, NF1),	/* SDCARD_WP_1V8 */
 	PAD_CFG_TERM_GPO(GPIO_183, 1, UP_20K, DEEP),	/* SD_PWR_EN_1V8 */
@@ -85,11 +67,9 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_NF(GPIO_132, NONE, DEEP, NF1),	/* provided LPSS_I2C4_SDA */
 	PAD_CFG_NF(GPIO_133, NONE, DEEP, NF1),	/* provided LPSS_I2C4_SCL */
 
-	/*
-	 * Hint for USB enable power: some GPIOs are open drain outputs,
-	 * to drive high -> Bit GPIO_TX_DIS has to be set in combination with PU
-	 * PAD_CFG_GPO macro does not work. Refer to APL EDS Vol 4.
-	 */
+	/* Hint for USB enable power: some GPIOs are open drain outputs, to drive high -> Bit
+	   GPIO_TX_DIS has to be set in combination with PU PAD_CFG_GPO macro does not work.
+	   Refer to APL EDS Vol 4. */
 	PAD_CFG_GPI(GPIO_134, UP_20K, DEEP),		/* enable USB0 power */
 	PAD_CFG_GPI(GPIO_135, UP_20K, DEEP),		/* unused */
 	PAD_CFG_GPI(GPIO_136, UP_20K, DEEP),		/* enable USB7 power */
@@ -178,7 +158,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_GPI(PMC_SPI_CLK, DN_20K, DEEP),		/* unused */
 
 	/* PMIC Signals unused signals related to an old PMIC interface. */
-	PAD_CFG_GPI(PMIC_PWRGOOD, DN_20K, DEEP),	/* PMIC_PWRGOOD */
+	PAD_CFG_NF(PMIC_PWRGOOD, DN_20K, DEEP, NF1),	/* PMIC_PWRGOOD */
 	PAD_CFG_GPI(PMIC_RESET_B, DN_20K, DEEP),	/* PMIC_RESET_B */
 	PAD_CFG_GPI(GPIO_213, UP_20K, DEEP),		/* PMIC_SDWN_B */
 	PAD_CFG_GPI(GPIO_214, DN_20K, DEEP),		/* PMIC_BCUDISW2 */
@@ -224,8 +204,8 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_NF(GPIO_101, NATIVE, DEEP, NF1),/* FST_IO2 - MEM_CONFIG0 */
 	PAD_CFG_NF(GPIO_102, NATIVE, DEEP, NF1),/* FST_IO3 - MEM_CONFIG1 */
 	PAD_CFG_NF(GPIO_103, NATIVE, DEEP, NF1),/* FST_SPI_CLK */
-	/* FST_SPI_CLK_FB - Pad not bonded, default register value is the same
-	 * as here. Refer to Intel Doc APL EDS Vol 1 */
+	/* FST_SPI_CLK_FB - Pad not bonded, default register value is the same as here. Refer
+	   to Intel Doc APL EDS Vol 1 */
 	PAD_CFG_NF(FST_SPI_CLK_FB, NONE, DEEP, NF1),
 
 	/* SIO_SPI_0 for F-module on mainboard */
@@ -318,16 +298,16 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_GPI(GPIO_73, DN_20K, DEEP),		/* pin open */
 
 	/* no TAP controller pins available on SMARC of APL4 */
-	PAD_CFG_GPI(TCK, DN_20K, DEEP),			/* pin open */
-	PAD_CFG_GPI(TRST_B, DN_20K, DEEP),		/* pin open */
-	PAD_CFG_GPI(TMS, DN_20K, DEEP),			/* pin open */
-	PAD_CFG_GPI(TDI, DN_20K, DEEP),			/* pin open */
+	PAD_CFG_NF(TCK, DN_20K, DEEP, NF1),		/* pin open */
+	PAD_CFG_NF(TRST_B, DN_20K, DEEP, NF1),		/* pin open */
+	PAD_CFG_NF(TMS, DN_20K, DEEP, NF1),		/* pin open */
+	PAD_CFG_NF(TDI, DN_20K, DEEP, NF1),		/* pin open */
 
-	PAD_CFG_GPI(CX_PMODE, DN_20K, DEEP),		/* pin open */
-	PAD_CFG_GPI(CX_PREQ_B, DN_20K, DEEP),		/* pin open */
-	PAD_CFG_GPI(JTAGX, DN_20K, DEEP),		/* pin open */
-	PAD_CFG_GPI(CX_PRDY_B, DN_20K, DEEP),		/* pin open */
-	PAD_CFG_GPI(TDO, DN_20K, DEEP),			/* pin open */
+	PAD_CFG_NF(CX_PMODE, DN_20K, DEEP, NF1),	/* pin open */
+	PAD_CFG_NF(CX_PREQ_B, DN_20K, DEEP, NF1),	/* pin open */
+	PAD_CFG_NF(JTAGX, DN_20K, DEEP, NF1),		/* pin open */
+	PAD_CFG_NF(CX_PRDY_B, DN_20K, DEEP, NF1),	/* pin open */
+	PAD_CFG_NF(TDO, DN_20K, DEEP, NF1),		/* pin open */
 
 	/* GPIO_[216:219] described into EDS Vol1. */
 	PAD_CFG_GPO(CNV_BRI_DT, 0, DEEP),	/* Disable eDP to LVDS bridge */
@@ -335,7 +315,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_GPI(CNV_RGI_DT, DN_20K, DEEP),		/* pin open */
 
 	/* Writing to following GPIO registers leads to 0xFFFF FFFF in CFG0/1 */
-	PAD_CFG_GPI(CNV_RGI_RSP, DN_20K, DEEP),		/* pin open */
+	PAD_CFG_NF(CNV_RGI_RSP, DN_20K, DEEP, NF1),	/* pin open */
 
 	/* Serial Voltage Identification */
 	PAD_CFG_NF(SVID0_ALERT_B, NONE, DEEP, NF1),	/* SVID0_ALERT_B */
@@ -351,6 +331,10 @@ const struct pad_config *variant_gpio_table(size_t *num)
 
 /* GPIOs needed prior to ramstage. */
 static const struct pad_config early_gpio_table[] = {
+	/* UART */
+	PAD_CFG_NF(GPIO_46, NATIVE, DEEP, NF1),				/* LPSS_UART2_RXD */
+	PAD_CFG_NF_IOSSTATE(GPIO_47, NATIVE, DEEP, NF1, Tx1RxDCRx0),	/* LPSS_UART2_TXD */
+
 	/* Southwest Community */
 
 	/* Multiplexed I2C7 */

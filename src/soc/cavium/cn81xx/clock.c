@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018       Facebook, Inc.
- * Copyright 2003-2017  Cavium Inc.  <support@cavium.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include <soc/clock.h>
 #include <device/mmio.h>
 #include <soc/addressmap.h>
@@ -53,7 +39,6 @@ u64 thunderx_get_ref_clock(void)
 	return PLL_REF_CLK;
 }
 
-
 /**
  * Returns the I/O clock speed in Hz
  */
@@ -61,7 +46,7 @@ u64 thunderx_get_io_clock(void)
 {
 	union cavm_rst_boot rst_boot;
 
-	rst_boot.u = read64((void *)RST_PF_BAR0);
+	rst_boot.u = read64p(RST_PF_BAR0);
 
 	return ((u64)rst_boot.s.pnr_mul) * PLL_REF_CLK;
 }
@@ -73,7 +58,7 @@ u64 thunderx_get_core_clock(void)
 {
 	union cavm_rst_boot rst_boot;
 
-	rst_boot.u = read64((void *)RST_PF_BAR0);
+	rst_boot.u = read64p(RST_PF_BAR0);
 
 	return ((u64)rst_boot.s.c_mul) * PLL_REF_CLK;
 }

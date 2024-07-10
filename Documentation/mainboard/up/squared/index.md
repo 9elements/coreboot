@@ -48,7 +48,7 @@
 +---------------------+------------+
 | Internal flashing   | No         |
 +---------------------+------------+
-| In curcuit flashing | Yes        |
+| In circuit flashing | Yes        |
 +---------------------+------------+
 ```
 
@@ -67,8 +67,8 @@ The GPIO header is located on the **bottom** side (see [here][overview_bottom_li
 The SPI header is located on the **bottom** side (see [here][overview_bottom_link]).
 ![][header_cn22]
 
-### Preperations
-In order to build coreboot, it's neccessary to extract some files from the vendor firmware. Make sure that you have a fully working dump.
+### Preparations
+In order to build coreboot, it's necessary to extract some files from the vendor firmware. Make sure that you have a fully working dump.
 ```bash
 [upsquared]$ ls
 firmware_vendor.rom
@@ -76,15 +76,15 @@ firmware_vendor.rom
 
 ```bash
 [upsquared]$ mkdir extracted && cd extracted
-[extracted]$ ifdtool -x ../firmware_vendor.rom 
+[extracted]$ ifdtool -x ../firmware_vendor.rom
 File ../firmware_vendor.rom is 16777216 bytes
 Peculiar firmware descriptor, assuming Ibex Peak compatibility.
-  Flash Region 0 (Flash Descriptor): 00000000 - 00000fff 
-  Flash Region 1 (BIOS): 00001000 - 00efefff 
+  Flash Region 0 (Flash Descriptor): 00000000 - 00000fff
+  Flash Region 1 (BIOS): 00001000 - 00efefff
   Flash Region 2 (Intel ME): 07fff000 - 00000fff (unused)
   Flash Region 3 (GbE): 07fff000 - 00000fff (unused)
   Flash Region 4 (Platform Data): 07fff000 - 00000fff (unused)
-  Flash Region 5 (Reserved): 00eff000 - 00ffefff 
+  Flash Region 5 (Reserved): 00eff000 - 00ffefff
   Flash Region 6 (Reserved): 07fff000 - 00000fff (unused)
   Flash Region 7 (Reserved): 07fff000 - 00000fff (unused)
   Flash Region 8 (EC): 07fff000 - 00000fff (unused)

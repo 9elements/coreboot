@@ -1,68 +1,101 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <device/mmio.h>
 #include <arch/ioapic.h>
 #include <console/console.h>
 #include <cpu/x86/lapic.h>
+#include <inttypes.h>
+#include <types.h>
 
-u32 io_apic_read(void *ioapic_base, u32 reg)
+#define ALL		(0xff << 24)
+#define NONE		(0)
+#define INT_DISABLED	(1 << 16)
+#define INT_ENABLED	(0 << 16)
+#define TRIGGER_EDGE	(0 << 15)
+#define TRIGGER_LEVEL	(1 << 15)
+#define POLARITY_HIGH	(0 << 13)
+#define POLARITY_LOW	(1 << 13)
+#define PHYSICAL_DEST	(0 << 11)
+#define LOGICAL_DEST	(1 << 11)
+#define ExtINT		(7 << 8)
+#define NMI		(4 << 8)
+#define SMI		(2 << 8)
+#define INT		(1 << 8)
+
+static u32 io_apic_read(uintptr_t ioapic_base, u32 reg)
 {
-	write32(ioapic_base, reg);
-	return read32(ioapic_base + 0x10);
+	write32p(ioapic_base, reg);
+	return read32p(ioapic_base + 0x10);
 }
 
-void io_apic_write(void *ioapic_base, u32 reg, u32 value)
+static void io_apic_write(uintptr_t ioapic_base, u32 reg, u32 value)
 {
-	write32(ioapic_base, reg);
-	write32(ioapic_base + 0x10, value);
+	write32p(ioapic_base, reg);
+	write32p(ioapic_base + 0x10, value);
 }
 
-static int ioapic_interrupt_count(void *ioapic_base)
+static void write_vector(uintptr_t ioapic_base, u8 vector, u32 high, u32 low)
 {
-	/* Read the available number of interrupts. */
-	int ioapic_interrupts = (io_apic_read(ioapic_base, 0x01) >> 16) & 0xff;
-	if (ioapic_interrupts == 0xff)
-		ioapic_interrupts = 23;
-	ioapic_interrupts += 1; /* Bits 23-16 specify the maximum redirection
-				   entry, which is the number of interrupts
-				   minus 1. */
-	printk(BIOS_DEBUG, "IOAPIC: %d interrupts\n", ioapic_interrupts);
+	io_apic_write(ioapic_base, vector * 2 + 0x10, low);
+	io_apic_write(ioapic_base, vector * 2 + 0x11, high);
 
-	return ioapic_interrupts;
+	printk(BIOS_SPEW, "IOAPIC: vector 0x%02x value 0x%08x 0x%08x\n",
+	       vector, high, low);
 }
 
-void clear_ioapic(void *ioapic_base)
+/* Bits 23-16 of register 0x01 specify the maximum redirection entry, which
+ * is the number of interrupts minus 1. */
+unsigned int ioapic_get_max_vectors(uintptr_t ioapic_base)
+{
+	u32 reg;
+	u8 count;
+
+	reg = io_apic_read(ioapic_base, 0x01);
+	count = (reg >> 16) & 0xff;
+
+	if (count == 0xff)
+		count = 23;
+	count++;
+
+	printk(BIOS_DEBUG, "IOAPIC: %d interrupts\n", count);
+	return count;
+}
+
+/* Set maximum number of redirection entries (MRE). It is write-once register
+ * for some chipsets, and a negative mre_count will lock it to the number
+ * of vectors read from the register. */
+void ioapic_set_max_vectors(uintptr_t ioapic_base, int mre_count)
+{
+	u32 reg;
+	u8 count;
+
+	reg = io_apic_read(ioapic_base, 0x01);
+	count = (reg >> 16) & 0xff;
+	if (mre_count > 0)
+		count = mre_count - 1;
+	reg &= ~(0xff << 16);
+	reg |= count << 16;
+	io_apic_write(ioapic_base, 0x01, reg);
+}
+
+void ioapic_lock_max_vectors(uintptr_t ioapic_base)
+{
+	ioapic_set_max_vectors(ioapic_base, -1);
+}
+
+static void clear_vectors(uintptr_t ioapic_base, u8 first, u8 last)
 {
 	u32 low, high;
-	u32 i, ioapic_interrupts;
+	u8 i;
 
-	printk(BIOS_DEBUG, "IOAPIC: Clearing IOAPIC at %p\n", ioapic_base);
-
-	ioapic_interrupts = ioapic_interrupt_count(ioapic_base);
+	printk(BIOS_DEBUG, "IOAPIC: Clearing IOAPIC at %" PRIxPTR "\n", ioapic_base);
 
 	low = INT_DISABLED;
 	high = NONE;
 
-	for (i = 0; i < ioapic_interrupts; i++) {
-		io_apic_write(ioapic_base, i * 2 + 0x10, low);
-		io_apic_write(ioapic_base, i * 2 + 0x11, high);
-
-		printk(BIOS_SPEW, "IOAPIC: reg 0x%08x value 0x%08x 0x%08x\n",
-		       i, high, low);
-	}
+	for (i = first; i <= last; i++)
+		write_vector(ioapic_base, i, high, low);
 
 	if (io_apic_read(ioapic_base, 0x10) == 0xffffffff) {
 		printk(BIOS_WARNING, "IOAPIC not responding.\n");
@@ -70,23 +103,38 @@ void clear_ioapic(void *ioapic_base)
 	}
 }
 
-void set_ioapic_id(void *ioapic_base, u8 ioapic_id)
+static void route_i8259_irq0(uintptr_t ioapic_base)
 {
 	u32 bsp_lapicid = lapicid();
-	int i;
+	u32 low, high;
 
-	printk(BIOS_DEBUG, "IOAPIC: Initializing IOAPIC at 0x%p\n",
-	       ioapic_base);
+	ASSERT(bsp_lapicid < 255);
+
 	printk(BIOS_DEBUG, "IOAPIC: Bootstrap Processor Local APIC = 0x%02x\n",
 	       bsp_lapicid);
 
-	if (ioapic_id) {
-		printk(BIOS_DEBUG, "IOAPIC: ID = 0x%02x\n", ioapic_id);
-		/* Set IOAPIC ID if it has been specified. */
-		io_apic_write(ioapic_base, 0x00,
-			(io_apic_read(ioapic_base, 0x00) & 0xf0ffffff) |
-			(ioapic_id << 24));
+	/* Enable Virtual Wire Mode. Should this be LOGICAL_DEST instead? */
+	low = INT_ENABLED | TRIGGER_EDGE | POLARITY_HIGH | PHYSICAL_DEST | ExtINT;
+	high = bsp_lapicid << (56 - 32);
+
+	write_vector(ioapic_base, 0, high, low);
+
+	if (io_apic_read(ioapic_base, 0x10) == 0xffffffff) {
+		printk(BIOS_WARNING, "IOAPIC not responding.\n");
+		return;
 	}
+}
+
+static void set_ioapic_id(uintptr_t ioapic_base, u8 ioapic_id)
+{
+	int i;
+
+	printk(BIOS_DEBUG, "IOAPIC: Initializing IOAPIC at %" PRIxPTR "\n",
+	       ioapic_base);
+	printk(BIOS_DEBUG, "IOAPIC: ID = 0x%02x\n", ioapic_id);
+
+	io_apic_write(ioapic_base, 0x00,
+		      (io_apic_read(ioapic_base, 0x00) & 0xf0ffffff) | (ioapic_id << 24));
 
 	printk(BIOS_SPEW, "IOAPIC: Dumping registers\n");
 	for (i = 0; i < 3; i++)
@@ -95,15 +143,24 @@ void set_ioapic_id(void *ioapic_base, u8 ioapic_id)
 
 }
 
-static void load_vectors(void *ioapic_base)
+u8 get_ioapic_id(uintptr_t ioapic_base)
 {
-	u32 bsp_lapicid = lapicid();
-	u32 low, high;
-	u32 i, ioapic_interrupts;
+	/*
+	 * According to 82093AA I/O ADVANCED PROGRAMMABLE INTERRUPT CONTROLLER (IOAPIC)
+	 * only 4 bits (24:27) are used for the ID. In practice the upper bits are either
+	 * always 0 or used for larger IDs.
+	 */
+	return (io_apic_read(ioapic_base, 0x00) >> 24) & 0xff;
+}
 
-	ioapic_interrupts = ioapic_interrupt_count(ioapic_base);
+u8 get_ioapic_version(uintptr_t ioapic_base)
+{
+	return io_apic_read(ioapic_base, 0x01) & 0xff;
+}
 
-	if (CONFIG(IOAPIC_INTERRUPTS_ON_FSB)) {
+void ioapic_set_boot_config(uintptr_t ioapic_base, bool irq_on_fsb)
+{
+	if (irq_on_fsb) {
 		/*
 		 * For the Pentium 4 and above APICs deliver their interrupts
 		 * on the front side bus, enable that.
@@ -111,39 +168,29 @@ static void load_vectors(void *ioapic_base)
 		printk(BIOS_DEBUG, "IOAPIC: Enabling interrupts on FSB\n");
 		io_apic_write(ioapic_base, 0x03,
 			      io_apic_read(ioapic_base, 0x03) | (1 << 0));
-	} else if (CONFIG(IOAPIC_INTERRUPTS_ON_APIC_SERIAL_BUS)) {
+	} else {
 		printk(BIOS_DEBUG,
 			"IOAPIC: Enabling interrupts on APIC serial bus\n");
 		io_apic_write(ioapic_base, 0x03, 0);
 	}
-
-	/* Enable Virtual Wire Mode. */
-	low = INT_ENABLED | TRIGGER_EDGE | POLARITY_HIGH | PHYSICAL_DEST | ExtINT;
-	high = bsp_lapicid << (56 - 32);
-
-	io_apic_write(ioapic_base, 0x10, low);
-	io_apic_write(ioapic_base, 0x11, high);
-
-	if (io_apic_read(ioapic_base, 0x10) == 0xffffffff) {
-		printk(BIOS_WARNING, "IOAPIC not responding.\n");
-		return;
-	}
-
-	printk(BIOS_SPEW, "IOAPIC: reg 0x%08x value 0x%08x 0x%08x\n",
-	       0, high, low);
-	low = INT_DISABLED;
-	high = NONE;
-	for (i = 1; i < ioapic_interrupts; i++) {
-		io_apic_write(ioapic_base, i * 2 + 0x10, low);
-		io_apic_write(ioapic_base, i * 2 + 0x11, high);
-
-		printk(BIOS_SPEW, "IOAPIC: reg 0x%08x value 0x%08x 0x%08x\n",
-		       i, high, low);
-	}
 }
 
-void setup_ioapic(void *ioapic_base, u8 ioapic_id)
+void setup_ioapic(uintptr_t ioapic_base, u8 ioapic_id)
 {
 	set_ioapic_id(ioapic_base, ioapic_id);
-	load_vectors(ioapic_base);
+	clear_vectors(ioapic_base, 0, ioapic_get_max_vectors(ioapic_base) - 1);
+	route_i8259_irq0(ioapic_base);
+}
+
+void register_new_ioapic_gsi0(uintptr_t ioapic_base)
+{
+	setup_ioapic(ioapic_base, 0);
+}
+
+void register_new_ioapic(uintptr_t ioapic_base)
+{
+	static u8 ioapic_id;
+	ioapic_id++;
+	set_ioapic_id(ioapic_base, ioapic_id);
+	clear_vectors(ioapic_base, 0, ioapic_get_max_vectors(ioapic_base) - 1);
 }

@@ -1,37 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef __CHROMEOS_H__
 #define __CHROMEOS_H__
 
 #include <stddef.h>
 #include <stdint.h>
-#include <bootmode.h>
-#include <device/device.h>
-#include <rules.h>
-#include <security/vboot/misc.h>
-#include <security/vboot/vboot_common.h>
+#include <types.h>
 
 #if CONFIG(CHROMEOS)
 /* functions implemented in watchdog.c */
 void mark_watchdog_tombstone(void);
 void reboot_from_watchdog(void);
+bool reset_watchdog_tombstone(void);
 #else
 static inline void mark_watchdog_tombstone(void) { return; }
 static inline void reboot_from_watchdog(void) { return; }
 #endif /* CONFIG_CHROMEOS */
+
+#define UNDEFINED_FACTORY_CONFIG	~((uint64_t)0)
 
 /**
  * Perform any platform specific actions required prior to resetting the Cr50.
@@ -39,42 +25,43 @@ static inline void reboot_from_watchdog(void) { return; }
  */
 void mainboard_prepare_cr50_reset(void);
 
-struct romstage_handoff;
-
-#include "gnvs.h"
-struct device;
-
-#if CONFIG(CHROMEOS_RAMOOPS)
-void chromeos_ram_oops_init(chromeos_acpi_t *chromeos);
-#if CONFIG(CHROMEOS_RAMOOPS_DYNAMIC)
-static inline void chromeos_reserve_ram_oops(struct device *dev, int idx) {}
-#else /* CONFIG_CHROMEOS_RAMOOPS_DYNAMIC */
-void chromeos_reserve_ram_oops(struct device *dev, int idx);
-#endif /* CONFIG_CHROMEOS_RAMOOPS_DYNAMIC */
-#else  /* !CONFIG_CHROMEOS_RAMOOPS */
-static inline void chromeos_ram_oops_init(chromeos_acpi_t *chromeos) {}
-static inline void chromeos_reserve_ram_oops(struct device *dev, int idx) {}
-#endif /* CONFIG_CHROMEOS_RAMOOPS */
-
 void cbmem_add_vpd_calibration_data(void);
+void chromeos_set_me_hash(u32*, int);
+void chromeos_set_ramoops(void *ram_oops, size_t size);
+/*
+ * The factory config space is a one-time programmable info page.
+ * For the unprovisioned one, the read will be 0x0.
+ * Return "UNDEFINED_FACTORY_CONFIG" in case of error.
+ */
+uint64_t chromeos_get_factory_config(void);
+/*
+ * Determines whether a ChromeOS device is branded as a Chromebook-Plus
+ * based on specific bit flags:
+ *
+ * - Bit 4 (0x10): Indicates whether the device chassis has the
+ *                 "chromebook-plus" branding.
+ * - Bits 3-0 (0x1): Must be 0x1 to signify compliance with Chromebook-Plus
+ *                   hardware specifications.
+ *
+ * To be considered a Chromebook-Plus, both of these conditions need to be met.
+ */
+bool chromeos_device_branded_plus_hard(void);
 
 /*
- * Create the OIPG package containing the Chrome OS gpios described by
- * the chromeos_gpio array.
+ * Determines whether a ChromeOS device is soft-branded as a Chromebook-Plus
+ * after meeting below conditions:
+ *
+ * - Device is compliant to the Chromebook-Plus Hardware Specification.
+ * - Business decision makes this device qualified as Chromebook-Plus.
+ *
+ * To be considered a soft-branded Chromebook-Plus, both of these conditions need to be met.
  */
-struct cros_gpio;
-void chromeos_acpi_gpio_generate(const struct cros_gpio *gpios, size_t num);
+bool chromeos_device_branded_plus_soft(void);
 
 /*
- * Common helper function and delcarations for mainboards to use to generate
- * ACPI-specific Chrome OS needs.
+ * Declaration for mainboards to use to generate ACPI-specific ChromeOS needs.
  */
-void mainboard_chromeos_acpi_generate(void);
-#if CONFIG(CHROMEOS)
-void chromeos_dsdt_generator(struct device *dev);
-#else
-#define chromeos_dsdt_generator DEVICE_NOOP
-#endif
+void chromeos_acpi_gpio_generate(void);
 
 enum {
 	CROS_GPIO_REC = 1, /* Recovery */
@@ -130,5 +117,24 @@ struct cros_gpio {
 
 #define CROS_GPIO_PE_AH(num, dev) \
 	CROS_GPIO_PE_INITIALIZER(CROS_GPIO_ACTIVE_HIGH, num, dev)
+
+struct cros_gpio_pack {
+	int count;
+	const struct cros_gpio *gpios;
+};
+
+extern const struct cros_gpio_pack variant_cros_gpio;
+
+#define DECLARE_NO_CROS_GPIOS() \
+	const struct cros_gpio_pack variant_cros_gpio = \
+		{ .count = 0, .gpios = NULL }
+
+#define DECLARE_CROS_GPIOS(x) \
+	const struct cros_gpio_pack variant_cros_gpio = \
+		{ .count = ARRAY_SIZE(x), .gpios = x }
+
+#define DECLARE_WEAK_CROS_GPIOS(x) \
+	const struct cros_gpio_pack __weak variant_cros_gpio = \
+		{ .count = ARRAY_SIZE(x), .gpios = x }
 
 #endif /* __CHROMEOS_H__ */

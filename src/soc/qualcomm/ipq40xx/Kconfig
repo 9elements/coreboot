@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_QC_IPQ40XX
 	bool
 	default n
@@ -7,9 +9,15 @@ config SOC_QC_IPQ40XX
 	select ARCH_RAMSTAGE_ARMV7
 	select HAVE_UART_SPECIAL
 	select GENERIC_GPIO_LIB
-	select HAVE_MONOTONIC_TIMER
 
 if SOC_QC_IPQ40XX
+
+config MEMLAYOUT_LD_FILE
+	string
+	default "src/soc/qualcomm/ipq40xx/memlayout.ld"
+
+config GENERIC_UDELAY
+	def_bool n
 
 config VBOOT
 	select VBOOT_STARTS_IN_BOOTBLOCK
@@ -50,9 +58,5 @@ config SBL_UTIL_PATH
 	default "util/qualcomm"
 	help
 	  Path for utils to combine SBL_ELF and bootblock
-
-config HEAP_SIZE
-	hex
-	default 0x8000
 
 endif

@@ -1,17 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Early initialization code for riscv
- *
- * Copyright 2015 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
  */
 
 #include <arch/encoding.h>
@@ -20,6 +9,7 @@
 #include <vm.h>
 #include <mcall.h>
 #include <sbi.h>
+#include <types.h>
 
 static const char *const exception_names[] = {
 	"Instruction address misaligned",
@@ -43,10 +33,14 @@ static const char *const exception_names[] = {
 static const char *mstatus_to_previous_mode(uintptr_t ms)
 {
 	switch (ms & MSTATUS_MPP) {
-		case 0x00000000: return "user";
-		case 0x00000800: return "supervisor";
-		case 0x00001000: return "hypervisor";
-		case 0x00001800: return "machine";
+	case 0x00000000:
+		return "user";
+	case 0x00000800:
+		return "supervisor";
+	case 0x00001000:
+		return "hypervisor";
+	case 0x00001800:
+		return "machine";
 	}
 
 	return "unknown";
@@ -62,20 +56,17 @@ static void print_trap_information(const trapframe *tf)
 	printk(BIOS_DEBUG, "\n");
 
 	if (tf->cause < ARRAY_SIZE(exception_names))
-		printk(BIOS_DEBUG, "Exception:          %s\n",
-				exception_names[tf->cause]);
+		printk(BIOS_DEBUG, "Exception:          %s\n", exception_names[tf->cause]);
 	else
-		printk(BIOS_DEBUG, "Trap:               Unknown cause %p\n",
-				(void *)tf->cause);
+		printk(BIOS_DEBUG, "Trap:               Unknown cause %p\n", (void *)tf->cause);
 
 	previous_mode = mstatus_to_previous_mode(read_csr(mstatus));
 	printk(BIOS_DEBUG, "Hart ID:            %d\n", hart_id);
-	printk(BIOS_DEBUG, "Previous mode:      %s%s\n",
-			previous_mode, mprv? " (MPRV)":"");
+	printk(BIOS_DEBUG, "Previous mode:      %s%s\n", previous_mode, mprv ? " (MPRV)" : "");
 	printk(BIOS_DEBUG, "Bad instruction pc: %p\n", (void *)tf->epc);
 	printk(BIOS_DEBUG, "Bad address:        %p\n", (void *)tf->badvaddr);
-	printk(BIOS_DEBUG, "Stored ra:          %p\n", (void*) tf->gpr[1]);
-	printk(BIOS_DEBUG, "Stored sp:          %p\n", (void*) tf->gpr[2]);
+	printk(BIOS_DEBUG, "Stored ra:          %p\n", (void *)tf->gpr[1]);
+	printk(BIOS_DEBUG, "Stored sp:          %p\n", (void *)tf->gpr[2]);
 }
 
 static void interrupt_handler(trapframe *tf)
@@ -111,47 +102,48 @@ static void interrupt_handler(trapframe *tf)
 		break;
 	default:
 		printk(BIOS_EMERG, "======================================\n");
-		printk(BIOS_EMERG, "coreboot: Unknown machine interrupt: 0x%llx\n",
-		       cause);
+		printk(BIOS_EMERG, "coreboot: Unknown machine interrupt: 0x%llx\n", cause);
 		printk(BIOS_EMERG, "======================================\n");
 		print_trap_information(tf);
 		break;
 	}
 }
-void trap_handler(trapframe *tf)
+
+void (*trap_handler)(trapframe *tf) = default_trap_handler;
+
+void default_trap_handler(trapframe *tf)
 {
-	write_csr(mscratch, tf);
 	if (tf->cause & 0x8000000000000000ULL) {
 		interrupt_handler(tf);
 		return;
 	}
 
 	switch (tf->cause) {
-		case CAUSE_MISALIGNED_FETCH:
-		case CAUSE_FETCH_ACCESS:
-		case CAUSE_ILLEGAL_INSTRUCTION:
-		case CAUSE_BREAKPOINT:
-		case CAUSE_LOAD_ACCESS:
-		case CAUSE_STORE_ACCESS:
-		case CAUSE_USER_ECALL:
-		case CAUSE_HYPERVISOR_ECALL:
-		case CAUSE_MACHINE_ECALL:
-			print_trap_information(tf);
-			break;
-		case CAUSE_SUPERVISOR_ECALL:
-			handle_sbi(tf);
-			return;
-		case CAUSE_MISALIGNED_LOAD:
-		case CAUSE_MISALIGNED_STORE:
-			print_trap_information(tf);
-			handle_misaligned(tf);
-			return;
-		default:
-			printk(BIOS_EMERG, "================================\n");
-			printk(BIOS_EMERG, "coreboot: can not handle a trap:\n");
-			printk(BIOS_EMERG, "================================\n");
-			print_trap_information(tf);
-			break;
+	case CAUSE_MISALIGNED_FETCH:
+	case CAUSE_FETCH_ACCESS:
+	case CAUSE_ILLEGAL_INSTRUCTION:
+	case CAUSE_BREAKPOINT:
+	case CAUSE_LOAD_ACCESS:
+	case CAUSE_STORE_ACCESS:
+	case CAUSE_USER_ECALL:
+	case CAUSE_HYPERVISOR_ECALL:
+	case CAUSE_MACHINE_ECALL:
+		print_trap_information(tf);
+		break;
+	case CAUSE_SUPERVISOR_ECALL:
+		handle_sbi(tf);
+		return;
+	case CAUSE_MISALIGNED_LOAD:
+	case CAUSE_MISALIGNED_STORE:
+		print_trap_information(tf);
+		handle_misaligned(tf);
+		return;
+	default:
+		printk(BIOS_EMERG, "================================\n");
+		printk(BIOS_EMERG, "coreboot: can not handle a trap:\n");
+		printk(BIOS_EMERG, "================================\n");
+		print_trap_information(tf);
+		break;
 	}
 
 	die("Can't recover from trap. Halting.\n");
@@ -160,7 +152,7 @@ void trap_handler(trapframe *tf)
 /* This function used to redirect trap to s-mode. */
 void redirect_trap(void)
 {
-	write_csr(sbadaddr, read_csr(mbadaddr));
+	write_csr(stval, read_csr(mtval));
 	write_csr(sepc, read_csr(mepc));
 	write_csr(scause, read_csr(mcause));
 	write_csr(mepc, read_csr(stvec));

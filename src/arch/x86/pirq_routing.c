@@ -1,28 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Copyright (C) 2010 Stefan Reinauer <stepan@coreboot.org>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-#include <console/console.h>
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
 #include <arch/pirq_routing.h>
 #include <commonlib/helpers.h>
-#include <string.h>
+#include <console/console.h>
 #include <device/pci.h>
-
-void __weak pirq_assign_irqs(const unsigned char pirq[CONFIG_MAX_PIRQ_LINKS])
-{
-}
+#include <string.h>
+#include <types.h>
 
 static void check_pirq_routing_table(struct irq_routing_table *rt)
 {
@@ -35,7 +18,7 @@ static void check_pirq_routing_table(struct irq_routing_table *rt)
 	if (sizeof(struct irq_routing_table) != rt->size) {
 		printk(BIOS_WARNING,
 			"Inconsistent Interrupt Routing Table size (0x%x/0x%x).\n",
-			(unsigned int) sizeof(struct irq_routing_table),
+			(unsigned int)sizeof(struct irq_routing_table),
 			rt->size);
 		rt->size = sizeof(struct irq_routing_table);
 	}
@@ -45,7 +28,6 @@ static void check_pirq_routing_table(struct irq_routing_table *rt)
 
 	printk(BIOS_DEBUG, "%s(): Interrupt Routing Table located at %p.\n",
 		     __func__, addr);
-
 
 	sum = rt->checksum - sum;
 
@@ -78,7 +60,7 @@ static void check_pirq_routing_table(struct irq_routing_table *rt)
 	printk(BIOS_INFO, "done.\n");
 }
 
-static int verify_copy_pirq_routing_table(unsigned long addr,
+static enum cb_err verify_copy_pirq_routing_table(unsigned long addr,
 	const struct irq_routing_table *routing_table)
 {
 	int i;
@@ -92,14 +74,14 @@ static int verify_copy_pirq_routing_table(unsigned long addr,
 	for (i = 0; i < routing_table->size; i++) {
 		if (*(rt_curr + i) != *(rt_orig + i)) {
 			printk(BIOS_INFO, "failed\n");
-			return -1;
+			return CB_ERR;
 		}
 	}
 	printk(BIOS_INFO, "done\n");
 
 	check_pirq_routing_table((struct irq_routing_table *)addr);
 
-	return 0;
+	return CB_SUCCESS;
 }
 
 static u8 pirq_get_next_free_irq(u8 *pirq, u16 bitmap)
@@ -124,8 +106,6 @@ static u8 pirq_get_next_free_irq(u8 *pirq, u16 bitmap)
 		/* If it's not yet routed, use it */
 		if (!already_routed)
 			break;
-		/* But if it was already routed, try the next one */
-		continue;
 	}
 	/* Now we got our IRQ */
 	return irq;
@@ -146,8 +126,11 @@ static void pirq_route_irqs(unsigned long addr)
 	/* Set PCI IRQs. */
 	for (i = 0; i < num_entries; i++) {
 
+		u8 bus = pirq_tbl->slots[i].bus;
+		u8 devfn = pirq_tbl->slots[i].devfn;
+
 		printk(BIOS_DEBUG, "PIRQ Entry %d Dev/Fn: %X Slot: %d\n", i,
-			pirq_tbl->slots[i].devfn >> 3, pirq_tbl->slots[i].slot);
+			devfn >> 3, pirq_tbl->slots[i].slot);
 
 		for (intx = 0; intx < MAX_INTX_ENTRIES; intx++) {
 
@@ -178,12 +161,11 @@ static void pirq_route_irqs(unsigned long addr)
 		}
 
 		/* Bus, device, slots IRQs for {A,B,C,D}. */
-		pci_assign_irqs(pirq_tbl->slots[i].bus,
-			pirq_tbl->slots[i].devfn >> 3, irq_slot);
+		pci_assign_irqs(pcidev_path_on_bus(bus, devfn), irq_slot);
 	}
 
 	for (i = 0; i < CONFIG_MAX_PIRQ_LINKS; i++)
-		printk(BIOS_DEBUG, "PIRQ%c: %d\n", i + 'A',  pirq[i]);
+		printk(BIOS_DEBUG, "PIRQ%c: %d\n", i + 'A', pirq[i]);
 
 	pirq_assign_irqs(pirq);
 }

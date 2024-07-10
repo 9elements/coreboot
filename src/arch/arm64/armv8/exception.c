@@ -1,42 +1,14 @@
-/*
- * This file is part of the libpayload project.
- *
- * Copyright 2013 Google Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
-#include <stdint.h>
 #include <types.h>
 #include <arch/barrier.h>
-#include <arch/cache.h>
 #include <arch/exception.h>
 #include <arch/transition.h>
 #include <console/console.h>
+#include <console/uart.h>
 #include <arch/lib_helpers.h>
 
-uint8_t exception_stack[0x200] __attribute__((aligned(16)));
+uint8_t exception_stack[2*KiB] __attribute__((aligned(16)));
 
 static const char *exception_names[NUM_EXC_VIDS] = {
 	[EXC_VID_CUR_SP_EL0_SYNC] = "_sync_sp_el0",
@@ -91,29 +63,27 @@ static void print_regs(struct exc_state *exc_state)
 	       regs->x[30], regs->sp);
 }
 
-
 static struct exception_handler *handlers[NUM_EXC_VIDS];
 
-
-int exception_handler_register(uint64_t vid, struct exception_handler *h)
+enum cb_err exception_handler_register(uint64_t vid, struct exception_handler *h)
 {
 	if (vid >= NUM_EXC_VIDS)
-		return -1;
+		return CB_ERR;
 
 	/* Just place at head of queue. */
 	h->next = handlers[vid];
 	store_release(&handlers[vid], h);
 
-	return 0;
+	return CB_SUCCESS;
 }
 
-int exception_handler_unregister(uint64_t vid, struct exception_handler *h)
+enum cb_err exception_handler_unregister(uint64_t vid, struct exception_handler *h)
 {
 	struct exception_handler *cur;
 	struct exception_handler **prev;
 
 	if (vid >= NUM_EXC_VIDS)
-		return -1;
+		return CB_ERR;
 
 	prev = &handlers[vid];
 
@@ -122,17 +92,33 @@ int exception_handler_unregister(uint64_t vid, struct exception_handler *h)
 			continue;
 		/* Update previous pointer. */
 		store_release(prev, cur->next);
-		return 0;
+		return CB_SUCCESS;
 	}
 
 	/* Not found */
-	return -1;
+	return CB_ERR;
 }
 
 static void print_exception_info(struct exc_state *state, uint64_t idx)
 {
-	if (idx < NUM_EXC_VIDS)
-		printk(BIOS_DEBUG, "exception %s\n", exception_names[idx]);
+	/*
+	 * Sign of life in case printk() is shot. Prints !EXCEPT! to UART
+	 * Not using a loop but instead calling __uart_tx_byte separately is intentionally here
+	 * because in rare cases it will not print if it needs to access memory addresses
+	 */
+	__uart_tx_byte('\r');
+	__uart_tx_byte('\n');
+	__uart_tx_byte('!');
+	__uart_tx_byte('E');
+	__uart_tx_byte('X');
+	__uart_tx_byte('C');
+	__uart_tx_byte('E');
+	__uart_tx_byte('P');
+	__uart_tx_byte('T');
+	__uart_tx_byte('!');
+
+	printk(BIOS_DEBUG, "\nexception %s\n",
+	       idx < NUM_EXC_VIDS ? exception_names[idx] : "_unknown");
 
 	print_regs(state);
 	/* Few words below SP in case we need state from a returned function. */
@@ -144,7 +130,6 @@ static void print_exception_and_die(struct exc_state *state, uint64_t idx)
 	print_exception_info(state, idx);
 	die("exception death");
 }
-
 
 static int handle_exception(struct exc_state *state, uint64_t idx)
 {
@@ -186,7 +171,7 @@ void exc_dispatch(struct exc_state *state, uint64_t idx)
 
 static int test_exception_handler(struct exc_state *state, uint64_t vector_id)
 {
-	/* Update instruction pointer to next instrution. */
+	/* Update instruction pointer to next instruction. */
 	state->elx.elr += sizeof(uint32_t);
 	raw_write_elr_el3(state->elx.elr);
 	return EXC_RET_HANDLED;

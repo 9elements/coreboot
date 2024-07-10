@@ -1,20 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Sage Electronic Engineering, LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* Wake status package */
-Name (WKST, Package() { Zero, Zero })
+Name (WKST, Package() { 0, 0 })
 
 /*
 * \_PTS - Prepare to Sleep method
@@ -42,27 +29,10 @@ Method (_PTS, 1)
 	\_SB.PCI0.FPTS ()
 
 	/* Clear wake status structure. */
-	Store (0, PEWD)
-	Store (0, Index(WKST,0))
-	Store (0, Index(WKST,1))
-	Store (7, UPWS)
-}
-
-/*
- *	\_BFS OEM Back From Sleep method
- *
- *	Entry:
- *		Arg0=The value of the sleeping state S1=1, S2=2
- *
- *	Exit:
- *		-none-
- */
-Method (\_BFS, 1)
-{
-	/* DBGO ("\\_BFS\n") */
-	/* DBGO ("From S") */
-	/* DBGO (Arg0) */
-	/* DBGO (" to S0\n") */
+	PEWD = 0
+	WKST[0] = 0
+	WKST[1] = 0
+	UPWS = 7
 }
 
 /*

@@ -1,20 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright 2011, Marvell Semiconductor Inc.
- * Lei Wen <leiwen@marvell.com>
- *
- * Copyright 2017 Intel Corporation
- *
  * SD host controller specific definitions
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 #ifndef __COMMONLIB_SDHCI_H__
 #define __COMMONLIB_SDHCI_H__
@@ -60,6 +46,12 @@ struct sdhci_ctrlr {
 
 	/* Number of ADMA descriptors currently in the array. */
 	int adma_desc_count;
+
+	/*
+	 * Point to function to run before running initialization.
+	 * This would include anything non-standard.
+	 */
+	int (*attach)(struct sdhci_ctrlr *ctrlr);
 };
 
 int add_sdhci(struct sdhci_ctrlr *sdhci_ctrlr);
@@ -71,6 +63,7 @@ void sdhci_display_setup(struct sdhci_ctrlr *sdhci_ctrlr);
 struct sd_mmc_ctrlr *new_pci_sdhci_controller(uint32_t dev);
 
 /* Add SDHCI controller with memory address */
-struct sd_mmc_ctrlr *new_mem_sdhci_controller(void *ioaddr);
+struct sd_mmc_ctrlr *new_mem_sdhci_controller(void *ioaddr,
+					      int (*pre_init_func)(struct sdhci_ctrlr *host));
 
 #endif /* __COMMONLIB_SDHCI_H__ */

@@ -1,22 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * Realtek RT5663 audio codec devicetree bindings
  */
 
+#ifndef __DRIVERS_I2C_RT5663_CHIP_H__
+#define __DRIVERS_I2C_RT5663_CHIP_H__
+
+#include <acpi/acpi_device.h>
 #include <stdint.h>
 
 struct drivers_i2c_rt5663_config {
@@ -35,3 +26,5 @@ struct drivers_i2c_rt5663_config {
 	uint32_t dc_offset_l_manual_mic;
 	uint32_t dc_offset_r_manual_mic;
 };
+
+#endif /* __DRIVERS_I2C_RT5663_CHIP_H__ */

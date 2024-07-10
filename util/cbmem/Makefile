@@ -1,36 +1,27 @@
 ##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2012 The ChromiumOS Authors.  All rights reserved.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+## SPDX-License-Identifier: GPL-2.0-only
 
 PROGRAM   = cbmem
-ROOT      = ../../src
+TOP      ?= $(abspath ../..)
+ROOT      = $(TOP)/src
+COMMONLIB = $(ROOT)/commonlib
 CC       ?= $(CROSS_COMPILE)gcc
 INSTALL  ?= /usr/bin/env install
 PREFIX   ?= /usr/local
 CFLAGS   ?= -O2
-CFLAGS   += -Wall -Werror
-CPPFLAGS += -I . -I $(ROOT)/commonlib/include
-CPPFLAGS += -include ../../src/commonlib/include/commonlib/compiler.h
+WERROR=-Werror
+CFLAGS   += -Wall -Wextra -Wmissing-prototypes -Wshadow $(WERROR)
+CPPFLAGS += -I . -I $(ROOT)/commonlib/include -I $(ROOT)/commonlib/bsd/include
+CPPFLAGS += -include $(ROOT)/commonlib/bsd/include/commonlib/bsd/compiler.h
 
-OBJS = $(PROGRAM).o
+OBJS = $(PROGRAM).o $(COMMONLIB)/bsd/ipchksum.o
 
 all: $(PROGRAM)
 
 $(PROGRAM): $(OBJS)
 
 clean:
-	rm -f $(PROGRAM) *.o .dependencies *~ junit.xml
+	rm -f $(PROGRAM) $(OBJS:.c=.o) .dependencies *~ junit.xml
 
 install: $(PROGRAM)
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/sbin/
@@ -41,6 +32,12 @@ distclean: clean
 .dependencies:
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -MM *.c > .dependencies
 
-.PHONY: all clean distclean
+help:
+	@echo "${PROGRAM}: View machine's cbmem contents"
+	@echo "Targets: all, clean, distclean, help, install"
+	@echo "To disable warnings as errors, run make as:"
+	@echo "  make all WERROR=\"\""
+
+.PHONY: all clean distclean install help
 
 -include .dependencies

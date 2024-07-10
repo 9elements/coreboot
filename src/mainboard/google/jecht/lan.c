@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbfs.h>
 #include <fmap.h>
@@ -20,7 +7,6 @@
 #include <device/pci_ops.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/pci.h>
 #include <soc/pch.h>
 #include "onboard.h"
 
@@ -50,8 +36,7 @@ static unsigned char get_hex_digit(u8 *offset)
 			retval = *offset - 'a' + 0x0a;
 	}
 	if (retval > 0x0F) {
-		printk(BIOS_DEBUG, "Error: Invalid Hex digit found: %c - 0x%02x\n",
-			*offset, *offset);
+		printk(BIOS_ERR, "Invalid Hex digit found: %c - 0x%02x\n", *offset, *offset);
 		retval = 0;
 	}
 
@@ -67,8 +52,7 @@ static int get_mac_address(u32 *high_dword, u32 *low_dword,
 
 	offset = search(key, search_address, sizeof(key) - 1, search_length);
 	if (offset == search_length) {
-		printk(BIOS_DEBUG,
-		       "Error: Could not locate '%s' in VPD\n", key);
+		printk(BIOS_ERR, "Could not locate '%s' in VPD\n", key);
 		return 0;
 	}
 	printk(BIOS_DEBUG, "Located '%s' in VPD\n", key);
@@ -114,7 +98,7 @@ static void program_mac_address(u16 io_base)
 	u32 high_dword = 0xD0BA00A0;	/* high dword of mac address */
 	u32 low_dword = 0x0000AD0B;	/* low word of mac address as a dword */
 
-	if (CONFIG(CHROMEOS)) {
+	if (CONFIG(VPD)) {
 		struct region_device rdev;
 
 		if (fmap_locate_area_as_rdev("RO_VPD", &rdev) == 0) {
@@ -124,9 +108,7 @@ static void program_mac_address(u16 io_base)
 				search_length = region_device_sz(&rdev);
 		}
 	} else {
-		search_address = cbfs_boot_map_with_leak("vpd.bin",
-							CBFS_TYPE_RAW,
-							&search_length);
+		search_address = cbfs_map("vpd.bin", &search_length);
 	}
 
 	if (search_address == NULL)

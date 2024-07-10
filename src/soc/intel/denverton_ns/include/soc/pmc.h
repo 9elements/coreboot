@@ -1,32 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- * Copyright (C) 2014 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _DENVERTON_NS_PMC_H_
 #define _DENVERTON_NS_PMC_H_
 
-/* PCI Configuration Space (D31:F2): PMC/ACPI */
-#define PCH_PMC_DEV PCI_DEV(0, PMC_DEV, PMC_FUNC)
+#include <soc/intel/common/tco.h>
 
 /* Memory mapped IO registers behind PMC_BASE_ADDRESS */
 #define PMC_ACPI_BASE 0x40 /* IO BAR */
 #define MASK_PMC_ACPI_BASE 0xfffc
 #define PMC_ACPI_CNT 0x44
 #define PMC_ACPI_CNT_PWRM_EN (1 << 8)			   /* PWRM enable */
-#define PMC_ACPI_CNT_ACPI_EN (1 << 7)			   /* ACPI eanble */
+#define PMC_ACPI_CNT_ACPI_EN (1 << 7)			   /* ACPI enable */
 #define PMC_ACPI_CNT_SCIS ((1 << 2) | (1 << 1) | (1 << 0)) /* SCI IRQ select \
 							      */
 #define PMC_ACPI_CNT_SCIS_MASK 0x07
@@ -51,14 +35,19 @@
 
 #define PMC_PWRM_BASE   0x48 /* MEM BAR */
 #define   MASK_PMC_PWRM_BASE    0xfffff000 /* 4K alignment */
-#define PMC_GEN_PMCON_A               0xA0
-#define PMC_GEN_PMCON_B               0xA4
-#define   PMC_GEN_PMCON_B_RTC_PWR_STS   0x04
-#define   PMC_GEN_PMCON_B_PWR_FLR       0x02
-#define   PMC_GEN_PMCON_B_AFTERG3_EN    0x00
-#define PMC_ETR3                      0xAC
-#define   PMC_ETR3_CF9LOCK              BIT31 ///< CF9h Lockdown
-#define   PMC_ETR3_CF9GR                BIT20 ///< CF9h Global Reset
+#define GEN_PMCON_A               0xA0
+#define   MS4V                    (1 << 18)
+#define   GBL_RST_STS             (1 << 16)
+#define GEN_PMCON_B               0xA4
+#define   GEN_PMCON_B_SUS_PWR_FLR   0x4000
+#define   SUS_PWR_FLR               GEN_PMCON_B_SUS_PWR_FLR
+#define   GEN_PMCON_B_RTC_PWR_STS   0x04
+#define   GEN_PMCON_B_PWR_FLR       0x02
+#define   PWR_FLR                   GEN_PMCON_B_PWR_FLR
+#define   GEN_PMCON_B_AFTERG3_EN    0x00
+#define ETR3                      0xAC
+#define   ETR3_CF9LOCK              BIT31 ///< CF9h Lockdown
+#define   ETR3_CF9GR                BIT20 ///< CF9h Global Reset
 
 /* IO Mapped registers behind ACPI_BASE_ADDRESS */
 #define PM1_STS 0x00
@@ -227,49 +216,18 @@
 #define SWGPE_EN (1 << 2)
 #define HOT_PLUG_EN (1 << 1)
 
-/* TCO registers and fields live behind TCOBASE I/O bar in SMBus device. */
-#define TCO_RLD 0x00
-#define TCO1_STS 0x04
-#define TCO1_STS_TCO_SLVSEL (1 << 13)
-#define TCO1_STS_CPUSERR (1 << 12)
-#define TCO1_STS_CPUSMI (1 << 10)
-#define TCO1_STS_CPUSCI (1 << 9)
-#define TCO1_STS_BIOSWR (1 << 8)
-#define TCO1_STS_NEWCENTURY (1 << 7)
-#define TCO1_STS_TIMEOUT (1 << 3)
-#define TCO1_STS_TCO_INT (1 << 2)
-#define TCO1_STS_OS_TCO_SMI (1 << 1)
-#define TCO1_STS_NMI2SMI (1 << 0)
-#define TCO2_STS 0x06
-#define TCO2_STS_SMLINK_SLAVE_SMI 0x04
-#define TCO2_STS_SECOND_TO 0x02
-#define TCO2_STS_INTRD_DET 0x01
-#define TCO1_CNT 0x08
-#define TCO_LOCK (1 << 12)
-#define TCO_TMR_HLT (1 << 11)
-#define TCO2_CNT 0x0a
-#define TCO_TMR 0x12
-
 /* Memory mapped IO registers behind PMC_BASE_ADDRESS */
 #define PRSTS			0x10
 #define GPIO_GPE_CFG		0x120
 #define  GPE0_DWX_MASK		0x7
 #define GPE0_DW_SHIFT(x)	(4 + 4*(x))
+#define PCH_PWRM_ACPI_TMR_CTL	0xfc
+#define  ACPI_TIM_DIS		(1 << 1)
 
 /* I/O ports */
 #define RST_CNT 0xcf9
 #define FULL_RST (1 << 3)
 #define RST_CPU (1 << 2)
 #define SYS_RST (1 << 1)
-
-#if !defined(__ASSEMBLER__) && !defined(__ACPI__)
-
-#if CONFIG(ELOG)
-void southcluster_log_state(void);
-#else
-static inline void southcluster_log_state(void) {}
-#endif
-
-#endif /* !defined(__ASSEMBLER__) && !defined(__ACPI__) */
 
 #endif /* _DENVERTON_NS_PMC_H_ */

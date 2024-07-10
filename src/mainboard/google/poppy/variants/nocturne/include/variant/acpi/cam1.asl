@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Scope (\_SB.PCI0.I2C5)
 {
@@ -19,7 +6,7 @@ Scope (\_SB.PCI0.I2C5)
 	{
 		Name (STA, 0)
 		Method (_ON, 0, Serialized) {
-			If (LEqual(STA, 0)) {
+			If (STA == 0) {
 				CTXS (GPIO_RCAM_RST_L)
 				STXS (GPIO_RCAM_PWR_EN)
 				STXS (GPIO_PCH_RCAM_CLK_EN)
@@ -34,15 +21,15 @@ Scope (\_SB.PCI0.I2C5)
 				 * on sequence completes
 				 */
 				Sleep (12)
-				Store (1, STA)
+				STA = 1
 			}
 		}
 		Method (_OFF, 0, Serialized) {
-			If (LEqual(STA, 1)) {
+			If (STA == 1) {
 				CTXS (GPIO_PCH_RCAM_CLK_EN)
 				CTXS (GPIO_RCAM_RST_L)
 				CTXS (GPIO_RCAM_PWR_EN)
-				Store (0, STA)
+				STA = 0
 			}
 		}
 		Method (_STA, 0, NotSerialized) {
@@ -52,11 +39,11 @@ Scope (\_SB.PCI0.I2C5)
 
 	Device (CAM1)
 	{
-		Name (_HID, "SONY355A")  /* _HID: Hardware ID */
-		Name (_UID, Zero)  /* _UID: Unique ID */
+		Name (_HID, "SONY355A")
+		Name (_UID, 0)
 		Name (_DDN, "SONY IMX355A Camera") /* _DDN: DOS Device Name */
 
-		Method (_STA, 0, NotSerialized)  /* _STA: Status */
+		Method (_STA, 0, NotSerialized)
 		{
 			Return (0x0F)
 		}
@@ -118,11 +105,11 @@ Scope (\_SB.PCI0.I2C5)
 
 	Device (VCM1)
 	{
-		Name (_HID, "PRP0001")  /* _HID: Hardware ID */
-		Name (_UID, 3)  /* _UID: Unique ID */
+		Name (_HID, "PRP0001")
+		Name (_UID, 3)
 		Name (_DDN, "AKM AF DAC") /* _DDN: DOS Device Name */
 
-		Method (_STA, 0, NotSerialized)  /* _STA: Status */
+		Method (_STA, 0, NotSerialized)
 		{
 			Return (0x0F)
 		}
@@ -150,11 +137,11 @@ Scope (\_SB.PCI0.I2C5)
 
 	Device (NVM1)
         {
-		Name (_HID, "INT3499") /* _HID: Hardware ID */
-		Name (_UID, 1)  /* _UID: Unique ID */
+		Name (_HID, "INT3499")
+		Name (_UID, 1)
 		Name (_DDN, "M24C64S")  /* _DDN: DOS Device Name */
 
-		Method (_STA, 0, NotSerialized)  /* _STA: Status */
+		Method (_STA, 0, NotSerialized)
 		{
 			Return (0x0F)
 		}

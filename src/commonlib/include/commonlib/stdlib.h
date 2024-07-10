@@ -1,32 +1,4 @@
-/*
- * This file is part of the libpayload project.
- *
- * Copyright (C) 2008 Advanced Micro Devices, Inc.
- * Copyright 2013 Google Inc.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #ifndef __COMMONLIB_STDLIB_H__
 #define __COMMONLIB_STDLIB_H__
@@ -57,7 +29,7 @@ static inline void *xmalloc_work(size_t size, const char *file,
 	}
 	return ret;
 }
-#define xmalloc(size) xmalloc_work((size), __FILE__, __FUNCTION__, __LINE__)
+#define xmalloc(size) xmalloc_work((size), __FILE__, __func__, __LINE__)
 
 static inline void *xzalloc_work(size_t size, const char *file,
 				 const char *func, int line)
@@ -66,7 +38,7 @@ static inline void *xzalloc_work(size_t size, const char *file,
 	memset(ret, 0, size);
 	return ret;
 }
-#define xzalloc(size) xzalloc_work((size), __FILE__, __FUNCTION__, __LINE__)
+#define xzalloc(size) xzalloc_work((size), __FILE__, __func__, __LINE__)
 
 void *dma_malloc(size_t size);
 int dma_coherent(void *ptr);

@@ -1,49 +1,24 @@
+## SPDX-License-Identifier: GPL-2.0-only
 #
 # Makefile for coreboot paper.
 # hacked together by Stefan Reinauer <stepan@openbios.org>
 #
 
-PDFLATEX=pdflatex -t a4
+BUILDDIR ?= _build
+SPHINXOPTS ?= -j auto
 
-FIGS=codeflow.pdf hypertransport.pdf
+export SPHINXOPTS
 
-all: corebootPortingGuide.pdf
+all: sphinx
 
-SVG2PDF=$(shell which svg2pdf)
-INKSCAPE=$(shell which inkscape)
-CONVERT=$(shell which convert)
+$(BUILDDIR):
+	mkdir -p $(BUILDDIR)
 
-codeflow.pdf: codeflow.svg
-ifneq ($(strip $(SVG2PDF)),)
-	svg2pdf $< $@
-else ifneq ($(strip $(INKSCAPE)),)
-	inkscape $< --export-pdf=$@
-else ifneq ($(strip $(CONVERT)),)
-	convert $< $@
-endif
-
-hypertransport.pdf: hypertransport.svg
-ifneq ($(strip $(SVG2PDF)),)
-	svg2pdf $< $@
-else ifneq ($(strip $(INKSCAPE)),)
-	inkscape $< --export-pdf=$@
-else ifneq ($(strip $(CONVERT)),)
-	convert $< $@
-endif
-
-corebootPortingGuide.toc: $(FIGS) corebootBuildingGuide.tex
-	# 2 times to make sure we have a current toc.
-	$(PDFLATEX) corebootBuildingGuide.tex
-	$(PDFLATEX) corebootBuildingGuide.tex
-
-corebootPortingGuide.pdf: $(FIGS) corebootBuildingGuide.tex corebootPortingGuide.toc
-	$(PDFLATEX) corebootBuildingGuide.tex
-
-sphinx:
-	$(MAKE) -f Makefile.sphinx html
+sphinx: $(BUILDDIR)
+	$(MAKE) -f Makefile.sphinx html BUILDDIR="$(BUILDDIR)"
 
 clean-sphinx:
-	$(MAKE) -f Makefile.sphinx clean
+	$(MAKE) -f Makefile.sphinx clean BUILDDIR="$(BUILDDIR)"
 
 clean: clean-sphinx
 	rm -f *.aux *.idx *.log *.toc *.out $(FIGS)
@@ -51,5 +26,25 @@ clean: clean-sphinx
 distclean: clean
 	rm -f corebootPortingGuide.pdf
 
-livesphinx:
-	$(MAKE) -f Makefile.sphinx livehtml SPHINXOPTS="$(SPHINXOPTS)"
+livesphinx: $(BUILDDIR)
+	$(MAKE) -f Makefile.sphinx livehtml BUILDDIR="$(BUILDDIR)"
+
+test:
+	@echo "Test for logging purposes - Failing tests will not fail the build"
+	-$(MAKE) -f Makefile.sphinx clean && $(MAKE) -K -f Makefile.sphinx html
+	-$(MAKE) -f Makefile.sphinx clean && $(MAKE) -K -f Makefile.sphinx doctest
+
+help:
+	@echo "all            - Builds all documentation targets"
+	@echo "sphinx         - Builds html documentation in _build directory"
+	@echo "clean          - Cleans intermediate files"
+	@echo "clean-sphinx   - Removes sphinx output files"
+	@echo "distclean      - Removes PDF files as well"
+	@echo "test           - Runs documentation tests"
+	@echo
+	@echo "  Makefile.sphinx builds - run with $(MAKE) -f Makefile-sphinx [target]"
+	@echo
+	@$(MAKE) -s -f Makefile.sphinx help 2>/dev/null
+
+.phony: help livesphinx sphinx test
+.phony: distclean clean clean-sphinx

@@ -1,132 +1,48 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015-2016 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
+#include <amdblocks/acpi.h>
+#include <amdblocks/biosram.h>
 #include <device/pci_ops.h>
+#include <arch/hpet.h>
 #include <arch/ioapic.h>
-#include <arch/acpi.h>
-#include <arch/acpigen.h>
+#include <arch/vga.h>
+#include <acpi/acpi.h>
+#include <acpi/acpigen.h>
 #include <cbmem.h>
 #include <console/console.h>
 #include <cpu/amd/mtrr.h>
 #include <cpu/x86/lapic_def.h>
 #include <cpu/x86/msr.h>
-#include <cpu/amd/msr.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <romstage_handoff.h>
 #include <amdblocks/agesawrapper.h>
 #include <amdblocks/agesawrapper_call.h>
+#include <amdblocks/ioapic.h>
 #include <agesa_headers.h>
 #include <soc/cpu.h>
 #include <soc/northbridge.h>
-#include <soc/southbridge.h>
 #include <soc/pci_devs.h>
 #include <soc/iomap.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <arch/bert_storage.h>
 
 #include "chip.h"
 
-static void set_io_addr_reg(struct device *dev, u32 nodeid, u32 linkn, u32 reg,
-			u32 io_min, u32 io_max)
-{
-	u32 tempreg;
-
-	/* io range allocation.  Limit */
-	tempreg = (nodeid & 0xf) | ((nodeid & 0x30) << (8 - 4)) | (linkn << 4)
-						| ((io_max & 0xf0) << (12 - 4));
-	pci_write_config32(SOC_ADDR_DEV, reg + 4, tempreg);
-	tempreg = 3 | ((io_min & 0xf0) << (12 - 4)); /* base: ISA and VGA ? */
-	pci_write_config32(SOC_ADDR_DEV, reg, tempreg);
-}
-
-static void set_mmio_addr_reg(u32 nodeid, u32 linkn, u32 reg, u32 index,
-						u32 mmio_min, u32 mmio_max)
-{
-	u32 tempreg;
-
-	/* io range allocation.  Limit */
-	tempreg = (nodeid & 0xf) | (linkn << 4) | (mmio_max & 0xffffff00);
-		pci_write_config32(SOC_ADDR_DEV, reg + 4, tempreg);
-	tempreg = 3 | (nodeid & 0x30) | (mmio_min & 0xffffff00);
-		pci_write_config32(SOC_ADDR_DEV, reg, tempreg);
-}
-
 static void read_resources(struct device *dev)
 {
-	struct resource *res;
+	unsigned int idx = 0;
+
+	/* The northbridge has no PCI BARs implemented, so there's no need to call
+	   pci_dev_read_resources for it */
 
 	/*
 	 * This MMCONF resource must be reserved in the PCI domain.
 	 * It is not honored by the coreboot resource allocator if it is in
 	 * the CPU_CLUSTER.
 	 */
-	mmconf_resource(dev, MMIO_CONF_BASE);
-
-	/* NB IOAPIC2 resource */
-	res = new_resource(dev, IO_APIC2_ADDR); /* IOAPIC2 */
-	res->base = IO_APIC2_ADDR;
-	res->size = 0x00001000;
-	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
-}
-
-static void set_resource(struct device *dev, struct resource *res, u32 nodeid)
-{
-	resource_t rbase, rend;
-	unsigned int reg, link_num;
-	char buf[50];
-
-	/* Make certain the resource has actually been set */
-	if (!(res->flags & IORESOURCE_ASSIGNED))
-		return;
-
-	/* If I have already stored this resource don't worry about it */
-	if (res->flags & IORESOURCE_STORED)
-		return;
-
-	/* Only handle PCI memory and IO resources */
-	if (!(res->flags & (IORESOURCE_MEM | IORESOURCE_IO)))
-		return;
-
-	/* Ensure I am actually looking at a resource of function 1 */
-	if ((res->index & 0xffff) < 0x1000)
-		return;
-
-	/* Get the base address */
-	rbase = res->base;
-
-	/* Get the limit (rounded up) */
-	rend  = resource_end(res);
-
-	/* Get the register and link */
-	reg  = res->index & 0xfff; /* 4k */
-	link_num = IOINDEX_LINK(res->index);
-
-	if (res->flags & IORESOURCE_IO)
-		set_io_addr_reg(dev, nodeid, link_num, reg, rbase>>8, rend>>8);
-	else if (res->flags & IORESOURCE_MEM)
-		set_mmio_addr_reg(nodeid, link_num, reg,
-				(res->index >> 24), rbase >> 8, rend >> 8);
-
-	res->flags |= IORESOURCE_STORED;
-	snprintf(buf, sizeof(buf), " <node %x link %x>",
-			nodeid, link_num);
-	report_resource_stored(dev, res, buf);
+	mmconf_resource(dev, idx++);
 }
 
 /**
@@ -136,16 +52,9 @@ static void set_resource(struct device *dev, struct resource *res, u32 nodeid)
 
 static void create_vga_resource(struct device *dev)
 {
-	struct bus *link;
-
-	/* find out which link the VGA card is connected,
-	 * we only deal with the 'first' vga card */
-	for (link = dev->link_list ; link ; link = link->next)
-		if (link->bridge_ctrl & PCI_BRIDGE_CTL_VGA)
-			break;
-
-	/* no VGA card installed */
-	if (link == NULL)
+	if (!dev->downstream)
+		return;
+	if (!(dev->downstream->bridge_ctrl & PCI_BRIDGE_CTL_VGA))
 		return;
 
 	printk(BIOS_DEBUG, "VGA: %s has VGA device\n",	dev_path(dev));
@@ -155,37 +64,41 @@ static void create_vga_resource(struct device *dev)
 
 static void set_resources(struct device *dev)
 {
-	struct bus *bus;
-	struct resource *res;
-
-
 	/* do we need this? */
 	create_vga_resource(dev);
 
-	/* Set each resource we have found */
-	for (res = dev->resource_list ; res ; res = res->next)
-		set_resource(dev, res, 0);
-
-	for (bus = dev->link_list ; bus ; bus = bus->next)
-		if (bus->children)
-			assign_resources(bus);
+	if (dev->downstream && dev->downstream->children)
+		assign_resources(dev->downstream);
 }
 
 static void northbridge_init(struct device *dev)
 {
-	setup_ioapic((u8 *)IO_APIC2_ADDR, CONFIG_MAX_CPUS+1);
+	register_new_ioapic(IO_APIC2_ADDR);
 }
 
-unsigned long acpi_fill_mcfg(unsigned long current)
+/* Used by \_SB.PCI0._CRS */
+static void acpi_fill_root_complex_tom(const struct device *device)
 {
+	const char *scope;
 
-	current += acpi_create_mcfg_mmconfig((acpi_mcfg_mmconfig_t *)current,
-					     CONFIG_MMCONF_BASE_ADDRESS,
-					     0,
-					     0,
-					     CONFIG_MMCONF_BUS_NUMBER);
+	assert(device);
 
-	return current;
+	scope = acpi_device_scope(device);
+	assert(scope);
+	acpigen_write_scope(scope);
+
+	acpigen_write_name_dword("TOM1", get_top_of_mem_below_4gb());
+
+	/*
+	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
+	 * here.
+	 * See http://www.acpi.info/presentations/S01USMOBS169_OS%2520new.ppt
+	 * slide 22ff.
+	 * Shift value right by 20 bit to make it fit into 32bit,
+	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
+	 */
+	acpigen_write_name_dword("TOM2", get_top_of_mem_above_4gb() >> 20);
+	acpigen_pop_len();
 }
 
 static unsigned long acpi_fill_hest(acpi_hest_t *hest)
@@ -208,67 +121,23 @@ static unsigned long acpi_fill_hest(acpi_hest_t *hest)
 	return (unsigned long)current;
 }
 
-static void northbridge_fill_ssdt_generator(struct device *device)
-{
-	msr_t msr;
-	char pscope[] = "\\_SB.PCI0";
-
-	acpigen_write_scope(pscope);
-	msr = rdmsr(TOP_MEM);
-	acpigen_write_name_dword("TOM1", msr.lo);
-	msr = rdmsr(TOP_MEM2);
-	/*
-	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
-	 * here.
-	 * See http://www.acpi.info/presentations/S01USMOBS169_OS%2520new.ppt
-	 * slide 22ff.
-	 * Shift value right by 20 bit to make it fit into 32bit,
-	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
-	 */
-	acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
-	acpigen_pop_len();
-}
-
-static unsigned long agesa_write_acpi_tables(struct device *device,
-					     unsigned long current,
-					     acpi_rsdp_t *rsdp)
+unsigned long soc_acpi_write_tables(const struct device *device, unsigned long current,
+				    acpi_rsdp_t *rsdp)
 {
 	acpi_srat_t *srat;
 	acpi_slit_t *slit;
-	acpi_header_t *ssdt;
 	acpi_header_t *alib;
 	acpi_header_t *ivrs;
 	acpi_hest_t *hest;
-	acpi_bert_t *bert;
 
 	/* HEST */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	hest = (acpi_hest_t *)current;
 	acpi_write_hest(hest, acpi_fill_hest);
 	acpi_add_table(rsdp, (void *)current);
 	current += hest->header.length;
 
-	/* BERT */
-	if (CONFIG(ACPI_BERT) && bert_errors_present()) {
-		/* Skip the table if no errors are present.  ACPI driver reports
-		 * a table with a 0-length region:
-		 *   BERT: [Firmware Bug]: table invalid.
-		 */
-		void *rgn;
-		size_t size;
-		bert_errors_region(&rgn, &size);
-		if (!rgn) {
-			printk(BIOS_ERR, "Error: Can't find BERT storage area\n");
-		} else {
-			current = ALIGN(current, 8);
-			bert = (acpi_bert_t *)current;
-			acpi_write_bert(bert, (uintptr_t)rgn, size);
-			acpi_add_table(rsdp, (void *)current);
-			current += bert->header.length;
-		}
-	}
-
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:    * IVRS at %lx\n", current);
 	ivrs = agesawrapper_getlateinitptr(PICK_IVRS);
 	if (ivrs != NULL) {
@@ -281,7 +150,7 @@ static unsigned long agesa_write_acpi_tables(struct device *device,
 	}
 
 	/* SRAT */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
 	srat = (acpi_srat_t *)agesawrapper_getlateinitptr(PICK_SRAT);
 	if (srat != NULL) {
@@ -294,7 +163,7 @@ static unsigned long agesa_write_acpi_tables(struct device *device,
 	}
 
 	/* SLIT */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
 	slit = (acpi_slit_t *)agesawrapper_getlateinitptr(PICK_SLIT);
 	if (slit != NULL) {
@@ -307,7 +176,7 @@ static unsigned long agesa_write_acpi_tables(struct device *device,
 	}
 
 	/* ALIB */
-	current = ALIGN(current, 16);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:  * AGESA ALIB SSDT at %lx\n", current);
 	alib = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_ALIB);
 	if (alib != NULL) {
@@ -320,37 +189,17 @@ static unsigned long agesa_write_acpi_tables(struct device *device,
 							" Skipping.\n");
 	}
 
-	current   = ALIGN(current, 16);
-	printk(BIOS_DEBUG, "ACPI:    * SSDT at %lx\n", current);
-	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_PSTATE);
-	if (ssdt != NULL) {
-		memcpy((void *)current, ssdt, ssdt->length);
-		ssdt = (acpi_header_t *)current;
-		current += ssdt->length;
-	} else {
-		printk(BIOS_DEBUG, "  AGESA PState table NULL. Skipping.\n");
-	}
-	acpi_add_table(rsdp, ssdt);
-
 	printk(BIOS_DEBUG, "ACPI:    * SSDT for PState at %lx\n", current);
 	return current;
 }
 
-static struct device_operations northbridge_operations = {
+struct device_operations stoneyridge_northbridge_operations = {
 	.read_resources	  = read_resources,
 	.set_resources	  = set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init		  = northbridge_init,
-	.acpi_fill_ssdt_generator = northbridge_fill_ssdt_generator,
-	.write_acpi_tables = agesa_write_acpi_tables,
-	.enable		  = 0,
-	.ops_pci	  = 0,
-};
-
-static const struct pci_driver family15_northbridge __pci_driver = {
-	.ops	= &northbridge_operations,
-	.vendor = PCI_VENDOR_ID_AMD,
-	.device = PCI_DEVICE_ID_AMD_15H_MODEL_707F_NB_HT,
+	.acpi_fill_ssdt   = acpi_fill_root_complex_tom,
+	.write_acpi_tables = soc_acpi_write_tables,
 };
 
 /*
@@ -360,7 +209,7 @@ static const struct pci_driver family15_northbridge __pci_driver = {
  */
 void amd_initcpuio(void)
 {
-	uintptr_t topmem = bsp_topmem();
+	uintptr_t topmem = get_top_of_mem_below_4gb();
 	uintptr_t base, limit;
 
 	/* Enable legacy video routing: D18F1xF4 VGA Enable */
@@ -368,7 +217,7 @@ void amd_initcpuio(void)
 
 	/* Non-posted: range(HPET-LAPIC) or 0xfed00000 through 0xfee00000-1 */
 	base = (HPET_BASE_ADDRESS >> 8) | MMIO_WE | MMIO_RE;
-	limit = (ALIGN_DOWN(LOCAL_APIC_ADDR - 1, 64 * KiB) >> 8) | MMIO_NP;
+	limit = (ALIGN_DOWN(LAPIC_DEFAULT_BASE - 1, 64 * KiB) >> 8) | MMIO_NP;
 	pci_write_config32(SOC_ADDR_DEV, NB_MMIO_LIMIT_LO(0), limit);
 	pci_write_config32(SOC_ADDR_DEV, NB_MMIO_BASE_LO(0), base);
 
@@ -402,85 +251,68 @@ void fam15_finalize(void *chip_info)
 void domain_enable_resources(struct device *dev)
 {
 	/* Must be called after PCI enumeration and resource allocation */
-	if (!romstage_handoff_is_resume())
+	if (!acpi_is_wakeup_s3())
 		do_agesawrapper(AMD_INIT_MID, "amdinitmid");
 }
 
-void domain_set_resources(struct device *dev)
+void domain_read_resources(struct device *dev)
 {
 	uint64_t uma_base = get_uma_base();
 	uint32_t uma_size = get_uma_size();
 	uint32_t mem_useable = (uintptr_t)cbmem_top();
-	msr_t tom = rdmsr(TOP_MEM);
-	msr_t high_tom = rdmsr(TOP_MEM2);
+	uint32_t tom = get_top_of_mem_below_4gb();
+	uint64_t high_tom = get_top_of_mem_above_4gb();
 	uint64_t high_mem_useable;
 	int idx = 0x10;
 
+	pci_domain_read_resources(dev);
+
+	fixed_io_range_reserved(dev, idx++, PCI_IO_CONFIG_INDEX, PCI_IO_CONFIG_PORT_COUNT);
+
 	/* 0x0 -> 0x9ffff */
-	ram_resource(dev, idx++, 0, 0xa0000 / KiB);
+	ram_range(dev, idx++, 0, 0xa0000);
 
 	/* 0xa0000 -> 0xbffff: legacy VGA */
-	mmio_resource(dev, idx++, 0xa0000 / KiB, 0x20000 / KiB);
+	mmio_range(dev, idx++, VGA_MMIO_BASE, VGA_MMIO_SIZE);
 
 	/* 0xc0000 -> 0xfffff: Option ROM */
-	reserved_ram_resource(dev, idx++, 0xc0000 / KiB, 0x40000 / KiB);
+	reserved_ram_from_to(dev, idx++, 0xc0000, 1 * MiB);
 
 	/*
-	 * 0x100000 (1MiB) -> low top useable RAM
+	 * 0x100000 (1MiB) -> low top usable RAM
 	 * cbmem_top() accounts for low UMA and TSEG if they are used.
 	 */
-	ram_resource(dev, idx++, (1 * MiB) / KiB,
-			(mem_useable - (1 * MiB)) / KiB);
+	ram_from_to(dev, idx++, 1 * MiB, mem_useable);
 
-	/* Low top useable RAM -> Low top RAM (bottom pci mmio hole) */
-	reserved_ram_resource(dev, idx++, mem_useable / KiB,
-					(tom.lo - mem_useable) / KiB);
+	/* Low top usable RAM -> Low top RAM (bottom pci mmio hole) */
+	reserved_ram_from_to(dev, idx++, mem_useable, tom);
+
+	/* NB IOAPIC2 resource. IOMMU_IOAPIC_IDX is used as index, so that the common AMD MADT
+	   code can find this resource */
+	mmio_range(dev, IOMMU_IOAPIC_IDX, IO_APIC2_ADDR, 0x1000);
 
 	/* If there is memory above 4GiB */
-	if (high_tom.hi) {
-		/* 4GiB -> high top useable */
+	if (high_tom >> 32) {
+		/* 4GiB -> high top usable */
 		if (uma_base >= (4ull * GiB))
 			high_mem_useable = uma_base;
 		else
-			high_mem_useable = ((uint64_t)high_tom.lo |
-						((uint64_t)high_tom.hi << 32));
+			high_mem_useable = high_tom;
 
-		ram_resource(dev, idx++, (4ull * GiB) / KiB,
-				((high_mem_useable - (4ull * GiB)) / KiB));
+		ram_from_to(dev, idx++, 4ull * GiB, high_mem_useable);
 
-		/* High top useable RAM -> high top RAM */
+		/* High top usable RAM -> high top RAM */
 		if (uma_base >= (4ull * GiB)) {
-			reserved_ram_resource(dev, idx++, uma_base / KiB,
-						uma_size / KiB);
+			reserved_ram_range(dev, idx++, uma_base, uma_size);
 		}
 	}
-
-	assign_resources(dev->link_list);
-}
-
-/*********************************************************************
- * Change the vendor / device IDs to match the generic VBIOS header. *
- *********************************************************************/
-u32 map_oprom_vendev(u32 vendev)
-{
-	u32 new_vendev;
-	new_vendev =
-		((vendev >= 0x100298e0) && (vendev <= 0x100298ef)) ?
-				0x100298e0 : vendev;
-
-	if (vendev != new_vendev)
-		printk(BIOS_NOTICE, "Mapping PCI device %8x to %8x\n",
-				vendev, new_vendev);
-
-	return new_vendev;
 }
 
 __weak void set_board_env_params(GNB_ENV_CONFIGURATION *params) { }
 
 void SetNbEnvParams(GNB_ENV_CONFIGURATION *params)
 {
-	const struct device *dev = SOC_IOMMU_DEV;
-	params->IommuSupport = dev && dev->enabled;
+	params->IommuSupport = is_dev_enabled(DEV_PTR(iommu));
 	set_board_env_params(params);
 }
 

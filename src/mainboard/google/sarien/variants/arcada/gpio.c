@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/gpio.h>
 #include <vendorcode/google/chromeos/chromeos.h>
@@ -52,7 +39,7 @@ static const struct pad_config gpio_table[] = {
 /* CORE_VID1 */
 /* VRALERT# */		PAD_NC(GPP_B2, NONE),
 /* CPU_GP2 */		PAD_CFG_GPI_APIC(GPP_B3, NONE, PLTRST,
-				 EDGE_SINGLE, INVERT), /* TOUCHPAD_INTR# */
+				 LEVEL, INVERT), /* TOUCHPAD_INTR# */
 /* CPU_GP3 */		PAD_CFG_GPI(GPP_B4, NONE, DEEP), /* TOUCH_SCREEN_DET# */
 			 /* LAN_CLKREQ_CPU_N */
 /* SRCCLKREQ0# */	PAD_CFG_NF(GPP_B5, NONE, DEEP, NF1),
@@ -255,6 +242,12 @@ static const struct pad_config early_gpio_table[] = {
 /* M2_SKT2_CFG0 */	PAD_CFG_GPO(GPP_H12, 1, DEEP), /* D3 cold RST */
 };
 
+static const struct pad_config romstage_gpio_table[] = {
+	/* Enable touchscreen, hold in reset */
+	PAD_CFG_GPO(GPP_B21, 1, DEEP), /* PCH_3.3V_TS_EN */
+	PAD_CFG_GPO(GPP_E7, 0, DEEP), /* TOUCH_SCREEN_PD# */
+};
+
 const struct pad_config *variant_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(gpio_table);
@@ -267,13 +260,15 @@ const struct pad_config *variant_early_gpio_table(size_t *num)
 	return early_gpio_table;
 }
 
+const struct pad_config *variant_romstage_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(romstage_gpio_table);
+	return romstage_gpio_table;
+}
+
 static const struct cros_gpio cros_gpios[] = {
 	CROS_GPIO_REC_AL(GPP_E8, CROS_GPIO_DEVICE_NAME),
 	CROS_GPIO_WP_AH(GPP_E15, CROS_GPIO_DEVICE_NAME),
 };
 
-const struct cros_gpio *variant_cros_gpios(size_t *num)
-{
-	*num = ARRAY_SIZE(cros_gpios);
-	return cros_gpios;
-}
+DECLARE_CROS_GPIOS(cros_gpios);

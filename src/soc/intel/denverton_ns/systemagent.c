@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2015 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cbmem.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/pci_ops.h>
@@ -23,13 +9,13 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <stdlib.h>
 #include <timer.h>
 
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
 #include <soc/systemagent.h>
+#include <soc/acpi.h>
 
 #define _1ms 1
 #define WAITING_STEP 100
@@ -118,11 +104,11 @@ static void mc_add_fixed_mmio_resources(struct device *dev)
 			continue;
 
 		resource = new_resource(dev, mc_fixed_resources[i].index);
+		resource->base = base;
+		resource->size = size;
 		resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
 				  IORESOURCE_STORED | IORESOURCE_RESERVE |
 				  IORESOURCE_ASSIGNED;
-		resource->base = base;
-		resource->size = size;
 		printk(BIOS_DEBUG, "%s: Adding %s @ %x 0x%08lx-0x%08lx.\n",
 		       __func__, mc_fixed_resources[i].description, index,
 		       (unsigned long)base, (unsigned long)(base + size - 1));
@@ -204,10 +190,7 @@ static void mc_report_map_entries(struct device *dev, uint64_t *values)
 
 static void mc_add_dram_resources(struct device *dev)
 {
-	unsigned long base_k, size_k;
-	unsigned long touud_k;
 	unsigned long index;
-	struct resource *resource;
 	uint64_t mc_values[NUM_MAP_ENTRIES];
 
 	/* Read in the MAP registers and report their values. */
@@ -218,8 +201,8 @@ static void mc_add_dram_resources(struct device *dev)
 	 * These are the host memory ranges that should be added:
 	 * - 0 -> 0xa0000: cacheable
 	 * - 0xc0000 -> 0x100000 : reserved
-	 * - 0x100000 -> top_of_ram : cacheable
-	 * - top_of_ram -> TSEG: uncacheable
+	 * - 0x100000 -> cbmem_top() : cacheable
+	 * - cbmem_top() -> TSEG: uncacheable
 	 * - TESG -> TOLUD: cacheable with standard MTRRs and reserved
 	 * - 4GiB -> TOUUD: cacheable
 	 *
@@ -247,51 +230,26 @@ static void mc_add_dram_resources(struct device *dev)
 	 */
 	index = 0;
 
-	/* 0 - > 0xa0000 */
-	base_k = 0;
-	size_k = (0xa0000 >> 10) - base_k;
-	ram_resource(dev, index++, base_k, size_k);
+	/*
+	 * 0 - > 0xa0000: RAM
+	 * 0xa0000 - 0xbffff: Legacy VGA
+	 * 0xc0000 - 0xfffff: RAM
+	 */
+	ram_range(dev, index++, 0, 0xa0000);
+	mmio_from_to(dev, index++, 0xa0000, 0xc0000);
+	reserved_ram_from_to(dev, index++, 0xc0000, 1 * MiB);
 
-	/* 0x100000 -> top_of_ram */
-	base_k = 0x100000 >> 10;
-	size_k = (top_of_32bit_ram() >> 10) - base_k;
-	ram_resource(dev, index++, base_k, size_k);
+	/* 0x100000 -> cbmem_top() */
+	ram_from_to(dev, index++, 1 * MiB, (uintptr_t)cbmem_top());
 
-	/* top_of_ram -> TSEG */
-	resource = new_resource(dev, index++);
-	resource->base = top_of_32bit_ram();
-	resource->size = mc_values[TSEG_REG] - resource->base;
-	resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-			  IORESOURCE_STORED | IORESOURCE_RESERVE |
-			  IORESOURCE_ASSIGNED;
+	/* cbmem_top() -> TSEG */
+	mmio_from_to(dev, index++, (uintptr_t)cbmem_top(), mc_values[TSEG_REG]);
 
 	/* TSEG -> TOLUD */
-	resource = new_resource(dev, index++);
-	resource->base = mc_values[TSEG_REG];
-	resource->size = mc_values[TOLUD_REG] - resource->base;
-	resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-			  IORESOURCE_STORED | IORESOURCE_RESERVE |
-			  IORESOURCE_ASSIGNED | IORESOURCE_CACHEABLE;
-	printk(BIOS_DEBUG,
-		"SMM memory location: 0x%llx  SMM memory size: 0x%llx\n",
-		resource->base, resource->size);
+	reserved_ram_from_to(dev, index++, mc_values[TSEG_REG], mc_values[TOLUD_REG]);
 
 	/* 4GiB -> TOUUD */
-	base_k = 4096 * 1024; /* 4GiB */
-	touud_k = mc_values[TOUUD_REG] >> 10;
-	size_k = touud_k - base_k;
-	if (touud_k > base_k)
-		ram_resource(dev, index++, base_k, size_k);
-
-	/*
-	 * Reserve everything between A segment and 1MB:
-	 *
-	 * 0xa0000 - 0xbffff: legacy VGA
-	 * 0xc0000 - 0xfffff: reserved RAM
-	 */
-	mmio_resource(dev, index++, (0xa0000 >> 10), (0xc0000 - 0xa0000) >> 10);
-	reserved_ram_resource(dev, index++, (0xc0000 >> 10),
-			      (0x100000 - 0xc0000) >> 10);
+	upper_ram_end(dev, index++, mc_values[TOUUD_REG]);
 }
 
 static void systemagent_read_resources(struct device *dev)
@@ -338,17 +296,20 @@ static struct device_operations systemagent_ops = {
 	.enable_resources = pci_dev_enable_resources,
 	.init = systemagent_init,
 	.ops_pci = &soc_pci_ops,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.write_acpi_tables = systemagent_write_acpi_tables,
+#endif
 };
 
 /* IDs for System Agent device of Intel Denverton SoC */
 static const unsigned short systemagent_ids[] = {
-	SA_DEVID, /* DVN System Agent */
-	SA_DEVID_DNVAD, /* DVN-AD System Agent */
+	PCI_DID_INTEL_DNV_SA,
+	PCI_DID_INTEL_DNVAD_SA,
 	0
 };
 
 static const struct pci_driver systemagent_driver __pci_driver = {
 	.ops = &systemagent_ops,
-	.vendor = PCI_VENDOR_ID_INTEL,
+	.vendor = PCI_VID_INTEL,
 	.devices = systemagent_ids
 };

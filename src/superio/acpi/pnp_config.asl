@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Christoph Grenz <christophg+cb@grenz-bonn.de>
- * Copyright (C) 2013 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* ======== General PnP configuration functions ======= */
 
@@ -40,8 +26,8 @@
 Mutex(CONF_MODE_MUTEX, 1)
 
 /*
- * Enter configuration mode (and aquire mutex)
- * Method must be run before accesssing the configuration region.
+ * Enter configuration mode (and acquire mutex)
+ * Method must be run before accessing the configuration region.
  * Parameter is the LDN which should be accessed. Values >= 0xFF mean
  * no LDN switch should be done.
  */
@@ -49,19 +35,19 @@ Method (ENTER_CONFIG_MODE, 1)
 {
 	Acquire (CONF_MODE_MUTEX, 0xFFFF)
 #ifdef PNP_ENTER_MAGIC_1ST
-	Store (PNP_ENTER_MAGIC_1ST, PNP_ADDR_REG)
+	PNP_ADDR_REG = PNP_ENTER_MAGIC_1ST
 #ifdef PNP_ENTER_MAGIC_2ND
-	Store (PNP_ENTER_MAGIC_2ND, PNP_ADDR_REG)
+	PNP_ADDR_REG = PNP_ENTER_MAGIC_2ND
 #ifdef PNP_ENTER_MAGIC_3RD
-	Store (PNP_ENTER_MAGIC_3RD, PNP_ADDR_REG)
+	PNP_ADDR_REG = PNP_ENTER_MAGIC_3RD
 #ifdef PNP_ENTER_MAGIC_4TH
-	Store (PNP_ENTER_MAGIC_4TH, PNP_ADDR_REG)
+	PNP_ADDR_REG = PNP_ENTER_MAGIC_4TH
 #endif
 #endif
 #endif
 #endif
-	If (LLess(Arg0, PNP_NO_LDN_CHANGE)) {
-		Store(Arg0, PNP_LOGICAL_DEVICE)
+	If (Arg0 < PNP_NO_LDN_CHANGE) {
+		PNP_LOGICAL_DEVICE = Arg0
 	}
 }
 
@@ -72,10 +58,10 @@ Method (ENTER_CONFIG_MODE, 1)
 Method (EXIT_CONFIG_MODE)
 {
 #ifdef PNP_EXIT_MAGIC_1ST
-	Store (PNP_EXIT_MAGIC_1ST, PNP_ADDR_REG)
+	PNP_ADDR_REG = PNP_EXIT_MAGIC_1ST
 #endif
 #if defined(PNP_EXIT_SPECIAL_REG) && defined(PNP_EXIT_SPECIAL_VAL)
-	Store (PNP_EXIT_SPECIAL_VAL, PNP_EXIT_SPECIAL_REG)
+	PNP_EXIT_SPECIAL_REG = PNP_EXIT_SPECIAL_VAL
 #endif
 	Release (CONF_MODE_MUTEX)
 }
@@ -86,5 +72,5 @@ Method (EXIT_CONFIG_MODE)
  */
 Method (SWITCH_LDN, 1)
 {
-	Store(Arg0, PNP_LOGICAL_DEVICE)
+	PNP_LOGICAL_DEVICE = Arg0
 }

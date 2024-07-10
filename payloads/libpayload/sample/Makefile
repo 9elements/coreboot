@@ -1,5 +1,4 @@
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (C) 2008 Advanced Micro Devices, Inc.
 ##
@@ -27,14 +26,18 @@
 ## SUCH DAMAGE.
 ##
 
+
 # Sample libpayload Makefile.
 include ../.config
-include ../.xcompile
+ifeq ($(CONFIG_LP_ARCH_MOCK),y)
+$(error This sample program does not support ARCH_MOCK. Use sample/arch_mock instead)
+endif
+
+include ../build/xcompile
 
 ARCH-$(CONFIG_LP_ARCH_ARM)   := arm
 ARCH-$(CONFIG_LP_ARCH_X86)   := x86_32
 ARCH-$(CONFIG_LP_ARCH_ARM64) := arm64
-ARCH-$(CONFIG_LP_ARCH_MIPS)  := mips
 
 CC := $(CC_$(ARCH-y))
 AS := $(AS_$(ARCH-y))

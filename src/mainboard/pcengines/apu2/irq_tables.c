@@ -1,20 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
-#include <device/pci.h>
+#include <commonlib/bsd/helpers.h>
+#include <device/pci_def.h>
 #include <string.h>
 #include <stdint.h>
 #include <arch/pirq_routing.h>
@@ -38,7 +26,6 @@ static void write_pirq_info(struct irq_info *pirq_info, u8 bus, u8 devfn,
 	pirq_info->rfu = rfu;
 }
 
-
 unsigned long write_pirq_routing_table(unsigned long addr)
 {
 	struct irq_routing_table *pirq;
@@ -50,14 +37,13 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 	int i;
 
 	/* Align the table to be 16 byte aligned. */
-	addr += 15;
-	addr &= ~15;
+	addr = ALIGN_UP(addr, 16);
 
 	/* This table must be between 0xf0000 & 0x100000 */
 	printk(BIOS_INFO, "Writing IRQ routing tables to 0x%lx...", addr);
 
 	pirq = (void *)(addr);
-	v = (u8 *) (addr);
+	v = (u8 *)(addr);
 
 	pirq->signature = PIRQ_SIGNATURE;
 	pirq->version = PIRQ_VERSION;
@@ -96,7 +82,7 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 		pirq->checksum = sum;
 	}
 
-	printk(BIOS_INFO, "write_pirq_routing_table done.\n");
+	printk(BIOS_INFO, "%s done.\n", __func__);
 
 	return (unsigned long)pirq_info;
 }

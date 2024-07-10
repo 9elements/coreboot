@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-only WITH GCC-exception-3.1 */
+
 /* File format for coverage information
    Copyright (C) 1996, 1997, 1998, 2000, 2002,
    2003, 2004, 2005, 2008, 2009 Free Software Foundation, Inc.
@@ -441,7 +443,7 @@ struct gcov_fn_info {
 	gcov_unsigned_t ident;		/* unique ident of function */
 	gcov_unsigned_t lineno_checksum;	/* function lineo_checksum */
 	gcov_unsigned_t cfg_checksum;		/* function cfg checksum */
-	struct gcov_ctr_info ctrs[0];		/* instrumented counters */
+	struct gcov_ctr_info ctrs[];		/* instrumented counters */
 };
 
 /* Type of function used to merge counters.  */

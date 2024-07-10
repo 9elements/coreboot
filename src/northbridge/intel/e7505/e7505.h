@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2005 Digital Design Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /*
  * e7505.h: PCI configuration space for the Intel E7501 memory controller
@@ -20,6 +6,11 @@
 
 #ifndef NORTHBRIDGE_INTEL_E7505_E7505_H
 #define NORTHBRIDGE_INTEL_E7505_E7505_H
+
+#include <types.h>
+
+size_t northbridge_get_tseg_size(void);
+uintptr_t northbridge_get_tseg_base(void);
 
 /************  D0:F0 ************/
 // Register offsets
@@ -49,6 +40,22 @@
 #define SKPD		0xDE	/* Scratchpad register, 16 bit */
 #define DVNP		0xE0	/* Device Not Present, 16 bit */
 #define MCHTST		0xF4	/* MCH Test Register, 32 bit? (if similar to 855PM) */
+
+#define SMRAMC		0x9D
+#define C_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0))
+#define G_SMRAME	(1 << 3)
+#define	D_LCK		(1 << 4)
+#define D_CLS		(1 << 5)
+#define D_OPEN		(1 << 6)
+
+#define ESMRAMC		0x9E
+#define T_EN		(1 << 0)
+#define	TSEG_SZ_128K	(0 << 1)
+#define TSEG_SZ_256K	(1 << 1)
+#define TSEG_SZ_512K	(2 << 1)
+#define TSEG_SZ_1M	(3 << 1)
+#define TSEG_SZ_MASK	TSEG_SZ_1M
+#define H_SMRAME	(1 << 7)
 
 // CAS# Latency bits in the DRAM Timing (DRT) register
 #define DRT_CAS_2_5		(0<<4)

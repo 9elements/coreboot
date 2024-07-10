@@ -1,41 +1,30 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- * Copyright (C) 2105 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* Thermal Threshold Event Handler */
 #define HAVE_THERM_EVENT_HANDLER
+
+#if CONFIG(EC_SUPPORTS_DPTF_TEVT)
 Method (TEVT, 1, NotSerialized)
 {
-	Store (ToInteger (Arg0), Local0)
+	Local0 = ToInteger (Arg0)
 
 #ifdef DPTF_TSR0_SENSOR_ID
-	If (LEqual (Local0, DPTF_TSR0_SENSOR_ID)) {
+	If (Local0 == DPTF_TSR0_SENSOR_ID) {
 		Notify (^TSR0, 0x90)
 	}
 #endif
 #ifdef DPTF_TSR1_SENSOR_ID
-	If (LEqual (Local0, DPTF_TSR1_SENSOR_ID)) {
+	If (Local0 == DPTF_TSR1_SENSOR_ID) {
 		Notify (^TSR1, 0x90)
 	}
 #endif
 #ifdef DPTF_TSR2_SENSOR_ID
-	If (LEqual (Local0, DPTF_TSR2_SENSOR_ID)) {
+	If (Local0 == DPTF_TSR2_SENSOR_ID) {
 		Notify (^TSR2, 0x90)
 	}
 #endif
 }
+#endif
 
 /* Thermal device initialization - Disable Aux Trip Points */
 Method (TINI)
@@ -63,7 +52,7 @@ Device (TSR0)
 
 	Method (_STA)
 	{
-		If (LEqual (\DPTE, One)) {
+		If (\DPTE == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -78,7 +67,7 @@ Device (TSR0)
 	/* Return passive thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_PSV)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR0_PASSIVE))
 		} Else {
@@ -89,7 +78,7 @@ Device (TSR0)
 	/* Return critical thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_CRT)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR0_CRITICAL))
 		} Else {
@@ -131,7 +120,7 @@ Device (TSR1)
 
 	Method (_STA)
 	{
-		If (LEqual (\DPTE, One)) {
+		If (\DPTE == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -146,7 +135,7 @@ Device (TSR1)
 	/* Return passive thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_PSV)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR1_PASSIVE))
 		} Else {
@@ -157,7 +146,7 @@ Device (TSR1)
 	/* Return critical thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_CRT)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR1_CRITICAL))
 		} Else {
@@ -199,7 +188,7 @@ Device (TSR2)
 
 	Method (_STA)
 	{
-		If (LEqual (\DPTE, One)) {
+		If (\DPTE == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -214,7 +203,7 @@ Device (TSR2)
 	/* Return passive thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_PSV)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR2_PASSIVE))
 		} Else {
@@ -225,7 +214,7 @@ Device (TSR2)
 	/* Return critical thermal point defined by Terra2 or Terra3 mainboard */
 	Method (_CRT)
 	{
-		If (LEqual (\_SB.GPID, TERRA2_PROJECT_ID))
+		If (\_SB.GPID == TERRA2_PROJECT_ID)
 		{
 			Return (CTOK (DPTF_TERRA2_TSR2_CRITICAL))
 		} Else {

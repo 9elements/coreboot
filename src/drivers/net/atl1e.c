@@ -1,23 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007 Atheros Corporation. All rights reserved.
- * Copyright (C) 2012 Google Inc.
- * Copyright (C) 2016 Damien Zammit <damien@zamaudio.com>
- * Copyright (C) 2018 Arthur Heymans <arthur@aheymans.xyz>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
- * This driver sets the macaddress of a Atheros AR8121/AR8113/AR8114
+ * This driver sets the MAC address of an Atheros AR8121/AR8113/AR8114
  */
 
 #include <device/mmio.h>
@@ -46,7 +30,7 @@ static u8 get_hex_digit(const u8 c)
 			ret = c - 'a' + 0x0a;
 	}
 	if (ret > 0x0f) {
-		printk(BIOS_ERR, "Error: Invalid hex digit found: "
+		printk(BIOS_ERR, "Invalid hex digit found: "
 				 "%c - 0x%02x\n", (char)c, c);
 		ret = 0;
 	}
@@ -57,18 +41,11 @@ static u8 get_hex_digit(const u8 c)
 
 static enum cb_err fetch_mac_string_cbfs(u8 *macstrbuf)
 {
-	struct cbfsf fh;
-	uint32_t matchraw = CBFS_TYPE_RAW;
-
-	if (!cbfs_boot_locate(&fh, "atl1e-macaddress", &matchraw)) {
-		/* check the cbfs for the mac address */
-		if (rdev_readat(&fh.data, macstrbuf, 0, MACLEN) != MACLEN) {
-			printk(BIOS_ERR, "atl1e: Error reading MAC from CBFS\n");
-			return CB_ERR;
-		}
-		return CB_SUCCESS;
+	if (!cbfs_load("atl1e-macaddress", macstrbuf, MACLEN)) {
+		printk(BIOS_ERR, "atl1e: Error reading MAC from CBFS\n");
+		return CB_ERR;
 	}
-	return CB_ERR;
+	return CB_SUCCESS;
 }
 
 static void get_mac_address(u8 *macaddr, const u8 *strbuf)
@@ -108,28 +85,28 @@ static void program_mac_address(u32 mem_base)
 	printk(BIOS_DEBUG, "atl1e: Programming MAC Address...");
 
 	value = (mac[2] << 24) | (mac[3] << 16) | (mac[4] << 8) | (mac[5] << 0);
-	write32((void *)mem_base + REG_MAC_STA_ADDR, value);
+	write32p(mem_base + REG_MAC_STA_ADDR, value);
 	value = (mac[0] << 8) | (mac[1] << 0);
-	write32((void *)mem_base + REG_MAC_STA_ADDR + 4, value);
+	write32p(mem_base + REG_MAC_STA_ADDR + 4, value);
 
 	printk(BIOS_DEBUG, "done\n");
 }
 
 static int atl1e_eeprom_exist(u32 mem_base)
 {
-	u32 value = read32((void *)mem_base + REG_SPI_FLASH_CTRL);
+	u32 value = read32p(mem_base + REG_SPI_FLASH_CTRL);
 	if (value & SPI_FLASH_CTRL_EN_VPD) {
 		value &= ~SPI_FLASH_CTRL_EN_VPD;
-		write32((void *)mem_base + REG_SPI_FLASH_CTRL, value);
+		write32p(mem_base + REG_SPI_FLASH_CTRL, value);
 	}
-	value = read32((void *)mem_base + REG_PCIE_CAP_LIST);
+	value = read32p(mem_base + REG_PCIE_CAP_LIST);
 	return ((value & 0xff00) == 0x6c00) ? 1 : 0;
 }
 
 static void atl1e_init(struct device *dev)
 {
 	/* Get the resource of the NIC mmio */
-	struct resource *nic_res = find_resource(dev, PCI_BASE_ADDRESS_0);
+	struct resource *nic_res = probe_resource(dev, PCI_BASE_ADDRESS_0);
 
 	if (nic_res == NULL) {
 		printk(BIOS_ERR, "atl1e: resource not found\n");
@@ -150,7 +127,7 @@ static void atl1e_init(struct device *dev)
 
 	/* Check if the base is invalid */
 	if (!mem_base) {
-		printk(BIOS_ERR, "atl1e: Error cant find MEM resource\n");
+		printk(BIOS_ERR, "atl1e: Error can't find MEM resource\n");
 		return;
 	}
 	/* Enable but do not set bus master */
@@ -167,7 +144,6 @@ static struct device_operations atl1e_ops  = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = atl1e_init,
-	.scan_bus         = 0,
 };
 
 static const struct pci_driver atl1e_driver __pci_driver = {
@@ -177,5 +153,5 @@ static const struct pci_driver atl1e_driver __pci_driver = {
 };
 
 struct chip_operations drivers_net_ops = {
-	CHIP_NAME("Atheros AR8121/AR8113/AR8114")
+	.name = "Atheros AR8121/AR8113/AR8114",
 };

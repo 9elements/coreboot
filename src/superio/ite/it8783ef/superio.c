@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/device.h>
 #include <device/pnp.h>
@@ -34,7 +20,7 @@ static void it8783ef_init(struct device *const dev)
 	switch (dev->path.pnp.device) {
 	case IT8783EF_EC:
 		conf = dev->chip_info;
-		res = find_resource(dev, PNP_IDX_IO0);
+		res = probe_resource(dev, PNP_IDX_IO0);
 		if (!conf || !res)
 			break;
 		ite_ec_init(res->base, &conf->ec);
@@ -102,6 +88,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_ite_it8783ef_ops = {
-	CHIP_NAME("ITE IT8783E/F Super I/O")
+	.name = "ITE IT8783E/F Super I/O",
 	.enable_dev = enable_dev,
 };

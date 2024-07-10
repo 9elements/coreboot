@@ -1,19 +1,20 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _BYTEORDER_H
 #define _BYTEORDER_H
 
-#define __LITTLE_ENDIAN 1234
+#define __BIG_ENDIAN 4321
+
+#define PPC_BIT(bit)		(0x8000000000000000UL >> (bit))
+#define PPC_BITMASK(bs, be)	((PPC_BIT(bs) - PPC_BIT(be)) | PPC_BIT(bs))
+
+#ifndef __ASSEMBLER__
+
+#include <types.h>
+#define PPC_SHIFT(val, lsb)	(((uint64_t)(val)) << (63 - (lsb)))
+
+#else
+#define PPC_SHIFT(val, lsb)	((val) << (63 - (lsb)))
+#endif
 
 #endif /* _BYTEORDER_H */

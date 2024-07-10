@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <b64_decode.h>
 #include <cbmem.h>
 #include <console/console.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <vendorcode/google/chromeos/chromeos.h>
@@ -51,7 +39,7 @@ struct calibration_blob {
  */
 struct calibration_entry {
 	uint32_t size;
-	struct calibration_blob entries[0];  /* A varialble size container. */
+	struct calibration_blob entries[];  /* A varialble size container. */
 };
 
 
@@ -112,7 +100,7 @@ static size_t fill_up_entries_cache(struct vpd_blob_cache_t *cache,
 			strcpy(cache->key_name, templates[i]);
 			cache->key_name[index_location] = j + '0';
 
-			payload = vpd_find(cache->key_name, &payload_size, VPD_ANY);
+			payload = vpd_find(cache->key_name, &payload_size, VPD_RO_THEN_RW);
 			if (!payload)
 				continue;
 
@@ -138,7 +126,7 @@ static size_t fill_up_entries_cache(struct vpd_blob_cache_t *cache,
 			cache->key_size = key_length;
 			cache->value_size = decoded_size;
 			cache->blob_size =
-				ALIGN(sizeof(struct calibration_blob) +
+				ALIGN_UP(sizeof(struct calibration_blob) +
 				      cache->key_size +
 				      cache->value_size, 4);
 			cbmem_entry_size += cache->blob_size;

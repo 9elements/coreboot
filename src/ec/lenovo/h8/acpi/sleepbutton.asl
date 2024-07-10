@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (c) 2011 Sven Schnelle <svens@stackframe.org>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Field(ERAM, ByteAcc, NoLock, Preserve)
 {
@@ -34,11 +20,11 @@ Device(SLPB)
 	Method(_PSW, 1, NotSerialized)
 	{
 		if (Arg0) {
-			Store(6, FNKY) /* Fn key acts as wake button */
-			Store(1, WKFN)
+			FNKY = 6 /* Fn key acts as wake button */
+			WKFN = 1
 		} else {
-			Store(0, FNKY) /* Fn key normal operation */
-			Store(0, WKFN)
+			FNKY = 0 /* Fn key normal operation */
+			WKFN = 0
 		}
 	}
 }

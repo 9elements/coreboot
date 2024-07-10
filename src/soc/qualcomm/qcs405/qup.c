@@ -1,40 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 - 2015, 2019 The Linux Foundation. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *     * Neither the name of The Linux Foundation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include <device/mmio.h>
 #include <console/console.h>
 #include <delay.h>
+#include <timer.h>
 #include <soc/gpio.h>
 #include <soc/iomap.h>
-#include <stdlib.h>
 #include <soc/qup.h>
 
 #define TIMEOUT_CNT	100
@@ -48,7 +19,7 @@
 #if QUP_DEBUG
 #define qup_write32(a, v) do {				\
 	write32(a, v);					\
-	printk(QUPDBG "%s(%d): write32(0x%p, 0x%x)\n",	\
+	printk(QUPDBG "%s(%d): write32(%p, 0x%x)\n",	\
 			__func__, __LINE__, a, v);	\
 } while (0)
 #else
@@ -89,7 +60,6 @@ static void i2c_set_mstr_clk_ctl(unsigned int id, unsigned int hz)
 	mstr_clk_ctl = ((ht_div & 0xff) << 16) | (fs_div & 0xff);
 	qup_write32(QUP_ADDR(id, QUP_I2C_MASTER_CLK_CTL), mstr_clk_ctl);
 }
-
 
 static qup_return_t qup_i2c_master_status(blsp_qup_id_t id)
 {
@@ -160,35 +130,33 @@ static qup_return_t qup_reset_master_status(blsp_qup_id_t id)
 	return QUP_SUCCESS;
 }
 
-static qup_return_t qup_fifo_wait_for(blsp_qup_id_t id, uint32_t status)
+static qup_return_t qup_fifo_wait_for(blsp_qup_id_t id, uint32_t status,
+				      struct stopwatch *timeout)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
-	unsigned int count = TIMEOUT_CNT;
 
 	while (!(read32(QUP_ADDR(id, QUP_OPERATIONAL)) & status)) {
 		ret = qup_i2c_master_status(id);
 		if (ret)
 			return ret;
-		if (count == 0)
+		if (stopwatch_expired(timeout))
 			return QUP_ERR_TIMEOUT;
-		count--;
 	}
 
 	return QUP_SUCCESS;
 }
 
-static qup_return_t qup_fifo_wait_while(blsp_qup_id_t id, uint32_t status)
+static qup_return_t qup_fifo_wait_while(blsp_qup_id_t id, uint32_t status,
+					struct stopwatch *timeout)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
-	unsigned int count = TIMEOUT_CNT;
 
 	while (read32(QUP_ADDR(id, QUP_OPERATIONAL)) & status) {
 		ret = qup_i2c_master_status(id);
 		if (ret)
 			return ret;
-		if (count == 0)
+		if (stopwatch_expired(timeout))
 			return QUP_ERR_TIMEOUT;
-		count--;
 	}
 
 	return QUP_SUCCESS;
@@ -206,7 +174,8 @@ static inline uint32_t qup_i2c_create_output_tag(int stop, u8 data)
 	return tag;
 }
 
-static inline qup_return_t qup_i2c_write_fifo_flush(blsp_qup_id_t id)
+static inline qup_return_t qup_i2c_write_fifo_flush(blsp_qup_id_t id,
+						    struct stopwatch *timeout)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
 
@@ -214,7 +183,7 @@ static inline qup_return_t qup_i2c_write_fifo_flush(blsp_qup_id_t id)
 
 	mdelay(4);	/* TPM seems to need this */
 
-	ret = qup_fifo_wait_while(id, OUTPUT_FIFO_NOT_EMPTY);
+	ret = qup_fifo_wait_while(id, OUTPUT_FIFO_NOT_EMPTY, timeout);
 	if (ret)
 		return ret;
 
@@ -235,6 +204,7 @@ static qup_return_t qup_i2c_write_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj,
 	unsigned int data_len = p_tx_obj->p.iic.data_len;
 	unsigned int idx = 0;
 	uint32_t tag, *fifo = QUP_ADDR(id, QUP_OUTPUT_FIFO);
+	struct stopwatch timeout;
 
 	qup_reset_master_status(id);
 
@@ -263,6 +233,7 @@ static qup_return_t qup_i2c_write_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj,
 
 	qup_write32(fifo, tag);
 
+	stopwatch_init_usecs_expire(&timeout, CONFIG_I2C_TRANSFER_TIMEOUT_US);
 	while (data_len) {
 
 		tag = qup_i2c_create_output_tag(data_len == 1 && stop_seq,
@@ -280,7 +251,7 @@ static qup_return_t qup_i2c_write_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj,
 
 		qup_write32(fifo, tag);
 
-		ret = qup_i2c_write_fifo_flush(id);
+		ret = qup_i2c_write_fifo_flush(id, &timeout);
 
 		if (ret) {
 			printk(QUPDBG "%s: error\n", __func__);
@@ -288,7 +259,7 @@ static qup_return_t qup_i2c_write_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj,
 		}
 	}
 
-	ret = qup_i2c_write_fifo_flush(id);
+	ret = qup_i2c_write_fifo_flush(id, &timeout);
 
 	qup_set_state(id, QUP_STATE_RESET);
 
@@ -352,6 +323,7 @@ static qup_return_t qup_i2c_read_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj)
 	unsigned int data_len = p_tx_obj->p.iic.data_len;
 	unsigned int idx = 0;
 	uint32_t *fifo = QUP_ADDR(id, QUP_OUTPUT_FIFO);
+	struct stopwatch timeout;
 
 	qup_reset_master_status(id);
 
@@ -370,13 +342,14 @@ static qup_return_t qup_i2c_read_fifo(blsp_qup_id_t id, qup_data_t *p_tx_obj)
 				  (QUP_I2C_ADDR(addr) | QUP_I2C_SLAVE_READ)) |
 				((QUP_I2C_RECV_SEQ | data_len) << 16));
 
-	ret = qup_i2c_write_fifo_flush(id);
+	stopwatch_init_usecs_expire(&timeout, CONFIG_I2C_TRANSFER_TIMEOUT_US);
+	ret = qup_i2c_write_fifo_flush(id, &timeout);
 	if (ret) {
 		printk(QUPDBG "%s: OUTPUT_FIFO_NOT_EMPTY\n", __func__);
 		return ret;
 	}
 
-	ret = qup_fifo_wait_for(id, INPUT_SERVICE_FLAG);
+	ret = qup_fifo_wait_for(id, INPUT_SERVICE_FLAG, &timeout);
 	if (ret) {
 		printk(QUPDBG "%s: INPUT_SERVICE_FLAG\n", __func__);
 		return ret;

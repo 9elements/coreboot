@@ -1,28 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/msr.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/name.h>
-#include <cpu/intel/common/common.h>
 
 #define HIGHEST_CLEVEL		3
 static void configure_c_states(void)
@@ -112,7 +96,7 @@ static void model_6ex_init(struct device *cpu)
 	char processor_name[49];
 
 	/* Turn on caching if we haven't already */
-	x86_enable_cache();
+	enable_cache();
 
 	/* Print processor name */
 	fill_processor_name(processor_name);
@@ -120,9 +104,6 @@ static void model_6ex_init(struct device *cpu)
 
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
-
-	/* Enable the local CPU APICs */
-	setup_lapic();
 
 	/* Configure C States */
 	configure_c_states();
@@ -139,10 +120,10 @@ static struct device_operations cpu_dev_ops = {
 };
 
 static const struct cpu_device_id cpu_table[] = {
-	{ X86_VENDOR_INTEL, 0x06e0 }, /* Intel Core Solo/Core Duo */
-	{ X86_VENDOR_INTEL, 0x06e8 }, /* Intel Core Solo/Core Duo */
-	{ X86_VENDOR_INTEL, 0x06ec }, /* Intel Core Solo/Core Duo */
-	{ 0, 0 },
+	{ X86_VENDOR_INTEL, 0x06e0, CPUID_EXACT_MATCH_MASK }, /* Intel Core Solo/Core Duo */
+	{ X86_VENDOR_INTEL, 0x06e8, CPUID_EXACT_MATCH_MASK }, /* Intel Core Solo/Core Duo */
+	{ X86_VENDOR_INTEL, 0x06ec, CPUID_EXACT_MATCH_MASK }, /* Intel Core Solo/Core Duo */
+	CPU_TABLE_END
 };
 
 static const struct cpu_driver driver __cpu_driver = {

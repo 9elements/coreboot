@@ -1,30 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 Intel Corp.
- * Copyright (C) 2017 - 2018 Siemens AG
- * (Written by Alexandru Gagniuc <alexandrux.gagniuc@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _SOC_APOLLOLAKE_CHIP_H_
 #define _SOC_APOLLOLAKE_CHIP_H_
 
 #include <commonlib/helpers.h>
-#include <intelblocks/chip.h>
+#include <drivers/intel/gma/gma.h>
+#include <intelblocks/cfg.h>
 #include <intelblocks/gspi.h>
+#include <gpio.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
 #include <intelblocks/lpc_lib.h>
+#include <intelblocks/power_limit.h>
 #include <device/i2c_simple.h>
 #include <drivers/i2c/designware/dw_i2c.h>
 #include <soc/pm.h>
@@ -39,10 +25,31 @@ enum pnp_settings {
 	PNP_PERF_POWER,
 };
 
+enum sata_speed_limit {
+	SATA_DEFAULT = 0,
+	SATA_GEN1,
+	SATA_GEN2,
+	SATA_GEN3
+};
+
 struct soc_intel_apollolake_config {
 
 	/* Common structure containing soc config data required by common code*/
 	struct soc_intel_common_config common_soc_config;
+
+	/* Common struct containing power limits configuration info */
+	struct soc_power_limits_config power_limits_config;
+
+	/*
+	 * IGD panel configuration
+	 *
+	 * Second backlight control shares logic with other pins (aka. display utility pin).
+	 * Be sure it's used for PWM before setting any secondary backlight value.
+	 */
+	struct i915_gpu_panel_config panel_cfg[2];
+
+	/* i915 struct for GMA backlight control */
+	struct i915_gpu_controller_info gfx;
 
 	/*
 	 * Mapping from PCIe root port to CLKREQ input on the SOC. The SOC has
@@ -52,10 +59,10 @@ struct soc_intel_apollolake_config {
 	uint8_t pcie_rp_clkreq_pin[MAX_PCIE_PORTS];
 
 	/* Enable/disable hot-plug for root ports (0 = disable, 1 = enable). */
-	uint8_t pcie_rp_hotplug_enable[MAX_PCIE_PORTS];
+	bool pcie_rp_hotplug_enable[MAX_PCIE_PORTS];
 
 	/* De-emphasis enable configuration for each PCIe root port */
-	uint8_t pcie_rp_deemphasis_enable[MAX_PCIE_PORTS];
+	bool pcie_rp_deemphasis_enable[MAX_PCIE_PORTS];
 
 	/* [14:8] DDR mode Number of dealy elements.Each = 125pSec.
 	 * [6:0] SDR mode Number of dealy elements.Each = 125pSec.
@@ -96,6 +103,15 @@ struct soc_intel_apollolake_config {
 	/* Select the eMMC max speed allowed. */
 	uint8_t emmc_host_max_speed;
 
+	/* Sata Ports Hot Plug */
+	bool sata_ports_hot_plug[2];
+
+	/* Sata Ports Enable */
+	bool sata_ports_enable[2];
+
+	/* Sata Ports Solid State Drive */
+	uint8_t sata_ports_ssd[2];
+
 	/* Specifies on which IRQ the SCI will internally appear. */
 	uint8_t sci_irq;
 
@@ -106,26 +122,34 @@ struct soc_intel_apollolake_config {
 	uint8_t gpe0_dw2; /* GPE0_95_64 STS/EN */
 	uint8_t gpe0_dw3; /* GPE0_127_96 STS/EN */
 
+	/* LPC fixed enables and ranges */
+	uint16_t lpc_iod;
+	uint16_t lpc_ioe;
+
+	/* Generic IO decode ranges */
+	uint32_t gen1_dec;
+	uint32_t gen2_dec;
+	uint32_t gen3_dec;
+	uint32_t gen4_dec;
+
 	/* Configure LPSS S0ix Enable */
-	uint8_t lpss_s0ix_enable;
+	bool lpss_s0ix_enable;
 
 	/* Enable DPTF support */
-	int dptf_enable;
+	bool dptf_enable;
 
 	/* TCC activation offset value in degrees Celsius */
-	int tcc_offset;
-
-	/* PL1 override value in mW for APL */
-	uint16_t tdp_pl1_override_mw;
-	/* PL2 override value in mW for APL */
-	uint16_t tdp_pl2_override_mw;
+	uint32_t tcc_offset;
 
 	/* Configure Audio clk gate and power gate
 	 * IOSF-SB port ID 92 offset 0x530 [5] and [3]
 	 */
-	uint8_t hdaudio_clk_gate_enable;
-	uint8_t hdaudio_pwr_gate_enable;
-	uint8_t hdaudio_bios_config_lockdown;
+	bool hdaudio_clk_gate_enable;
+	bool hdaudio_pwr_gate_enable;
+	bool hdaudio_bios_config_lockdown;
+
+	/* Enhanced C-states */
+	bool enhanced_cstates;
 
 	/* SLP S3 minimum assertion width. */
 	int slp_s3_assertion_width_usecs;
@@ -136,20 +160,13 @@ struct soc_intel_apollolake_config {
 	/* USB2 eye diagram settings per port */
 	struct usb2_eye_per_port usb2eye[APOLLOLAKE_USB2_PORT_MAX];
 
+	/* Override USB port configuration */
+	bool usb_config_override;
+	struct usb_port_config usb2_port[APOLLOLAKE_USB2_PORT_MAX];
+	struct usb_port_config usb3_port[APOLLOLAKE_USB3_PORT_MAX];
+
 	/* GPIO SD card detect pin */
 	unsigned int sdcard_cd_gpio;
-
-	/* PRMRR size setting with three options
-	 *  0x02000000 - 32MiB
-	 *  0x04000000 - 64MiB
-	 *  0x08000000 - 128MiB */
-	uint32_t PrmrrSize;
-
-	/* Enable SGX feature.
-	 * Enabling SGX feature is 2 step process,
-	 * (1) set sgx_enable = 1
-	 * (2) set PrmrrSize to supported size */
-	uint8_t sgx_enable;
 
 	/* Select PNP Settings.
 	 * (0) Performance,
@@ -161,25 +178,25 @@ struct soc_intel_apollolake_config {
 	 * Upd for changing PCH_PWROK delay configuration : I2C_Slave_Address
 	 * (31:24) + Register_Offset (23:16) + OR Value (15:8) + AND Value (7:0)
 	 */
-	uint32_t PmicPmcIpcCtrl;
+	uint32_t pmic_pmc_ipc_ctrl;
 
 	/* Options to disable XHCI Link Compliance Mode. Default is FALSE to not
 	 * disable Compliance Mode. Set TRUE to disable Compliance Mode.
 	 * 0:FALSE(Default), 1:True.
 	 */
-	uint8_t DisableComplianceMode;
+	bool disable_compliance_mode;
 
 	/* Options to change USB3 ModPhy setting for the Integrated Filter (IF)
 	 * value. Default is 0 to not changing default IF value (0x12). Set
 	 * value with the range from 0x01 to 0xff to change IF value.
 	 */
-	uint8_t ModPhyIfValue;
+	uint8_t mod_phy_if_value;
 
 	/* Options to bump USB3 LDO voltage. Default is FALSE to not increasing
 	 * LDO voltage. Set TRUE to increase LDO voltage with 40mV.
 	 * 0:FALSE (default), 1:True.
 	 */
-	uint8_t ModPhyVoltageBump;
+	bool mod_phy_voltage_bump;
 
 	/* Options to adjust PMIC Vdd2 voltage. Default is 0 to not adjusting
 	 * the PMIC Vdd2 default voltage 1.20v. Upd for changing Vdd2 Voltage
@@ -187,13 +204,30 @@ struct soc_intel_apollolake_config {
 	 * + OR Value (15:8) + AND Value (7:0) through BUCK5_VID[3:2]:
 	 * 00=1.10v, 01=1.15v, 10=1.24v, 11=1.20v (default).
 	 */
-	uint32_t PmicVdd2Voltage;
+	uint32_t pmic_vdd2_voltage;
 
 	/* Option to enable VTD feature. Default is 0 which disables VTD
 	 * capability in FSP. Setting this option to 1 in devicetree will enable
 	 * the Upd parameter VtdEnable.
 	 */
-	uint8_t enable_vtd;
+	bool enable_vtd;
+
+	/* Options to disable the LFPS periodic sampling for USB3 Ports.
+	 * Default value of PMCTRL_REG bits[7:4] is 9 which means periodic sampling
+	 * interval is 9ms.
+	 * Set 1 to update XHCI host MMIO BAR + PMCTRL_REG (0x80A4 bits[7:4]) to 0
+	 * 0:Enable (default), 1:Disable.
+	 */
+	bool disable_xhci_lfps_pm;
+
+	/* SATA Aggressive Link Power Management */
+	bool disable_sata_salp_support;
+
+	/* Sata Power Optimisation */
+	bool sata_pwr_optimize_disable;
+
+	/* SATA speed limit */
+	enum sata_speed_limit sata_speed;
 };
 
 typedef struct soc_intel_apollolake_config config_t;

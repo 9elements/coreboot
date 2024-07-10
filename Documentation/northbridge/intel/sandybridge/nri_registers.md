@@ -1,9 +1,9 @@
-# Inoffical Documentation of Intel MCHBAR register space.
+# Unofficial Documentation of Intel MCHBAR register space.
 
 The MCHBAR can be enabled by using register 0x48 of PCI(0:0:0) device.
 
 This documentation is incomplete and might be incorrect.
-Please handle with care !
+Please handle with care!
 
 **MCHBAR + 0x4**
 
@@ -1899,7 +1899,7 @@ Please handle with care !
 +===========+==================================================================+
 |        0:7|  PDWN_idle_counter, This defines the rank indle period in DCLK   |
 |           |  cycles that causes power-down entrance. The minimum value       |
-|           |  should be greater then or equal to the worst roundtrip time     |
+|           |  should be greater than or equal to the worst roundtrip time     |
 |           |  plus burst length.                                              |
 +-----------+------------------------------------------------------------------+
 |       8:10|  PDWN_mode, selects the mode of power-down:                      |
@@ -1947,7 +1947,7 @@ Please handle with care !
 +-----------+------------------------------------------------------------------+
 | Bit       | Description                                                      |
 +===========+==================================================================+
-|        0:7|  OREF_RI, Rank idle period that defines an oppertunity for       |
+|        0:7|  OREF_RI, Rank idle period that defines an opportunity for       |
 |           |  refresh                                                         |
 +-----------+------------------------------------------------------------------+
 |       8:11|  Refresh_HP_WM, tREFI count level that turns the refresh         |

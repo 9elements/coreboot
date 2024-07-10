@@ -1,50 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 - 2015 The Linux Foundation. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include <device/mmio.h>
 #include <console/console.h>
 #include <delay.h>
+#include <timer.h>
 #include <soc/iomap.h>
-#include <stdlib.h>
 #include <soc/qup.h>
 
 #define TIMEOUT_CNT	100000
 
 //TODO: refactor the following array to iomap driver.
-static unsigned gsbi_qup_base[] = {
-	(unsigned)GSBI_QUP1_BASE,
-	(unsigned)GSBI_QUP2_BASE,
-	(unsigned)GSBI_QUP3_BASE,
-	(unsigned)GSBI_QUP4_BASE,
-	(unsigned)GSBI_QUP5_BASE,
-	(unsigned)GSBI_QUP6_BASE,
-	(unsigned)GSBI_QUP7_BASE,
+static unsigned int gsbi_qup_base[] = {
+	(unsigned int)GSBI_QUP1_BASE,
+	(unsigned int)GSBI_QUP2_BASE,
+	(unsigned int)GSBI_QUP3_BASE,
+	(unsigned int)GSBI_QUP4_BASE,
+	(unsigned int)GSBI_QUP5_BASE,
+	(unsigned int)GSBI_QUP6_BASE,
+	(unsigned int)GSBI_QUP7_BASE,
 };
 
 #define QUP_ADDR(gsbi_num, reg)	((void *)((gsbi_qup_base[gsbi_num-1]) + (reg)))
@@ -91,7 +64,7 @@ static int check_bit_state(uint32_t *reg, int wait_for)
 /*
  * Check whether GSBIn_QUP State is valid
  */
-static qup_return_t qup_wait_for_state(gsbi_id_t gsbi_id, unsigned wait_for)
+static qup_return_t qup_wait_for_state(gsbi_id_t gsbi_id, unsigned int wait_for)
 {
 	return check_bit_state(QUP_ADDR(gsbi_id, QUP_STATE), wait_for);
 }
@@ -115,35 +88,33 @@ static qup_return_t qup_reset_master_status(gsbi_id_t gsbi_id)
 	return QUP_SUCCESS;
 }
 
-static qup_return_t qup_fifo_wait_for(gsbi_id_t gsbi_id, uint32_t status)
+static qup_return_t qup_fifo_wait_for(gsbi_id_t gsbi_id, uint32_t status,
+				      struct stopwatch *timeout)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
-	unsigned int count = TIMEOUT_CNT;
 
 	while (!(read32(QUP_ADDR(gsbi_id, QUP_OPERATIONAL)) & status)) {
 		ret = qup_i2c_master_status(gsbi_id);
 		if (ret)
 			return ret;
-		if (count == 0)
+		if (stopwatch_expired(timeout))
 			return QUP_ERR_TIMEOUT;
-		count--;
 	}
 
 	return QUP_SUCCESS;
 }
 
-static qup_return_t qup_fifo_wait_while(gsbi_id_t gsbi_id, uint32_t status)
+static qup_return_t qup_fifo_wait_while(gsbi_id_t gsbi_id, uint32_t status,
+					struct stopwatch *timeout)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
-	unsigned int count = TIMEOUT_CNT;
 
 	while (read32(QUP_ADDR(gsbi_id, QUP_OPERATIONAL)) & status) {
 		ret = qup_i2c_master_status(gsbi_id);
 		if (ret)
 			return ret;
-		if (count == 0)
+		if (stopwatch_expired(timeout))
 			return QUP_ERR_TIMEOUT;
-		count--;
 	}
 
 	return QUP_SUCCESS;
@@ -155,8 +126,9 @@ static qup_return_t qup_i2c_write_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj,
 	qup_return_t ret = QUP_ERR_UNDEFINED;
 	uint8_t addr = p_tx_obj->p.iic.addr;
 	uint8_t *data_ptr = p_tx_obj->p.iic.data;
-	unsigned data_len = p_tx_obj->p.iic.data_len;
-	unsigned idx = 0;
+	unsigned int data_len = p_tx_obj->p.iic.data_len;
+	unsigned int idx = 0;
+	struct stopwatch timeout;
 
 	qup_reset_master_status(gsbi_id);
 	qup_set_state(gsbi_id, QUP_STATE_RUN);
@@ -164,6 +136,7 @@ static qup_return_t qup_i2c_write_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj,
 	write32(QUP_ADDR(gsbi_id, QUP_OUTPUT_FIFO),
 		(QUP_I2C_START_SEQ | QUP_I2C_ADDR(addr)));
 
+	stopwatch_init_usecs_expire(&timeout, CONFIG_I2C_TRANSFER_TIMEOUT_US);
 	while (data_len) {
 		if (data_len == 1 && stop_seq) {
 			write32(QUP_ADDR(gsbi_id, QUP_OUTPUT_FIFO),
@@ -175,7 +148,8 @@ static qup_return_t qup_i2c_write_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj,
 		data_len--;
 		idx++;
 		if (data_len) {
-			ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_FULL);
+			ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_FULL,
+						  &timeout);
 			if (ret)
 				return ret;
 		}
@@ -194,7 +168,7 @@ static qup_return_t qup_i2c_write_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj,
 		}
 	}
 
-	ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_NOT_EMPTY);
+	ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_NOT_EMPTY, &timeout);
 	if (ret)
 		return ret;
 
@@ -228,8 +202,9 @@ static qup_return_t qup_i2c_read_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj)
 	qup_return_t ret = QUP_ERR_UNDEFINED;
 	uint8_t addr = p_tx_obj->p.iic.addr;
 	uint8_t *data_ptr = p_tx_obj->p.iic.data;
-	unsigned data_len = p_tx_obj->p.iic.data_len;
-	unsigned idx = 0;
+	unsigned int data_len = p_tx_obj->p.iic.data_len;
+	unsigned int idx = 0;
+	struct stopwatch timeout;
 
 	qup_reset_master_status(gsbi_id);
 	qup_set_state(gsbi_id, QUP_STATE_RUN);
@@ -240,7 +215,8 @@ static qup_return_t qup_i2c_read_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj)
 	write32(QUP_ADDR(gsbi_id, QUP_OUTPUT_FIFO),
 		QUP_I2C_RECV_SEQ | data_len);
 
-	ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_NOT_EMPTY);
+	stopwatch_init_usecs_expire(&timeout, CONFIG_I2C_TRANSFER_TIMEOUT_US);
+	ret = qup_fifo_wait_while(gsbi_id, OUTPUT_FIFO_NOT_EMPTY, &timeout);
 	if (ret)
 		return ret;
 
@@ -249,7 +225,7 @@ static qup_return_t qup_i2c_read_fifo(gsbi_id_t gsbi_id, qup_data_t *p_tx_obj)
 	while (data_len) {
 		uint32_t data;
 
-		ret = qup_fifo_wait_for(gsbi_id, INPUT_SERVICE_FLAG);
+		ret = qup_fifo_wait_for(gsbi_id, INPUT_SERVICE_FLAG, &timeout);
 		if (ret)
 			return ret;
 
@@ -377,7 +353,7 @@ bailout:
 qup_return_t qup_set_state(gsbi_id_t gsbi_id, uint32_t state)
 {
 	qup_return_t ret = QUP_ERR_UNDEFINED;
-	unsigned curr_state = read32(QUP_ADDR(gsbi_id, QUP_STATE));
+	unsigned int curr_state = read32(QUP_ADDR(gsbi_id, QUP_STATE));
 
 	if (state <= QUP_STATE_PAUSE && (curr_state & QUP_STATE_VALID_MASK)) {
 		/*

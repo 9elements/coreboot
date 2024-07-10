@@ -1,21 +1,8 @@
-/*
- * Copyright (C) 2017 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <arch/early_variables.h>
-#include <stdint.h>
 #include <assert.h>
 #include <commonlib/endian.h>
+#include <commonlib/helpers.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/i2c_simple.h>
@@ -23,6 +10,7 @@
 #include <lib.h>
 #include <security/tpm/tis.h>
 #include <timer.h>
+#include <types.h>
 
 #define RECV_TIMEOUT            (1 * 1000)  /* 1 second */
 #define XMIT_TIMEOUT            (1 * 1000)  /* 1 second */
@@ -34,23 +22,8 @@ struct tpm_output_header {
 	uint32_t return_code;
 } __packed;
 
-int tis_open(void)
-{
-	return 0;
-}
-
-int tis_close(void)
-{
-	return 0;
-}
-
-int tis_init(void)
-{
-	return 0;
-}
-
-int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
-		uint8_t *recvbuf, size_t *rbuf_len)
+static tpm_result_t i2c_tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
+				     uint8_t *recvbuf, size_t *rbuf_len)
 {
 	size_t hdr_bytes;
 	struct tpm_output_header *header;
@@ -77,8 +50,10 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 			sbuf_size);
 		if ((status < 0) && (!stopwatch_expired(&sw)))
 			continue;
-		if (status < 0)
-			return status;
+		if (status < 0) {
+			printk(BIOS_ERR, "I2C write error: %d\n", status);
+			return TPM_CB_COMMUNICATION_ERROR;
+		}
 		break;
 	}
 
@@ -96,10 +71,10 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 		udelay(SLEEP_DURATION);
 	} while (!stopwatch_expired(&sw));
 	if (status != sizeof(*header))
-		return -1;
+		return TPM_CB_COMMUNICATION_ERROR;
 
 	/* Determine the number of bytes remaining */
-	recv_bytes = min(be32_to_cpu(*(uint32_t *)&header->length),
+	recv_bytes = MIN(be32_to_cpu(*(uint32_t *)&header->length),
 		max_recv_bytes);
 
 	/* Determine if there is additional response data */
@@ -111,8 +86,10 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 		/* Read the full TPM response */
 		status = i2c_read_raw(CONFIG_DRIVER_TPM_I2C_BUS,
 			CONFIG_DRIVER_TPM_I2C_ADDR, recvbuf, recv_bytes);
-		if (status < 0)
-			return status;
+		if (status < 0) {
+			printk(BIOS_ERR, "I2C read error: %d\n", status);
+			return TPM_CB_COMMUNICATION_ERROR;
+		}
 	}
 
 	/* Return the number of bytes received */
@@ -127,5 +104,10 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 	}
 
 	/* Successful transfer */
-	return 0;
+	return TPM_SUCCESS;
+}
+
+tis_sendrecv_fn tis_probe(void)
+{
+	return &i2c_tis_sendrecv;
 }

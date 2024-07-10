@@ -9,6 +9,7 @@
 [submodule "vboot"]
 	path = 3rdparty/vboot
 	url = ../vboot.git
+	branch = main
 [submodule "arm-trusted-firmware"]
 	path = 3rdparty/arm-trusted-firmware
 	url = ../arm-trusted-firmware.git
@@ -34,3 +35,36 @@
 	url = ../intel-microcode.git
 	update = none
 	ignore = dirty
+	branch = main
+[submodule "3rdparty/ffs"]
+	path = 3rdparty/ffs
+	url = ../ffs.git
+[submodule "3rdparty/amd_blobs"]
+	path = 3rdparty/amd_blobs
+	url = ../amd_blobs
+	update = none
+	ignore = dirty
+[submodule "3rdparty/cmocka"]
+	path = 3rdparty/cmocka
+	url = ../cmocka.git
+	update = none
+	branch = stable-1.1
+[submodule "3rdparty/qc_blobs"]
+	path = 3rdparty/qc_blobs
+	url = ../qc_blobs.git
+	update = none
+	ignore = dirty
+[submodule "3rdparty/intel-sec-tools"]
+	path = 3rdparty/intel-sec-tools
+	url = ../9esec-security-tooling.git
+[submodule "3rdparty/stm"]
+	path = 3rdparty/stm
+	url = ../STM
+	branch = stmpe
+[submodule "util/goswid"]
+	path = util/goswid
+	url = ../goswid
+	branch = trunk
+[submodule "src/vendorcode/amd/opensil/genoa_poc/opensil"]
+	path = src/vendorcode/amd/opensil/genoa_poc/opensil
+	url = ../opensil_genoa_poc.git

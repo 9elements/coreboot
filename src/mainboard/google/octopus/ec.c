@@ -1,19 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <console/console.h>
 #include <ec/ec.h>
 #include <ec/google/chromeec/ec.h>
@@ -30,7 +17,7 @@ static void ramstage_ec_init(void)
 		.s0ix_wake_events = MAINBOARD_EC_S0IX_WAKE_EVENTS,
 	};
 
-	printk(BIOS_ERR, "mainboard: EC init\n");
+	printk(BIOS_INFO, "mainboard: EC init\n");
 
 	google_chromeec_events_init(&info, acpi_is_wakeup_s3());
 }

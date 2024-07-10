@@ -1,13 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Intel Corp.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <console/console.h>
 #include <fsp/util.h>
@@ -106,7 +97,7 @@ void fsp_print_resource_descriptor(const void *base)
 	printk(BIOS_SPEW, "\t0x%08llx + 0x%08llx\n", res->addr, res->length);
 	if (!fsp_guid_compare(res->owner_guid, empty_guid)) {
 		printk(BIOS_SPEW, "\tOwner GUID: ");
-		fsp_print_guid(res->owner_guid);
+		fsp_print_guid(BIOS_SPEW, res->owner_guid);
 		printk(BIOS_SPEW, " (%s)\n",
 			fsp_get_guid_name(res->owner_guid));
 	}
@@ -132,7 +123,7 @@ const char *fsp_get_hob_type_name(const struct hob_header *hob)
 		if (hob->type == hob_type_names[index].type)
 			return hob_type_names[index].name;
 
-	/* Get name for SOC specific hob */
+	/* Get name for SOC specific HOB */
 	name = soc_get_hob_type_name(hob);
 	if (name != NULL)
 		return name;
@@ -168,8 +159,11 @@ void fsp_print_guid_extension_hob(const struct hob_header *hob)
 
 	res = fsp_hob_header_to_resource(hob);
 	printk(BIOS_SPEW, "\t");
-	fsp_print_guid(res->owner_guid);
+	fsp_print_guid(BIOS_SPEW, res->owner_guid);
 	printk(BIOS_SPEW, ": %s\n", fsp_get_guid_name(res->owner_guid));
+
+	/* Some of the SoC FSP specific HOBs are of type HOB_TYPE_GUID_EXTENSION */
+	soc_display_hob(hob);
 }
 
 __weak const char *soc_get_guid_name(const uint8_t *guid)
@@ -183,12 +177,12 @@ void fsp_display_hobs(void)
 
 	/* Display the HOB list pointer */
 	printk(BIOS_SPEW, "\n=== FSP HOBs ===\n");
-	printk(BIOS_SPEW, "0x%p: hob_list_ptr\n", hob);
+	printk(BIOS_SPEW, "%p: hob_list_ptr\n", hob);
 
 	/* Walk the list of HOBs */
 	while (1) {
 		/* Display the HOB header */
-		printk(BIOS_SPEW, "0x%p, 0x%08x bytes: %s\n", hob, hob->length,
+		printk(BIOS_SPEW, "%p, 0x%08x bytes: %s\n", hob, hob->length,
 			fsp_get_hob_type_name(hob));
 		switch (hob->type) {
 		default:

@@ -1,25 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015-2016 Intel Corp.
- * (Written by Lance Zhao <lijian.zhao@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _SOC_APOLLOLAKE_PM_H_
 #define _SOC_APOLLOLAKE_PM_H_
 
 #include <stdint.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <soc/gpe.h>
 #include <soc/iomap.h>
 
@@ -78,7 +63,7 @@
 #endif
 #define   USB_EN	(1 << SMI_XHCI) /* Legacy USB2 SMI logic */
 #define   PERIODIC_EN	(1 << SMI_PERIODIC) /* SMI on PERIODIC_STS in SMI_STS */
-#define   TCO_EN	(1 << SMI_TCO) /* Enable TCO Logic (BIOSWE et al) */
+#define   TCO_SMI_EN	(1 << SMI_TCO) /* Enable TCO Logic (BIOSWE et al) */
 #define   GPIO_EN	(1 << SMI_GPIO) /* Enable GPIO SMI */
 #define   BIOS_RLS	(1 << SMI_BIOS_RLS) /* asserts SCI on bit set */
 /* start software smi timer on bit set */
@@ -99,42 +84,44 @@
  *  - on eSPI events (does nothing on LPC systems)
  * No SMIs:
  *  - on microcontroller writes (io 0x62/0x66)
- *  - on TCO events
+ *  - on TCO events, unless enabled in common code
  */
 #define   ENABLE_SMI_PARAMS \
 	(ESPI_SMI_EN | APMC_EN | SLP_SMI_EN | GBL_SMI_EN | EOS | GPIO_EN)
 
 #define SMI_STS			0x44
+#define  SMI_STS_BITS		32
 /* Bits for SMI status */
 #define  ESPI_SMI_STS_BIT	28
-#define  PMC_OCP_SMI_STS	27
-#define  SPI_SMI_STS		26
-#define  SPI_SSMI_STS		25
-#define  SCC2_SMI_STS		21
-#define  PCIE_SMI_STS		20
-#define  SCS_SMI_STS		19
-#define  HSMBUS_SMI_STS		18
-#define  XHCI_SMI_STS		17
-#define  SMBUS_SMI_STS		16
-#define  SERIRQ_SMI_STS		15
-#define  PERIODIC_SMI_STS	14
-#define  TCO_SMI_STS		13
-#define  MC_SMI_STS		12
-#define  GPIO_UNLOCK_SMI_STS	11
-#define  GPIO_SMI_STS		10
-#define  FAKE_PM1_SMI_STS	8
-#define  SWSMI_TMR_SMI_STS	6
-#define  APM_SMI_STS		5
-#define  SLP_SMI_STS		4
-#define  LEGACY_USB_SMI_STS	3
-#define  BIOS_SMI_STS		2
+#define  PMC_OCP_SMI_STS_BIT	27
+#define  SPI_SMI_STS_BIT	26
+#define  SPI_SSMI_STS_BIT	25
+#define  SCC2_SMI_STS_BIT	21
+#define  PCI_EXP_SMI_STS_BIT	20
+#define  SCS_SMI_STS_BIT	19
+#define  HSMBUS_SMI_STS_BIT	18
+#define  XHCI_SMI_STS_BIT	17
+#define  SMBUS_SMI_STS_BIT	16
+#define  SERIRQ_SMI_STS_BIT	15
+#define  PERIODIC_STS_BIT	14
+#define  TCO_STS_BIT		13
+#define  MC_SMI_STS_BIT		12
+#define  GPIO_UNLOCK_SMI_STS_BIT	11
+#define  GPIO_STS_BIT		10
+#define  GPE0_STS_BIT		9	/* Datasheet says this is reserved */
+#define  PM1_STS_BIT		8
+#define  SWSMI_TMR_STS_BIT	6
+#define  APM_STS_BIT		5
+#define  SMI_ON_SLP_EN_STS_BIT	4
+#define  LEGACY_USB_STS_BIT	3
+#define  BIOS_STS_BIT		2
 
 #define GPE_CNTL		0x50
 #define DEVACT_STS		0x4c
 
 #define GPE0_REG_MAX		4
 #define GPE0_REG_SIZE		32
-#define GPE0_STS(x)		(0x20 + (x * 4))
+#define GPE0_STS(x)		(0x20 + ((x) * 4))
 #define  GPE0_A			0
 #define  GPE0_B			1
 #define  GPE0_C			2
@@ -150,7 +137,7 @@
 #define   BATLOW_STS		(1 << 10)
 #define   PCIE_GPE_STS		(1 << 9)
 #define   SWGPE_STS		(1 << 2)
-#define GPE0_EN(x)		(0x30 + (x * 4))
+#define GPE0_EN(x)		(0x30 + ((x) * 4))
 #define   ESPI_EN		(1 << 20) /* This bit is present in GLK */
 #define   SATA_PME_EN		(1 << 17)
 #define   SMB_WAK_EN		(1 << 16)
@@ -162,72 +149,15 @@
 #define   PCIE_GPE_EN		(1 << 9)
 #define   SWGPE_EN		(1 << 2)
 
-/* Memory mapped IO registers behind PMC_BASE_ADDRESS */
-#define PRSTS			0x1000
-#define GEN_PMCON1		0x1020
-#define  COLD_BOOT_STS		(1 << 27)
-#define  COLD_RESET_STS		(1 << 26)
-#define  WARM_RESET_STS		(1 << 25)
-#define  GLOBAL_RESET_STS	(1 << 24)
-#define  SRS			(1 << 20)
-#define  MS4V			(1 << 18)
-#define  RPS			(1 << 2)
-#define GEN_PMCON1_CLR1_BITS	(COLD_BOOT_STS | COLD_RESET_STS | \
-				 WARM_RESET_STS | GLOBAL_RESET_STS | \
-				 SRS | MS4V)
-#define GEN_PMCON2		0x1024
-#define GEN_PMCON3		0x1028
-#       define SLP_S3_ASSERT_WIDTH_SHIFT	10
-#       define SLP_S3_ASSERT_MASK	(0x3 << SLP_S3_ASSERT_WIDTH_SHIFT)
-#       define SLP_S3_ASSERT_60_USEC	0x0
-#       define SLP_S3_ASSERT_1_MSEC	0x1
-#       define SLP_S3_ASSERT_50_MSEC	0x2
-#       define SLP_S3_ASSERT_2_SEC	0x3
-#define ETR			0x1048
-#       define CF9_LOCK         (1 << 31)
-#       define CF9_GLB_RST      (1 << 20)
-#define GPIO_GPE_CFG		0x1050
-#define  GPE0_DWX_MASK		0xf
-#define GPE0_DW_SHIFT(x)	(4 + 4*(x))
-
-#if CONFIG(SOC_INTEL_GLK)
-#define PMC_GPE_AUDIO_31_0	9
-#define PMC_GPE_N_95_64		8
-#define PMC_GPE_N_63_32		7
-#define PMC_GPE_N_31_0		6
-#define PMC_GPE_NW_127_96	5
-#define PMC_GPE_NW_95_64	4
-#define PMC_GPE_NW_63_32	3
-#define PMC_GPE_NW_31_0		2
-#define PMC_GPE_SCC_63_32	1
-#define PMC_GPE_SCC_31_0	0
-#else  /*For APL*/
-#define  PMC_GPE_SW_31_0	0
-#define  PMC_GPE_SW_63_32	1
-#define  PMC_GPE_NW_31_0	3
-#define  PMC_GPE_NW_63_32	4
-#define  PMC_GPE_NW_95_64	5
-#define  PMC_GPE_N_31_0		6
-#define  PMC_GPE_N_63_32	7
-#define  PMC_GPE_W_31_0		9
-#endif
-
-#define IRQ_REG			0x106C
-#define SCI_IRQ_ADJUST		24
-#define SCI_IRQ_SEL		(255 << SCI_IRQ_ADJUST)
-#define SCIS_IRQ9		9
-#define SCIS_IRQ10		10
-#define SCIS_IRQ11		11
-#define SCIS_IRQ20		20
-#define SCIS_IRQ21		21
-#define SCIS_IRQ22		22
-#define SCIS_IRQ23		23
-
 /* P-state configuration */
 #define PSS_MAX_ENTRIES		8
 #define PSS_RATIO_STEP		2
 #define PSS_LATENCY_TRANSITION	10
 #define PSS_LATENCY_BUSMASTER	10
+
+#if !defined(__ACPI__)
+
+#include <soc/pmc.h>
 
 /* Track power state from reset to log events. */
 struct chipset_power_state {
@@ -247,6 +177,10 @@ struct chipset_power_state {
 
 void pch_log_state(void);
 
-void enable_pm_timer_emulation(void);
+/* Get base address PMC memory mapped registers. */
+uint8_t *pmc_mmio_regs(void);
 
+/* STM Support */
+uint16_t get_pmbase(void);
+#endif /* !defined(__ACPI__) */
 #endif

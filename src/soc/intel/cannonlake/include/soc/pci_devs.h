@@ -1,55 +1,53 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017-2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_CANNONLAKE_PCI_DEVS_H_
 #define _SOC_CANNONLAKE_PCI_DEVS_H_
 
 #include <device/pci_def.h>
 
-#define _SA_DEVFN(slot)		PCI_DEVFN(SA_DEV_SLOT_ ## slot, 0)
 #define _PCH_DEVFN(slot, func)	PCI_DEVFN(PCH_DEV_SLOT_ ## slot, func)
 
 #if !defined(__SIMPLE_DEVICE__)
 #include <device/device.h>
-#define _SA_DEV(slot)		dev_find_slot(0, _SA_DEVFN(slot))
-#define _PCH_DEV(slot, func)	dev_find_slot(0, _PCH_DEVFN(slot, func))
+#define _PCH_DEV(slot, func)	pcidev_path_on_root_debug(_PCH_DEVFN(slot, func), __func__)
 #else
-#define _SA_DEV(slot)		PCI_DEV(0, SA_DEV_SLOT_ ## slot, 0)
 #define _PCH_DEV(slot, func)	PCI_DEV(0, PCH_DEV_SLOT_ ## slot, func)
 #endif
 
 /* System Agent Devices */
 
 #define SA_DEV_SLOT_ROOT	0x00
-#define  SA_DEVFN_ROOT		_SA_DEVFN(ROOT)
-#define  SA_DEV_ROOT		_SA_DEV(ROOT)
+#define  SA_DEVFN_ROOT		PCI_DEVFN(SA_DEV_SLOT_ROOT, 0)
+#if defined(__SIMPLE_DEVICE__)
+#define  SA_DEV_ROOT		PCI_DEV(0, SA_DEV_SLOT_ROOT, 0)
+#endif
+
+#define SA_DEV_SLOT_PEG		0x01
+#define  SA_DEVFN_PEG0		PCI_DEVFN(SA_DEV_SLOT_PEG, 0)
+#define  SA_DEVFN_PEG1		PCI_DEVFN(SA_DEV_SLOT_PEG, 1)
+#define  SA_DEVFN_PEG2		PCI_DEVFN(SA_DEV_SLOT_PEG, 2)
+#define  SA_DEV_PEG0		PCI_DEV(0, SA_DEV_SLOT_PEG, 0)
+#define  SA_DEV_PEG1		PCI_DEV(0, SA_DEV_SLOT_PEG, 1)
+#define  SA_DEV_PEG2		PCI_DEV(0, SA_DEV_SLOT_PEG, 2)
 
 #define SA_DEV_SLOT_IGD		0x02
-#define  SA_DEVFN_IGD		_SA_DEVFN(IGD)
-#define  SA_DEV_IGD		_SA_DEV(IGD)
+#define  SA_DEVFN_IGD		PCI_DEVFN(SA_DEV_SLOT_IGD, 0)
+#define  SA_DEV_IGD		PCI_DEV(0, SA_DEV_SLOT_IGD, 0)
 
-#define SA_DEV_SLOT_DSP		0x04
-#define  SA_DEVFN_DSP		_SA_DEVFN(DSP)
-#define  SA_DEV_DSP		_SA_DEV(DSP)
+#define SA_DEV_SLOT_TS		0x04
+#define  SA_DEVFN_TS		PCI_DEVFN(SA_DEV_SLOT_TS, 0)
+#define  SA_DEV_TS		PCI_DEV(0, SA_DEV_SLOT_TS, 0)
 
 #define SA_DEV_SLOT_IPU		0x05
-#define  SA_DEVFN_IPU		_SA_DEVFN(IPU)
-#define  SA_DEV_IPU		_SA_DEV(IPU)
+#define  SA_DEVFN_IPU		PCI_DEVFN(SA_DEV_SLOT_IPU, 0)
+#define  SA_DEV_IPU		PCI_DEV(0, SA_DEV_SLOT_IPU, 0)
+
+#define SA_DEV_SLOT_GNA		0x08
+#define  SA_DEVFN_GNA		PCI_DEVFN(SA_DEV_SLOT_GNA, 0)
+#define  SA_DEV_GNA		PCI_DEV(0, SA_DEV_SLOT_GNA, 0)
 
 /* PCH Devices */
+#define MIN_PCH_SLOT		PCH_DEV_SLOT_THERMAL
 #define PCH_DEV_SLOT_THERMAL	0x12
 #define  PCH_DEVFN_THERMAL	_PCH_DEVFN(THERMAL, 0)
 #define  PCH_DEVFN_UFS		_PCH_DEVFN(THERMAL, 5)
@@ -187,7 +185,19 @@
 #define  PCH_DEVFN_TRACEHUB	_PCH_DEVFN(LPC, 7)
 #define  PCH_DEV_LPC		_PCH_DEV(LPC, 0)
 #define  PCH_DEV_P2SB		_PCH_DEV(LPC, 1)
+
+#if !ENV_RAMSTAGE
+/*
+ * PCH_DEV_PMC is intentionally not defined in RAMSTAGE since PMC device gets
+ * hidden from PCI bus after call to FSP-S. This leads to resource allocator
+ * dropping it from the root bus as unused device. All references to PCH_DEV_PMC
+ * would then return NULL and can go unnoticed if not handled properly. Since,
+ * this device does not have any special chip config associated with it, it is
+ * okay to not provide the definition for it in ramstage.
+ */
 #define  PCH_DEV_PMC		_PCH_DEV(LPC, 2)
+#endif
+
 #define  PCH_DEV_HDA		_PCH_DEV(LPC, 3)
 #define  PCH_DEV_SMBUS		_PCH_DEV(LPC, 4)
 #define  PCH_DEV_SPI		_PCH_DEV(LPC, 5)

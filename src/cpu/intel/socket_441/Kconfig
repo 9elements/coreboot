@@ -1,13 +1,11 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config CPU_INTEL_SOCKET_441
 	bool
+	select CPU_INTEL_MODEL_106CX
+	select SETUP_XIP_CACHE
 
 if CPU_INTEL_SOCKET_441
-
-config SOCKET_SPECIFIC_OPTIONS # dummy
-	def_bool y
-	select CPU_INTEL_MODEL_106CX
-	select MMX
-	select SSE
 
 config DCACHE_RAM_BASE
 	hex
@@ -16,5 +14,12 @@ config DCACHE_RAM_BASE
 config DCACHE_RAM_SIZE
 	hex
 	default 0x8000
+
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
+
+config DCACHE_BSP_STACK_SIZE
+	hex
+	default 0x2000
 
 endif # CPU_INTEL_SOCKET_441

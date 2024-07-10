@@ -1,24 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <cpu/cpu.h>
 #include <device/device.h>
-#include <cpu/x86/lapic.h>
 
 static void qemu_cpu_init(struct device *dev)
 {
-	setup_lapic();
 }
 
 static struct device_operations cpu_dev_ops = {
@@ -26,8 +12,8 @@ static struct device_operations cpu_dev_ops = {
 };
 
 static const struct cpu_device_id cpu_table[] = {
-	{ X86_VENDOR_ANY, 0 },
-	{ 0, 0 },
+	{ X86_VENDOR_ANY, 0, 0 },
+	CPU_TABLE_END
 };
 
 static const struct cpu_driver driver __cpu_driver = {
@@ -36,5 +22,5 @@ static const struct cpu_driver driver __cpu_driver = {
 };
 
 struct chip_operations cpu_qemu_x86_ops = {
-	CHIP_NAME("QEMU x86 CPU")
+	.name = "QEMU x86 CPU",
 };

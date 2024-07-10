@@ -1,19 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
+#include <device/pci_def.h>
+#include <device/pci_ops.h>
 #include <intelblocks/lpss.h>
 
 /* Clock register */
@@ -38,6 +27,11 @@
 
 /* DMA Software Reset Control */
 #define LPSS_DMA_RST_RELEASE	(1 << 2)
+
+/* Power management control and status register */
+#define PME_CTRL_STATUS	0x84
+/* Bit 1:0 Powerstate, controls D0 and D3 state */
+#define POWER_STATE_MASK	3
 
 bool lpss_is_controller_in_reset(uintptr_t base)
 {
@@ -68,4 +62,13 @@ void lpss_clk_update(uintptr_t base, uint32_t clk_m_val, uint32_t clk_n_val)
 	clk_sel |= LPSS_CNT_CLK_UPDATE | LPSS_CNT_CLOCK_EN;
 
 	write32(addr, clk_sel);
+}
+
+/* Set controller power state to D0 or D3 */
+void lpss_set_power_state(pci_devfn_t devfn, enum lpss_pwr_state state)
+{
+	uint8_t reg8 = pci_s_read_config8(devfn, PME_CTRL_STATUS);
+	reg8 &= ~POWER_STATE_MASK;
+	reg8 |= state;
+	pci_s_write_config8(devfn, PME_CTRL_STATUS, reg8);
 }

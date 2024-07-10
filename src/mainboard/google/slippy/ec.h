@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef MAINBOARD_EC_H
 #define MAINBOARD_EC_H
@@ -30,8 +17,7 @@
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_BATTERY_LOW)       |\
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_BATTERY_CRITICAL)  |\
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_BATTERY)           |\
-	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_THERMAL_THRESHOLD) |\
-	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_USB_CHARGER))
+	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_THERMAL_THRESHOLD))
 
 #define MAINBOARD_EC_SMI_EVENTS \
 	(EC_HOST_EVENT_MASK(EC_HOST_EVENT_LID_CLOSED))

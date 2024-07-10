@@ -1,36 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <soc/emi.h>
+#include <soc/dramc_param.h>
 
 struct sdram_params params = {
-	.impedance = {
-		[ODT_OFF] = {0x9, 0x7, 0x0, 0xF},
-		[ODT_ON] = {0xA, 0x9, 0x0, 0xE}
-	},
+	.source = DRAMC_PARAM_SOURCE_SDRAM_CONFIG,
+	.rank_num = 2,
+	.frequency = 1600,
+	.ddr_geometry = DDR_TYPE_2CH_2RK_4GB_2_2,
 	.wr_level = {
-		[CHANNEL_A] = { {0x21, 0x21}, {0x20, 0x20} },
-		[CHANNEL_B] = { {0x1E, 0x1F}, {0x1D, 0x1E} }
+		[CHANNEL_A] = { {0x22, 0x21}, {0x20, 0x21} },
+		[CHANNEL_B] = { {0x23, 0x27}, {0x23, 0x27} }
 	},
-	.cbt_cs = {
-		[CHANNEL_A] = {0x1, 0x1},
-		[CHANNEL_B] = {0x2, 0x2}
+	.cbt_cs_dly = {
+		[CHANNEL_A] = {0x0, 0x0},
+		[CHANNEL_B] = {0x6, 0x6}
 	},
-	.cbt_mr12 = {
-		[CHANNEL_A] = {0x56, 0x56},
-		[CHANNEL_B] = {0x58, 0x5C}
+	.cbt_final_vref = {
+		[CHANNEL_A] = {0x56, 0x5A},
+		[CHANNEL_B] = {0x58, 0x58}
 	},
 	.emi_cona_val = 0xF053F154,
 	.emi_conh_val = 0x44440003,

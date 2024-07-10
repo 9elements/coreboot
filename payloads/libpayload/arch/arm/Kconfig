@@ -1,5 +1,6 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 ##
-## This file is part of the libpayload project.
 ##
 ## Copyright (c) 2012 Google Inc.
 ##
@@ -27,10 +28,5 @@
 ## SUCH DAMAGE.
 ##
 
-if ARCH_ARM
-
-config ARCH_SPECIFIC_OPTIONS # dummy
-	def_bool y
+config ARCH_ARM
 	select LITTLE_ENDIAN
-
-endif

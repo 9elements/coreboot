@@ -1,17 +1,13 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config CPU_INTEL_SOCKET_FCBGA559
 	bool
+	select CPU_INTEL_MODEL_106CX
+	select CPU_HAS_L2_ENABLE_MSR
 	help
 	  Select this socket on Intel Pineview
 
 if CPU_INTEL_SOCKET_FCBGA559
-
-config SOCKET_SPECIFIC_OPTIONS
-	def_bool y
-	select CPU_INTEL_MODEL_106CX
-	select MMX
-	select SSE
-	select CPU_HAS_L2_ENABLE_MSR
-	select NO_FIXED_XIP_ROM_SIZE
 
 config DCACHE_RAM_BASE
 	hex
@@ -19,7 +15,10 @@ config DCACHE_RAM_BASE
 
 config DCACHE_RAM_SIZE
 	hex
-	default 0x4000
+	default 0x8000
+
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
 
 config DCACHE_BSP_STACK_SIZE
 	hex
@@ -27,5 +26,9 @@ config DCACHE_BSP_STACK_SIZE
 	help
 	  The amount of anticipated stack usage in CAR by bootblock and
 	  other stages.
+
+config MAX_CPUS
+	int
+	default 4
 
 endif

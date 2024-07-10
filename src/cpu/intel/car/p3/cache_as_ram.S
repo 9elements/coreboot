@@ -1,28 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2000,2007 Ronald G. Minnich <rminnich@gmail.com>
- * Copyright (C) 2005 Tyan (written by Yinghai Lu for Tyan)
- * Copyright (C) 2007-2008 coresystems GmbH
- * Copyright (C) 2012 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/intel/post_codes.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/post_code.h>
 
-#define CACHE_AS_RAM_SIZE CONFIG_DCACHE_RAM_SIZE
-#define CACHE_AS_RAM_BASE CONFIG_DCACHE_RAM_BASE
-
+.section .init
 .global bootblock_pre_c_entry
 
 .code32
@@ -31,7 +14,7 @@ _cache_as_ram_setup:
 bootblock_pre_c_entry:
 
 cache_as_ram:
-	post_code(0x20)
+	post_code(POSTCODE_BOOTBLOCK_CAR)
 
 	/* Clear/disable fixed MTRRs */
 	mov	$fixed_mtrr_list_size, %ebx
@@ -59,7 +42,7 @@ clear_var_mtrr:
 	inc	%ecx
 	dec	%ebx
 	jnz	clear_var_mtrr
-	post_code(0x21)
+	post_code(POSTCODE_SOC_SET_DEF_MTRR_TYPE)
 
 	/* Configure the default memory type to uncacheable. */
 	movl	$MTRR_DEF_TYPE_MSR, %ecx
@@ -67,7 +50,7 @@ clear_var_mtrr:
 	andl	$(~0x00000cff), %eax
 	wrmsr
 
-	post_code(0x22)
+	post_code(POSTCODE_SOC_DETERMINE_CPU_ADDR_BITS)
 
 	/* Determine CPU_ADDR_BITS and load PHYSMASK high word to %edx. */
 	movl	$1, %eax
@@ -85,21 +68,23 @@ addrsize_set_high:
 	movl	$MTRR_PHYS_MASK(1), %ecx
 	wrmsr
 
-	post_code(0x2a)
+	post_code(POSTCODE_SOC_SET_CAR_BASE)
 
 	/* Set Cache-as-RAM base address. */
 	movl	$(MTRR_PHYS_BASE(0)), %ecx
-	movl	$(CACHE_AS_RAM_BASE | MTRR_TYPE_WRBACK), %eax
+	movl	$_car_mtrr_start, %eax
+	orl	$MTRR_TYPE_WRBACK, %eax
 	xorl	%edx, %edx
 	wrmsr
 
 	/* Set Cache-as-RAM mask. */
 	movl	$(MTRR_PHYS_MASK(0)), %ecx
 	rdmsr
-	movl	$(~(CACHE_AS_RAM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
+	movl	$_car_mtrr_mask, %eax
+	orl	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
 
-	post_code(0x2b)
+	post_code(POSTCODE_SOC_ENABLE_MTRRS)
 
 	/* Enable MTRR. */
 	movl	$MTRR_DEF_TYPE_MSR, %ecx
@@ -107,7 +92,7 @@ addrsize_set_high:
 	orl	$MTRR_DEF_TYPE_EN, %eax
 	wrmsr
 
-	post_code(0x2c)
+	post_code(POSTCODE_SOC_ENABLE_CACHE)
 
 	/* Enable cache (CR0.CD = 0, CR0.NW = 0). */
 	movl	%cr0, %eax
@@ -118,16 +103,18 @@ addrsize_set_high:
 	/* Read then clear the CAR region. This will also fill up the cache.
 	 * IMPORTANT: The read is mandatory.
 	 */
-	movl	$CACHE_AS_RAM_BASE, %esi
-	movl	%esi, %edi
 	cld
-	movl	$(CACHE_AS_RAM_SIZE >> 2), %ecx
+	movl	$_car_mtrr_start, %edi
+	movl	$_car_mtrr_size, %ecx
+	shr	$2, %ecx
+	movl	%ecx, %ebx
+	movl	%edi, %esi
 	rep	lodsl
-	movl	$(CACHE_AS_RAM_SIZE >> 2), %ecx
+	movl	%ebx, %ecx
 	xorl	%eax, %eax
 	rep	stosl
 
-	post_code(0x2d)
+	post_code(POSTCODE_SOC_DISABLE_CACHE)
 	/* Enable Cache-as-RAM mode by disabling cache. */
 	movl	%cr0, %eax
 	orl	$CR0_CacheDisable, %eax
@@ -136,28 +123,24 @@ addrsize_set_high:
 	/* Enable cache for our code in Flash because we do XIP here */
 	movl	$MTRR_PHYS_BASE(1), %ecx
 	xorl	%edx, %edx
-	/*
-	 * IMPORTANT: The following calculation _must_ be done at runtime. See
-	 * https://mail.coreboot.org/pipermail/coreboot/2010-October/060922.html
-	 */
 	movl	$_program, %eax
-	andl	$(~(CONFIG_XIP_ROM_SIZE - 1)), %eax
+	andl	$_xip_mtrr_mask, %eax
 	orl	$MTRR_TYPE_WRPROT, %eax
 	wrmsr
-
 	movl	$MTRR_PHYS_MASK(1), %ecx
 	rdmsr
-	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
+	movl	$_xip_mtrr_mask, %eax
+	orl	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
 
-	post_code(0x2e)
+	post_code(POSTCODE_SOC_FILL_CACHE)
 	/* Enable cache. */
 	movl	%cr0, %eax
 	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
 	movl	%eax, %cr0
 
 	/* Setup the stack. */
-	mov	$_car_stack_end, %esp
+	mov	$_ecar_stack, %esp
 
 	/* Need to align stack to 16 bytes at call instruction. Account for
 	the pushes below. */
@@ -172,12 +155,15 @@ addrsize_set_high:
 	movd	%mm1, %eax
 	pushl	%eax	/* tsc[31:0] */
 
+	/* Copy .data section content to Cache-As-Ram */
+#include <cpu/x86/copy_data_section.inc>
+
 before_c_entry:
-	post_code(0x29)
+	post_code(POSTCODE_BOOTBLOCK_BEFORE_C_ENTRY)
 	call	bootblock_c_entry_bist
 
 	/* Should never see this postcode */
-	post_code(POST_DEAD_CODE)
+	post_code(POSTCODE_DEAD_CODE)
 
 .Lhlt:
 	hlt

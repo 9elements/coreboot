@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (CREC)
 {
@@ -22,10 +9,17 @@ Device (CREC)
 	Name (_PRW, Package () { EC_ENABLE_WAKE_PIN, 0x5 })
 #endif
 
+#ifdef EC_SYNC_IRQ_WAKE_CAPABLE
+	#define EC_SYNC_SHARE_TYPE ExclusiveAndWake
+#else
+	#define EC_SYNC_SHARE_TYPE Exclusive
+#endif
+
 #ifdef EC_ENABLE_SYNC_IRQ
 	Name (_CRS, ResourceTemplate ()
 	{
-		Interrupt (ResourceConsumer, Level, ActiveLow, Exclusive)
+		Interrupt (ResourceConsumer, Level, ActiveLow,
+			   EC_SYNC_SHARE_TYPE)
 		{
 			EC_SYNC_IRQ
 		}
@@ -35,8 +29,8 @@ Device (CREC)
 #ifdef EC_ENABLE_SYNC_IRQ_GPIO
 	Name (_CRS, ResourceTemplate ()
 	{
-		GpioInt (Level, ActiveLow, Exclusive, PullDefault, 0x0000,
-		         "\\_SB.GPIO", 0x00, ResourceConsumer, ,)
+		GpioInt (Level, ActiveLow, EC_SYNC_SHARE_TYPE, PullDefault,
+			 0x0000, "\\_SB.GPIO", 0x00, ResourceConsumer, ,)
 		{
 			EC_SYNC_IRQ
 		}
@@ -60,8 +54,24 @@ Device (CREC)
 		Name (_DDN, "EC Base Switch Device")
 	}
 #endif
+
+#ifdef EC_ENABLE_PD_MCU_DEVICE
+	#include "pd.asl"
+#endif
+
+#ifdef EC_ENABLE_TBMC_DEVICE
+	#include "tbmc.asl"
+#endif
+
 	Method(_STA, 0)
 	{
-		Return (0xB)
+		Return (0xF)
 	}
+
+#if CONFIG(DRIVERS_ACPI_THERMAL_ZONE)
+	Method(TMP, 1)
+	{
+		Return(^^TSRD(Arg0))
+	}
+#endif
 }

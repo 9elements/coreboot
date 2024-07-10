@@ -1,19 +1,5 @@
-/*
- * Copyright (C) 2011 Infineon Technologies
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but without any warranty; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <arch/early_variables.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -28,92 +14,51 @@
 #include "tpm.h"
 
 /* global structure for tpm chip data */
-static struct tpm_chip g_chip CAR_GLOBAL;
+static struct tpm_chip chip;
 
 #define TPM_CMD_COUNT_BYTE 2
 #define TPM_CMD_ORDINAL_BYTE 6
 
-int tis_open(void)
-{
-	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
-	int rc;
-
-	if (chip->is_open) {
-		printk(BIOS_DEBUG, "tis_open() called twice.\n");
-		return -1;
-	}
-
-	rc = tpm_vendor_init(chip, CONFIG_DRIVER_TPM_I2C_BUS,
-			     CONFIG_DRIVER_TPM_I2C_ADDR);
-	if (rc < 0)
-		chip->is_open = 0;
-
-	if (rc)
-		return -1;
-
-	return 0;
-}
-
-int tis_close(void)
-{
-	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
-
-	if (chip->is_open) {
-		tpm_vendor_cleanup(chip);
-		chip->is_open = 0;
-	}
-
-	return 0;
-}
-
-int tis_init(void)
-{
-	return tpm_vendor_probe(CONFIG_DRIVER_TPM_I2C_BUS,
-				CONFIG_DRIVER_TPM_I2C_ADDR);
-}
-
 static ssize_t tpm_transmit(const uint8_t *sbuf, size_t sbufsiz, void *rbuf,
 			size_t rbufsiz)
 {
-	int rc;
+	int rc = -1;
 	uint32_t count;
-	struct tpm_chip *chip = car_get_var_ptr(&g_chip);
 
 	memcpy(&count, sbuf + TPM_CMD_COUNT_BYTE, sizeof(count));
 	count = be32_to_cpu(count);
 
-	if (!chip->vendor.send || !chip->vendor.status || !chip->vendor.cancel)
-		return -1;
+	if (!chip.send || !chip.status || !chip.cancel)
+		goto out;
 
 	if (count == 0) {
-		printk(BIOS_DEBUG, "tpm_transmit: no data\n");
-		return -1;
+		printk(BIOS_DEBUG, "%s: no data\n", __func__);
+		goto out;
 	}
 	if (count > sbufsiz) {
-		printk(BIOS_DEBUG, "tpm_transmit: invalid count value %x %zx\n",
+		printk(BIOS_DEBUG, "%s: invalid count value %#x %zx\n", __func__,
 			count, sbufsiz);
-		return -1;
+		goto out;
 	}
 
-	ASSERT(chip->vendor.send);
-	rc = chip->vendor.send(chip, (uint8_t *) sbuf, count);
+	ASSERT(chip.send);
+	rc = chip.send((uint8_t *)sbuf, count);
 	if (rc < 0) {
-		printk(BIOS_DEBUG, "tpm_transmit: tpm_send error\n");
+		printk(BIOS_DEBUG, "%s: tpm_send error\n", __func__);
 		goto out;
 	}
 
 	int timeout = 2 * 60 * 1000; /* two minutes timeout */
 	while (timeout) {
-		ASSERT(chip->vendor.status);
-		uint8_t status = chip->vendor.status(chip);
-		if ((status & chip->vendor.req_complete_mask) ==
-		    chip->vendor.req_complete_val) {
+		ASSERT(chip.status);
+		uint8_t status = chip.status();
+		if ((status & chip.req_complete_mask) == chip.req_complete_val) {
 			goto out_recv;
 		}
 
-		if (status == chip->vendor.req_canceled) {
+		if (status == chip.req_canceled) {
 			printk(BIOS_DEBUG,
-				"tpm_transmit: Operation Canceled\n");
+				"%s: Operation Canceled\n", __func__);
 			rc = -1;
 			goto out;
 		}
@@ -121,23 +66,22 @@ static ssize_t tpm_transmit(const uint8_t *sbuf, size_t sbufsiz, void *rbuf,
 		timeout--;
 	}
 
-	ASSERT(chip->vendor.cancel);
-	chip->vendor.cancel(chip);
-	printk(BIOS_DEBUG, "tpm_transmit: Operation Timed out\n");
-	rc = -1; //ETIME;
+	ASSERT(chip.cancel);
+	chip.cancel();
+	printk(BIOS_DEBUG, "%s: Operation Timed out\n", __func__);
+	rc = -1;
 	goto out;
 
 out_recv:
-
-	rc = chip->vendor.recv(chip, (uint8_t *) rbuf, rbufsiz);
+	rc = chip.recv((uint8_t *)rbuf, rbufsiz);
 	if (rc < 0)
-		printk(BIOS_DEBUG, "tpm_transmit: tpm_recv: error %d\n", rc);
+		printk(BIOS_DEBUG, "%s: tpm_recv: error %d\n", __func__, rc);
 out:
 	return rc;
 }
 
-int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
-		uint8_t *recvbuf, size_t *rbuf_len)
+static tpm_result_t i2c_tpm_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
+				     uint8_t *recvbuf, size_t *rbuf_len)
 {
 	ASSERT(sbuf_size >= 10);
 
@@ -153,12 +97,12 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 
 	if (len < 10) {
 		*rbuf_len = 0;
-		return -1;
+		return TPM_CB_FAIL;
 	}
 
 	if (len > *rbuf_len) {
 		*rbuf_len = len;
-		return -1;
+		return TPM_CB_FAIL;
 	}
 
 	*rbuf_len = len;
@@ -171,5 +115,16 @@ int tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 		hexdump(recvbuf, *rbuf_len);
 	}
 
-	return 0;
+	return TPM_SUCCESS;
+}
+
+tis_sendrecv_fn tis_probe(void)
+{
+	if (tpm_vendor_probe(CONFIG_DRIVER_TPM_I2C_BUS, CONFIG_DRIVER_TPM_I2C_ADDR))
+		return NULL;
+
+	if (tpm_vendor_init(&chip, CONFIG_DRIVER_TPM_I2C_BUS, CONFIG_DRIVER_TPM_I2C_ADDR))
+		return NULL;
+
+	return &i2c_tpm_sendrecv;
 }

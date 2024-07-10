@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2014 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
 #include <console/console.h>
@@ -35,7 +20,7 @@ static void mainboard_smi_handle_ec_sci(void)
 		return;
 
 	event = ec_query();
-	printk(BIOS_DEBUG, "EC event %02x\n", event);
+	printk(BIOS_DEBUG, "EC event %#02x\n", event);
 }
 
 void mainboard_smi_gpi(u32 gpi_sts)
@@ -47,25 +32,25 @@ void mainboard_smi_gpi(u32 gpi_sts)
 int mainboard_smi_apmc(u8 data)
 {
 	switch (data) {
-		case APM_CNT_ACPI_ENABLE:
-			/* use 0x1600/0x1604 to prevent races with userspace */
-			ec_set_ports(0x1604, 0x1600);
-			/* route EC_SCI to SCI */
-			gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SCI);
-			/* discard all events, and enable attention */
-			ec_write(0x80, 0x01);
-			break;
-		case APM_CNT_ACPI_DISABLE:
-			/* we have to use port 0x62/0x66, as 0x1600/0x1604 doesn't
-			   provide a EC query function */
-			ec_set_ports(0x66, 0x62);
-			/* route EC_SCI to SMI */
-			gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SMI);
-			/* discard all events, and enable attention */
-			ec_write(0x80, 0x01);
-			break;
-		default:
-			break;
+	case APM_CNT_ACPI_ENABLE:
+		/* use 0x1600/0x1604 to prevent races with userspace */
+		ec_set_ports(0x1604, 0x1600);
+		/* route EC_SCI to SCI */
+		gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SCI);
+		/* discard all events, and enable attention */
+		ec_write(0x80, 0x01);
+		break;
+	case APM_CNT_ACPI_DISABLE:
+		/* we have to use port 0x62/0x66, as 0x1600/0x1604 doesn't
+		   provide a EC query function */
+		ec_set_ports(0x66, 0x62);
+		/* route EC_SCI to SMI */
+		gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SMI);
+		/* discard all events, and enable attention */
+		ec_write(0x80, 0x01);
+		break;
+	default:
+		break;
 	}
 	return 0;
 }

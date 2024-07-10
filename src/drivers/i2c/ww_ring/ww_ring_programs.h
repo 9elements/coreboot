@@ -1,15 +1,4 @@
-/*
- * Copyright (C) 2015 Google, Inc.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * This is a driver for the Whirlwind LED ring, which is equipped with two LED
@@ -32,7 +21,7 @@
 #include <stdint.h>
 #include "drivers/i2c/ww_ring/ww_ring.h"
 
-/* There are threee independent engines/cores in the controller. */
+/* There are three independent engines/cores in the controller. */
 #define LP55231_NUM_OF_ENGINES 3
 
 /* Number of lp55321 controllers on the ring */
@@ -40,7 +29,7 @@
 
 /*
  * Structure to describe an lp55231 program: pointer to the text of the
- * program, its size and load address (load addr + size sould not exceed
+ * program, its size and load address (load addr + size should not exceed
  * LP55231_MAX_PROG_SIZE), and start addresses for all of the three
  * engines.
  */

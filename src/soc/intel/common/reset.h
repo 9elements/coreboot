@@ -1,16 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _INTEL_COMMON_RESET_H_
 #define _INTEL_COMMON_RESET_H_
@@ -24,5 +12,15 @@ void do_global_reset(void);
 
 /* Prepare for reset, run do_global_reset(), halt. */
 __noreturn void global_reset(void);
+
+/*
+ * Return PCH Reset Status
+ * The return status can be between EfiResetCold, EfiResetWarm, EfiResetShutdown
+ * or EfiResetPlatformSpecific.
+ *
+ * If reset type if `EfiResetPlatformSpecific` then relying on pch_reset_data structure
+ * to know if the reset type is a global reset.
+ */
+uint32_t fsp_get_pch_reset_status(void);
 
 #endif	/* _INTEL_COMMON_RESET_H_ */

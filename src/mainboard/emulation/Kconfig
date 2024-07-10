@@ -1,3 +1,9 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
+# ugly to put it in here, but unavoidable
+config SEPARATE_ROMSTAGE
+	default n if BOARD_EMULATION_QEMU_RISCV
+
 if VENDOR_EMULATION
 
 choice
@@ -8,15 +14,9 @@ source "src/mainboard/emulation/*/Kconfig.name"
 
 endchoice
 
-config BOARD_EMULATION_QEMU_X86
-	bool
-	default y
-	depends on BOARD_EMULATION_QEMU_X86_I440FX || BOARD_EMULATION_QEMU_X86_Q35
-
 source "src/mainboard/emulation/*/Kconfig"
 
 config MAINBOARD_VENDOR
-	string
 	default "Emulation"
 
 endif # VENDOR_EMULATION

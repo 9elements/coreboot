@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/ioapic.h>
 
@@ -54,11 +41,11 @@ Method (_CRS, 0, NotSerialized)
 	CreateDWordField (PBRS, \_SB.PCI0._Y08._MIN, MEML)
 	CreateDWordField (PBRS, \_SB.PCI0._Y08._MAX, MEMH)
 	CreateDWordField (PBRS, \_SB.PCI0._Y08._LEN, LENM)
-	And (\_SB.PCI0.TOLM, 0xF800, Local1)
-	ShiftRight (Local1, 0x04, Local1)
-	ShiftLeft (Local1, 0x14, MEML)
-	Subtract (IO_APIC_ADDR, 0x01, MEMH)
-	Subtract (IO_APIC_ADDR, MEML, LENM)
+	Local1 = \_SB.PCI0.TOLM & 0xF800
+	Local1 >>= 4
+	MEML = Local1 << 0x14
+	MEMH = IO_APIC_ADDR - 1
+	LENM = IO_APIC_ADDR - MEML
 
 	Return (PBRS)
 }

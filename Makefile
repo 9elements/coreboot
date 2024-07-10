@@ -1,43 +1,21 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2008 Advanced Micro Devices, Inc.
-## Copyright (C) 2008 Uwe Hermann <uwe@hermann-uwe.de>
-## Copyright (C) 2009-2010 coresystems GmbH
-## Copyright (C) 2011 secunet Security Networks AG
-##
-## Redistribution and use in source and binary forms, with or without
-## modification, are permitted provided that the following conditions
-## are met:
-## 1. Redistributions of source code must retain the above copyright
-##    notice, this list of conditions and the following disclaimer.
-## 2. Redistributions in binary form must reproduce the above copyright
-##    notice, this list of conditions and the following disclaimer in the
-##    documentation and/or other materials provided with the distribution.
-## 3. The name of the author may not be used to endorse or promote products
-##    derived from this software without specific prior written permission.
-##
-## THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
-## ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-## IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-## ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
-## FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-## DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-## OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-## HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-## LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-## OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-## SUCH DAMAGE.
-##
+## SPDX-License-Identifier: BSD-3-Clause
 
+ifneq ($(words $(CURDIR)),1)
+    $(error Error: Path to the main directory cannot contain spaces)
+endif
 top := $(CURDIR)
 src := src
 srck := $(top)/util/kconfig
 obj ?= build
 override obj := $(subst $(top)/,,$(abspath $(obj)))
+xcompile ?= $(obj)/xcompile
 objutil ?= $(obj)/util
 objk := $(objutil)/kconfig
 absobj := $(abspath $(obj))
+
+additional-dirs :=
+
+VBOOT_HOST_BUILD ?= $(abspath $(objutil)/vboot_lib)
 
 COREBOOT_EXPORTS := COREBOOT_EXPORTS
 COREBOOT_EXPORTS += top src srck obj objutil objk
@@ -45,27 +23,41 @@ COREBOOT_EXPORTS += top src srck obj objutil objk
 DOTCONFIG ?= $(top)/.config
 KCONFIG_CONFIG = $(DOTCONFIG)
 KCONFIG_AUTOADS := $(obj)/cb-config.ads
+KCONFIG_RUSTCCFG := $(obj)/cb-config.rustcfg
 KCONFIG_AUTOHEADER := $(obj)/config.h
 KCONFIG_AUTOCONFIG := $(obj)/auto.conf
 KCONFIG_DEPENDENCIES := $(obj)/auto.conf.cmd
-KCONFIG_SPLITCONFIG := $(obj)/config
+KCONFIG_SPLITCONFIG := $(obj)/config/
 KCONFIG_TRISTATE := $(obj)/tristate.conf
 KCONFIG_NEGATIVES := 1
-KCONFIG_STRICT := 1
+KCONFIG_WERROR := 1
+KCONFIG_WARN_UNKNOWN_SYMBOLS := 1
 KCONFIG_PACKAGE := CB.Config
+KCONFIG_MAKEFILE_REAL ?= $(objk)/Makefile.real
 
 COREBOOT_EXPORTS += KCONFIG_CONFIG KCONFIG_AUTOHEADER KCONFIG_AUTOCONFIG
 COREBOOT_EXPORTS += KCONFIG_DEPENDENCIES KCONFIG_SPLITCONFIG KCONFIG_TRISTATE
-COREBOOT_EXPORTS += KCONFIG_NEGATIVES KCONFIG_STRICT
+COREBOOT_EXPORTS += KCONFIG_NEGATIVES
+ifeq ($(filter %config,$(MAKECMDGOALS)),)
+COREBOOT_EXPORTS += KCONFIG_WERROR
+endif
+COREBOOT_EXPORTS += KCONFIG_WARN_UNKNOWN_SYMBOLS
 COREBOOT_EXPORTS += KCONFIG_AUTOADS KCONFIG_PACKAGE
+COREBOOT_EXPORTS += KCONFIG_RUSTCCFG
 
-# directory containing the toplevel Makefile.inc
+# Make does not offer a recursive wildcard function, so here's one:
+rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+SYMLINK_LIST = $(call rwildcard,site-local/,symlink.txt)
+
+
+# Directory containing the toplevel Makefile.mk
 TOPLEVEL := .
 
 CONFIG_SHELL := sh
 KBUILD_DEFCONFIG := configs/defconfig
 UNAME_RELEASE := $(shell uname -r)
 HAVE_DOTCONFIG := $(wildcard $(DOTCONFIG))
+HAVE_KCONFIG_MAKEFILE_REAL := $(wildcard $(KCONFIG_MAKEFILE_REAL))
 MAKEFLAGS += -rR --no-print-directory
 
 # Make is silent per default, but 'make V=1' will show all compiler calls.
@@ -73,21 +65,21 @@ Q:=@
 ifneq ($(V),1)
 ifneq ($(Q),)
 .SILENT:
+MAKEFLAGS += -s
+quiet_errors := 2>/dev/null
 endif
 endif
 
 # Disable implicit/built-in rules to make Makefile errors fail fast.
 .SUFFIXES:
 
-HOSTCC := $(if $(shell type gcc 2>/dev/null),gcc,cc)
-HOSTCXX = g++
 HOSTCFLAGS := -g
 HOSTCXXFLAGS := -g
 
-PREPROCESS_ONLY := -E -P -x assembler-with-cpp -undef -I .
+HOSTPKG_CONFIG ?= pkg-config
+COREBOOT_EXPORTS += HOSTPKG_CONFIG
 
-DOXYGEN := doxygen
-DOXYGEN_OUTPUT_DIR := doxygen
+PREPROCESS_ONLY := -E -P -x assembler-with-cpp -undef -I .
 
 export $(COREBOOT_EXPORTS)
 
@@ -99,8 +91,8 @@ help_coreboot help::
 	@echo  '  all                   - Build coreboot'
 	@echo  '  clean                 - Remove coreboot build artifacts'
 	@echo  '  distclean             - Remove build artifacts and config files'
-	@echo  '  doxygen               - Build doxygen documentation for coreboot'
-	@echo  '  doxyplatform          - Build doxygen documentation for the current platform'
+	@echo  '  sphinx                - Build sphinx documentation for coreboot'
+	@echo  '  sphinx-lint           - Build sphinx documentation for coreboot with warnings as errors'
 	@echo  '  filelist              - Show files used in current build'
 	@echo  '  printall              - print makefile info for debugging'
 	@echo  '  gitconfig             - set up git to submit patches to coreboot'
@@ -110,65 +102,118 @@ help_coreboot help::
 
 # This include must come _before_ the pattern rules below!
 # Order _does_ matter for pattern rules.
-include $(srck)/Makefile
+include $(srck)/Makefile.mk
 
-# Three cases where we don't need fully populated $(obj) lists:
+# The cases where we don't need fully populated $(obj) lists:
 # 1. when no .config exists
-# 2. when make config (in any flavour) is run
-# 3. when make distclean is run
+# 2. When no $(obj)/util/kconfig/Makefile.real exists and we're building tools
+# 3. when make config (in any flavour) is run
+# 4. when make distclean is run
 # Don't waste time on reading all Makefile.incs in these cases
 ifeq ($(strip $(HAVE_DOTCONFIG)),)
 NOCOMPILE:=1
 endif
-ifneq ($(MAKECMDGOALS),)
-ifneq ($(filter %config %clean cross% clang iasl gnumake lint% help% what-jenkins-does,$(MAKECMDGOALS)),)
+ifeq ($(strip $(HAVE_KCONFIG_MAKEFILE_REAL)),)
+ifneq ($(MAKECMDGOALS),tools)
 NOCOMPILE:=1
 endif
-ifeq ($(MAKECMDGOALS), %clean)
+endif
+ifneq ($(MAKECMDGOALS),)
+ifneq ($(filter %config %clean cross% clang iasl lint% help% what-jenkins-does,$(MAKECMDGOALS)),)
+NOCOMPILE:=1
+endif
+ifneq ($(filter %clean lint% help% what-jenkins-does,$(MAKECMDGOALS)),)
 NOMKDIR:=1
+UNIT_TEST:=1
 endif
 endif
 
-ifeq ($(NOCOMPILE),1)
-include $(TOPLEVEL)/Makefile.inc
-include $(TOPLEVEL)/payloads/Makefile.inc
-include $(TOPLEVEL)/util/testing/Makefile.inc
--include $(TOPLEVEL)/site-local/Makefile.inc
-real-all:
-	@echo "Error: Expected config file ($(DOTCONFIG)) not present." >&2
-	@echo "Please specify a config file or run 'make menuconfig' to" >&2
-	@echo "generate a new config file." >&2
-	@exit 1
+ifneq ($(filter help%, $(MAKECMDGOALS)), )
+NOCOMPILE:=1
+UNIT_TEST:=1
 else
+ifneq ($(filter %-test %-tests %coverage-report, $(MAKECMDGOALS)),)
+ifneq ($(filter-out %-test %-tests %coverage-report, $(MAKECMDGOALS)),)
+$(error Cannot mix unit-tests targets with other targets)
+endif
+UNIT_TEST:=1
+NOCOMPILE:=
+endif
+endif
 
-include $(DOTCONFIG)
+# When building the "tools" target, the BUILD_ALL_TOOLS variable needs
+# to be set before reading the tools' Makefiles
+ifneq ($(filter tools, $(MAKECMDGOALS)), )
+BUILD_ALL_TOOLS:=1
+endif
 
-# in addition to the dependency below, create the file if it doesn't exist
-# to silence stupid warnings about a file that would be generated anyway.
-$(if $(wildcard .xcompile)$(NOCOMPILE),,$(eval $(shell util/xcompile/xcompile $(XGCCPATH) > .xcompile || rm -f .xcompile)))
-
-.xcompile: util/xcompile/xcompile
+$(xcompile): util/xcompile/xcompile
 	rm -f $@
 	$< $(XGCCPATH) > $@.tmp
 	\mv -f $@.tmp $@ 2> /dev/null
 	rm -f $@.tmp
 
--include .xcompile
+ifeq ($(NOCOMPILE),1)
+# We also don't use .xcompile in the no-compile situations, so
+# provide some reasonable defaults.
+HOSTCC ?= $(if $(shell type gcc 2>/dev/null),gcc,cc)
+HOSTCXX ?= g++
+
+include $(TOPLEVEL)/Makefile.mk
+include $(TOPLEVEL)/payloads/Makefile.mk
+include $(TOPLEVEL)/util/testing/Makefile.mk
+-include $(TOPLEVEL)/site-local/Makefile.mk
+-include $(TOPLEVEL)/site-local/Makefile.inc
+include $(TOPLEVEL)/tests/Makefile.mk
+printall real-all:
+	@echo "Error: Trying to build, but NOCOMPILE is set." >&2
+	@echo "  Please file a bug with the following information:"
+	@echo "- MAKECMDGOALS: $(MAKECMDGOALS)" >&2
+	@echo "- HAVE_DOTCONFIG: $(HAVE_DOTCONFIG)" >&2
+	@echo "- HAVE_KCONFIG_MAKEFILE_REAL: $(HAVE_KCONFIG_MAKEFILE_REAL)" >&2
+	@exit 1
+
+else
+
+ifneq ($(UNIT_TEST),1)
+include $(DOTCONFIG)
+endif
+
+# The toolchain requires xcompile to determine the ARCH_SUPPORTED, so we can't
+# wait for make to generate the file.
+$(if $(wildcard $(xcompile)),, $(shell \
+	mkdir -p $(dir $(xcompile)) && \
+	util/xcompile/xcompile $(XGCCPATH) > $(xcompile) || rm -f $(xcompile)))
+
+include $(xcompile)
 
 ifneq ($(XCOMPILE_COMPLETE),1)
-$(shell rm -f .xcompile)
-$(error .xcompile deleted because it's invalid. \
+$(shell rm -f $(xcompile))
+$(error $(xcompile) deleted because it's invalid. \
 	Restarting the build should fix that, or explain the problem)
 endif
 
-ifneq ($(CONFIG_MMX),y)
-CFLAGS_x86_32 += -mno-mmx
+# reproducible builds
+LANG:=C
+LC_ALL:=C
+TZ:=UTC0
+ifneq ($(NOCOMPILE),1)
+SOURCE_DATE_EPOCH := $(shell $(top)/util/genbuild_h/genbuild_h.sh . | sed -n 's/^.define COREBOOT_BUILD_EPOCH\>.*"\(.*\)".*/\1/p')
 endif
+# don't use COREBOOT_EXPORTS to ensure build steps outside the coreboot build system
+# are reproducible
+export LANG LC_ALL TZ SOURCE_DATE_EPOCH
 
-include toolchain.inc
+ifneq ($(UNIT_TEST),1)
+include toolchain.mk
+endif
 
 strip_quotes = $(strip $(subst ",,$(subst \",,$(1))))
 # fix makefile syntax highlighting after strip macro \" "))
+
+ifneq ($(NOCOMPILE),1)
+$(shell rm -f $(CCACHE_STATSLOG))
+endif
 
 # The primary target needs to be here before we include the
 # other files
@@ -176,16 +221,18 @@ strip_quotes = $(strip $(subst ",,$(subst \",,$(1))))
 real-all: real-target
 
 # must come rather early
+.SECONDARY:
 .SECONDEXPANSION:
 .DELETE_ON_ERROR:
 
 $(KCONFIG_AUTOHEADER): $(KCONFIG_CONFIG) $(objutil)/kconfig/conf
-	+$(MAKE) oldconfig
+	$(MAKE) olddefconfig
+	$(MAKE) syncconfig
 
 $(KCONFIG_AUTOCONFIG): $(KCONFIG_AUTOHEADER)
 	true
 
-$(KCONFIG_AUTOADS): $(KCONFIG_AUTOCONFIG) $(objutil)/kconfig/toada
+$(KCONFIG_AUTOADS): $(KCONFIG_CONFIG) $(KCONFIG_AUTOHEADER) $(objutil)/kconfig/toada
 	$(objutil)/kconfig/toada CB.Config <$< >$@
 
 $(obj)/%/$(notdir $(KCONFIG_AUTOADS)): $(KCONFIG_AUTOADS)
@@ -236,27 +283,31 @@ src-to-ali=\
 	$(subst .$(1),,\
 	$(filter %.ads %.adb,$(2)))))))))
 
-# Clean -y variables, include Makefile.inc
+# Clean -y variables, include Makefile.mk & Makefile.inc
 # Add paths to files in X-y to X-srcs
 # Add subdirs-y to subdirs
 includemakefiles= \
-	$(foreach class,classes subdirs $(classes) $(special-classes), $(eval $(class)-y:=)) \
-	$(eval -include $(1)) \
-	$(foreach class,$(classes-y), $(call add-class,$(class))) \
-	$(foreach class,$(classes), \
-		$(eval $(class)-srcs+= \
-			$$(subst $(absobj)/,$(obj)/, \
-			$$(subst $(top)/,, \
-			$$(abspath $$(subst $(dir $(1))/,/,$$(addprefix $(dir $(1)),$$($(class)-y)))))))) \
-	$(foreach special,$(special-classes), \
-		$(foreach item,$($(special)-y), $(call $(special)-handler,$(dir $(1)),$(item)))) \
-	$(eval subdirs+=$$(subst $(CURDIR)/,,$$(wildcard $$(abspath $$(addprefix $(dir $(1)),$$(subdirs-y))))))
+	$(if $(wildcard $(1)), \
+		$(foreach class,classes subdirs $(classes) $(special-classes), $(eval $(class)-y:=)) \
+		$(eval -include $(1)) \
+		$(foreach class,$(classes-y), $(call add-class,$(class))) \
+		$(foreach special,$(special-classes), \
+			$(foreach item,$($(special)-y), $(call $(special)-handler,$(dir $(1)),$(item)))) \
+		$(foreach class,$(classes), \
+			$(eval $(class)-srcs+= \
+				$$(subst $(absobj)/,$(obj)/, \
+				$$(subst $(top)/,, \
+				$$(abspath $$(subst $(dir $(1))/,/,$$(addprefix $(dir $(1)),$$($(class)-y)))))))) \
+		$(eval subdirs+=$$(subst $(CURDIR)/,,$$(wildcard $$(abspath $$(addprefix $(dir $(1)),$$(subdirs-y)))))))
 
 # For each path in $(subdirs) call includemakefiles
 # Repeat until subdirs is empty
+# TODO: Remove Makefile.inc support
 evaluate_subdirs= \
 	$(eval cursubdirs:=$(subdirs)) \
 	$(eval subdirs:=) \
+	$(foreach dir,$(cursubdirs), \
+		$(eval $(call includemakefiles,$(dir)/Makefile.mk))) \
 	$(foreach dir,$(cursubdirs), \
 		$(eval $(call includemakefiles,$(dir)/Makefile.inc))) \
 	$(if $(subdirs),$(eval $(call evaluate_subdirs)))
@@ -264,7 +315,14 @@ evaluate_subdirs= \
 # collect all object files eligible for building
 subdirs:=$(TOPLEVEL)
 postinclude-hooks :=
+
+# Don't iterate through Makefiles under src/ when building tests
+ifneq ($(UNIT_TEST),1)
 $(eval $(call evaluate_subdirs))
+else
+include $(TOPLEVEL)/tests/Makefile.mk
+endif
+
 ifeq ($(FAILBUILD),1)
 $(error cannot continue build)
 endif
@@ -275,7 +333,15 @@ $(eval $(postinclude-hooks))
 # Eliminate duplicate mentions of source files in a class
 $(foreach class,$(classes),$(eval $(class)-srcs:=$(sort $($(class)-srcs))))
 
+ifeq ($(CONFIG_IWYU),y)
+MAKEFLAGS += -k
+SAVE_IWYU_OUTPUT := 2>&1 | grep "should\|\#include\|---\|include-list\|^[[:blank:]]\?\'" | tee -a $$(obj)/iwyu.txt
+endif
+
 # Build Kconfig .ads if necessary
+ifeq ($(CONFIG_ROMSTAGE_ADA),y)
+romstage-srcs += $(obj)/romstage/$(notdir $(KCONFIG_AUTOADS))
+endif
 ifeq ($(CONFIG_RAMSTAGE_ADA),y)
 ramstage-srcs += $(obj)/ramstage/$(notdir $(KCONFIG_AUTOADS))
 endif
@@ -338,7 +404,7 @@ $$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $(KCONFIG_AUTOHEADER) $(4)
 	@printf "    CC         $$$$(subst $$$$(obj)/,,$$$$(@))\n"
 	$(CC_$(1)) \
 		-MMD $$$$(CPPFLAGS_$(1)) $$$$(CFLAGS_$(1)) -MT $$$$(@) \
-		$(3) -c -o $$$$@ $$$$<
+		$(3) -c -o $$$$@ $$$$< $(SAVE_IWYU_OUTPUT)
 end$(EMPTY)if
 en$(EMPTY)def
 end$(EMPTY)if
@@ -399,7 +465,7 @@ $(obj)/project_filelist.txt:
 		echo "*** Error: Project must be built before generating file list ***"; \
 		exit 1; \
 	fi
-	find $(obj) -path "$(obj)/util" -prune -o -name "*.d" -exec cat {} \; | \
+	find $(obj) -path "$(obj)/util" -prune -o -path "$(obj)/external" -prune -o -name "*.d" -exec cat {} \; | \
 	  sed "s|$(top)/||" | sed 's/[:\\]/ /g' | sed 's/ /\n/g' | sort | uniq | \
 	  grep -v '\.o$$' > $(obj)/project_filelist.txt
 
@@ -418,30 +484,39 @@ cscope-project: clean-cscope $(obj)/project_filelist.txt
 cscope:
 	cscope -bR
 
-doxy: doxygen
-doxygen:
-	$(DOXYGEN) Documentation/Doxyfile.coreboot
+sphinx:
+	$(MAKE) -C Documentation sphinx
 
-doxygen_simple:
-	$(DOXYGEN) Documentation/Doxyfile.coreboot_simple
+sphinx-lint:
+	$(MAKE) SPHINXOPTS=-W -C Documentation sphinx
 
-doxyplatform doxygen_platform: $(obj)/project_filelist.txt
-	echo
-	echo "Building doxygen documentation for $(CONFIG_MAINBOARD_PART_NUMBER)"
-	export DOXYGEN_OUTPUT_DIR="$(DOXYGEN_OUTPUT_DIR)/$(CONFIG_MAINBOARD_VENDOR)/$(CONFIG_MAINBOARD_PART_NUMBER)"; \
-	mkdir -p "$$DOXYGEN_OUTPUT_DIR"; \
-	export DOXYFILES="$$(cat $(obj)/project_filelist.txt | grep -v '\.ld$$' | sed 's/\.aml/\.dsl/' | tr '\n' ' ')"; \
-	export DOXYGEN_PLATFORM="$(CONFIG_MAINBOARD_DIR) ($(CONFIG_MAINBOARD_PART_NUMBER)) version $(KERNELVERSION)"; \
-	$(DOXYGEN) Documentation/doxygen/Doxyfile.coreboot_platform
+symlink:
+	@echo "Creating Symbolic Links.."; \
+	for link in $(SYMLINK_LIST); do \
+		SYMLINK=`cat $$link`; \
+		REALPATH=`realpath $$link`; \
+		if [ -L "$$SYMLINK" ]; then \
+			continue; \
+		elif [ ! -e "$$SYMLINK" ]; then \
+			echo -e "\tLINK $$SYMLINK -> $$(dirname $$REALPATH)"; \
+			ln -s $$(dirname $$REALPATH) $$SYMLINK; \
+		else \
+			echo -e "\tFAILED: $$SYMLINK exists"; \
+		fi \
+	done
 
-doxyclean: doxygen-clean
-doxygen-clean:
-	rm -rf $(DOXYGEN_OUTPUT_DIR)
+clean-symlink:
+	@echo "Deleting symbolic link";\
+	EXISTING_SYMLINKS=`find -L ./src -xtype l | grep -v 3rdparty`; \
+	for link in $$EXISTING_SYMLINKS; do \
+		echo -e "\tUNLINK $$link"; \
+		rm "$$link"; \
+	done
 
-clean-for-update: doxygen-clean clean-for-update-target
+clean-for-update:
 	rm -rf $(obj) .xcompile
 
-clean: clean-for-update clean-target clean-utils
+clean: clean-for-update clean-utils clean-payloads
 	rm -f .ccwrap
 
 clean-cscope:
@@ -464,5 +539,5 @@ distclean: clean clean-ctags clean-cscope distclean-payloads distclean-utils
 	rm -rf coreboot-builds coreboot-builds-chromeos
 	rm -f abuild*.xml junit.xml* util/lint/junit.xml
 
-.PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean doxygen doxy doxygen_simple
-.PHONY: ctags-project cscope-project clean-ctags
+.PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean sphinx sphinx-lint
+.PHONY: ctags-project cscope-project clean-ctags symlink clean-symlink

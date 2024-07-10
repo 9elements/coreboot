@@ -45,6 +45,8 @@
 
 #include <AGESA.h>
 #include <cpuRegisters.h>
+#include <cpu/x86/mp.h>
+#include <cpu/x86/cache.h>
 #include <Filecode.h>
 #include <Ids.h>
 #include <Porting.h>
@@ -58,16 +60,16 @@ RDATA_GROUP (G1_PEICC)
 
 #define FILECODE LIB_AMDLIB_FILECODE
 
-BOOLEAN
 STATIC
+BOOLEAN
 GetPciMmioAddress (
      OUT   UINT64            *MmioAddress,
      OUT   UINT32            *MmioSize,
   IN       AMD_CONFIG_PARAMS *StdHeader
   );
 
-VOID
 STATIC
+VOID
 LibAmdGetDataFromPtr (
   IN       ACCESS_WIDTH AccessWidth,
   IN       CONST VOID   *Data,
@@ -150,8 +152,8 @@ WriteIo32 (
    __outdword (Address, Data);
 }
 
-AMDLIB_OPTIMIZE
 STATIC
+AMDLIB_OPTIMIZE
 UINT64 SetFsBase (
   UINT64 address
   )
@@ -163,8 +165,8 @@ UINT64 SetFsBase (
   return hwcr;
 }
 
-AMDLIB_OPTIMIZE
 STATIC
+AMDLIB_OPTIMIZE
 VOID
 RestoreHwcr (
   UINT64
@@ -488,8 +490,8 @@ LibAmdCLFlush (
   address32 = 0;
   hwcrSave = SetFsBase (Address);
   for (Index = 0; Index < Count; Index++){
-    _mm_mfence ();
-    _mm_clflush_fs (&address32 [Index * 64]);
+    mfence();
+    clflush(&address32 [Index * 64]);
   }
   RestoreHwcr (hwcrSave);
 }
@@ -961,8 +963,8 @@ LibAmdPciPoll (
  *
  * @retval    TRUE          MmioAddress/MmioSize are valid
  */
-BOOLEAN
 STATIC
+BOOLEAN
 GetPciMmioAddress (
      OUT   UINT64            *MmioAddress,
      OUT   UINT32            *MmioSize,
@@ -1300,8 +1302,8 @@ LibAmdGetPackageType (
  * @param[out]    TempDataMask    typecast data
  */
 
-VOID
 STATIC
+VOID
 LibAmdGetDataFromPtr (
   IN       ACCESS_WIDTH AccessWidth,
   IN       CONST VOID   *Data,

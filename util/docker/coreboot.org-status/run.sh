@@ -1,16 +1,7 @@
-#!/bin/sh
-# This file is part of the coreboot project.
+#!/usr/bin/env sh
 #
-# Copyright (C) 2018 Google Inc.
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# SPDX-License-Identifier: GPL-2.0-only
+
 set -e
 
 # This script is the entry point for this container and expects two git
@@ -20,7 +11,10 @@ set -e
 # /data-out.
 
 cd /data-in/board-status.git
-/opt/tools/status-to-html.sh > /tmp/board-status.html
+/opt/tools/board-status.html \
+	-board-status-dir /data-in/board-status.git \
+	-coreboot-dir /data-in/coreboot.git \
+	> /tmp/board-status.html
 mv /tmp/board-status.html /data-out/
 
 cd /data-in/coreboot.git

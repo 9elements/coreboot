@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_INTEL_DCP847SKE
 
 config BOARD_SPECIFIC_OPTIONS
@@ -26,16 +28,10 @@ config DISABLE_UART_ON_TESTPADS
 endmenu
 
 config MAINBOARD_DIR
-	string
-	default intel/dcp847ske
+	default "intel/dcp847ske"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "Intel NUC DCP847SKE"
-
-config VGA_BIOS_FILE
-	string
-	default "pci8086,0106.rom"
 
 config VGA_BIOS_ID
 	string
@@ -50,7 +46,6 @@ config USBDEBUG_HCD_INDEX
 	default 2
 
 config CBFS_SIZE
-	hex
 	default 0x00640000
 
 config MAINBOARD_SMBIOS_MANUFACTURER

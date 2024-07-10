@@ -1,87 +1,64 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015-2017 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/acpi.h>
 #include <string.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/mmio.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
 #include <amdblocks/agesawrapper.h>
 #include <amdblocks/amd_pci_util.h>
-#include <cbmem.h>
+#include <amdblocks/i2c.h>
 #include <baseboard/variants.h>
 #include <boardid.h>
+#include <gpio.h>
 #include <smbios.h>
-#include <soc/nvs.h>
+#include <soc/acpi.h>
 #include <soc/pci_devs.h>
 #include <soc/southbridge.h>
-#include <soc/smi.h>
 #include <amdblocks/acpimmio.h>
 #include <variant/ec.h>
 #include <variant/thermal.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 
-/***********************************************************
- * These arrays set up the FCH PCI_INTR registers 0xC00/0xC01.
- * This table is responsible for physically routing the PIC and
- * IOAPIC IRQs to the different PCI devices on the system.  It
- * is read and written via registers 0xC00/0xC01 as an
- * Index/Data pair.  These values are chipset and mainboard
- * dependent and should be updated accordingly.
- *
- * These values are used by the PCI configuration space,
- * MP Tables.  TODO: Make ACPI use these values too.
- */
+/* The IRQ mapping in fch_irq_map ends up getting written to the indirect address space that is
+   accessed via I/O ports 0xc00/0xc01. */
+static const struct fch_irq_routing fch_irq_map[] = {
+	{ PIRQ_A,	 3,		16 },
+	{ PIRQ_B,	 4,		17 },
+	{ PIRQ_C,	 5,		18 },
+	{ PIRQ_D,	 7,		19 },
+	{ PIRQ_E,	11,		20 },
+	{ PIRQ_F,	PIRQ_NC,	PIRQ_NC },
+	{ PIRQ_G,	PIRQ_NC,	22 },
+	{ PIRQ_H,	PIRQ_NC,	23 },
+	{ PIRQ_SCI,	ACPI_SCI_IRQ,	ACPI_SCI_IRQ },
+	{ PIRQ_SMBUS,	PIRQ_NC,	PIRQ_NC },
+	{ PIRQ_HDA,	 3,		16 },
+	{ PIRQ_SD,	 3,		16 },
+	{ PIRQ_SDIO,	PIRQ_NC,	PIRQ_NC },
+	{ PIRQ_EHCI,	 5,		18 },
+	{ PIRQ_XHCI,	 4,		18 },
+	{ PIRQ_SATA,	 4,		19 },
+	{ PIRQ_GPIO,	 7,		 7 },
+	{ PIRQ_I2C0,	 3,		 3 },
+	{ PIRQ_I2C1,	15,		15 },
+	{ PIRQ_I2C2,	 6,		 6 },
+	{ PIRQ_I2C3,	14,		14 },
+	{ PIRQ_UART0,	10,		10 },
+	{ PIRQ_UART1,	11,		11 },
 
-const u8 mainboard_picr_data[] = {
-	[0x00] = 0x03, 0x04, 0x05, 0x07, 0x0B, 0x1F, 0x1F, 0x1F,
-	[0x08] = 0xFA, 0xF1, 0x00, 0x00, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x10] = 0x09, 0x1F, 0x1F, 0x03, 0x1F, 0x1F, 0x1F, 0x03,
-	[0x18] = 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x20] = 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x00, 0x00,
-	[0x28] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x30] = 0x05, 0x04, 0x05, 0x04, 0x04, 0x05, 0x04, 0x05,
-	[0x38] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x40] = 0x04, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x48] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x50] = 0x03, 0x04, 0x05, 0x07, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x58] = 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x60] = 0x1F, 0x1F, 0x07, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x68] = 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x70] = 0x03, 0x0F, 0x06, 0x0E, 0x0A, 0x0B, 0x1F, 0x1F,
-	[0x78] = 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F,
+	/* The MISC registers are not interrupt numbers */
+	{ PIRQ_MISC,	0xfa,	0x00 },
+	{ PIRQ_MISC0,	0xf1,	0x00 },
+	{ PIRQ_MISC1,	0x00,	0x00 },
+	{ PIRQ_MISC2,	0x00,	0x00 },
 };
 
-const u8 mainboard_intr_data[] = {
-	[0x00] = 0x10, 0x11, 0x12, 0x13, 0x14, 0x1F, 0x16, 0x17,
-	[0x08] = 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F, 0x1F, 0x1F,
-	[0x10] = 0x09, 0x1F, 0x1F, 0x10, 0x1F, 0x1F, 0x1F, 0x10,
-	[0x18] = 0x1F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x20] = 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x00, 0x00,
-	[0x28] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x30] = 0x12, 0x11, 0x12, 0x11, 0x12, 0x11, 0x12, 0x00,
-	[0x38] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x40] = 0x11, 0x13, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x48] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x50] = 0x1F, 0x1F, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00,
-	[0x58] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x60] = 0x1F, 0x1F, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x68] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	[0x70] = 0x03, 0x0F, 0x06, 0x0E, 0x0A, 0x0B, 0x1F, 0x1F,
-	[0x78] = 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
+const struct fch_irq_routing *mb_get_fch_irq_mapping(size_t *length)
+{
+	*length = ARRAY_SIZE(fch_irq_map);
+	return fch_irq_map;
+}
 
 /*
  * This table defines the index into the picr/intr_data tables for each
@@ -110,14 +87,15 @@ static void pirq_setup(void)
 {
 	pirq_data_ptr = mainboard_pirq_data;
 	pirq_data_size = ARRAY_SIZE(mainboard_pirq_data);
-	intr_data_ptr = mainboard_intr_data;
-	picr_data_ptr = mainboard_picr_data;
+}
+
+void __weak variant_devtree_update(void)
+{
+	/* Override dev tree settings per board */
 }
 
 static void mainboard_init(void *chip_info)
 {
-	const struct sci_source *gpes;
-	size_t num;
 	int boardid = board_id();
 	size_t num_gpios;
 	const struct soc_amd_gpio *gpios;
@@ -127,64 +105,37 @@ static void mainboard_init(void *chip_info)
 	mainboard_ec_init();
 
 	gpios = variant_gpio_table(&num_gpios);
-	program_gpios(gpios, num_gpios);
+	gpio_configure_pads(gpios, num_gpios);
 
-	/*
-	 * Some platforms use SCI not generated by a GPIO pin (event above 23).
-	 * For these boards, gpe_configure_sci() is still needed, but all GPIO
-	 * generated events (23-0) must be removed from gpe_table[].
-	 * For boards that only have GPIO generated events, table gpe_table[]
-	 * must be removed, and get_gpe_table() should return NULL.
-	 */
-	gpes = get_gpe_table(&num);
-	if (gpes != NULL)
-		gpe_configure_sci(gpes, num);
-
-	/* Initialize i2c busses that were not initialized in bootblock */
+	/* Initialize i2c buses that were not initialized in bootblock */
 	i2c_soc_init();
 
 	/* Set GenIntDisable so that GPIO 90 is configured as a GPIO. */
 	pm_write8(PM_PCIB_CFG, pm_read8(PM_PCIB_CFG) | PM_GENINT_DISABLE);
 
 	/* Set low-power mode for BayHub eMMC bridge's PCIe clock. */
-	clrsetbits_le32((uint32_t *)(ACPIMMIO_MISC_BASE + GPP_CLK_CNTRL),
-			GPP_CLK2_REQ_MAP_MASK,
-			GPP_CLK2_REQ_MAP_CLK_REQ2 <<
-			GPP_CLK2_REQ_MAP_SHIFT);
+	clrsetbits32(acpimmio_misc + GPP_CLK_CNTRL,
+		     GPP_CLK2_REQ_MAP_MASK,
+		     GPP_CLK2_REQ_MAP_CLK_REQ2 <<
+		     GPP_CLK2_REQ_MAP_SHIFT);
 
 	/* Same for the WiFi */
-	clrsetbits_le32((uint32_t *)(ACPIMMIO_MISC_BASE + GPP_CLK_CNTRL),
-			GPP_CLK0_REQ_MAP_MASK,
-			GPP_CLK0_REQ_MAP_CLK_REQ0 <<
-			GPP_CLK0_REQ_MAP_SHIFT);
+	clrsetbits32(acpimmio_misc + GPP_CLK_CNTRL,
+		     GPP_CLK0_REQ_MAP_MASK,
+		     GPP_CLK0_REQ_MAP_CLK_REQ0 <<
+		     GPP_CLK0_REQ_MAP_SHIFT);
+
+	variant_devtree_update();
 }
 
 /*************************************************
  * Dedicated mainboard function
  *************************************************/
-static void kahlee_enable(struct device *dev)
+static void mainboard_enable(struct device *dev)
 {
-	printk(BIOS_INFO, "Mainboard "
-				CONFIG_MAINBOARD_PART_NUMBER " Enable.\n");
-
 	/* Initialize the PIRQ data structures for consumption */
 	pirq_setup();
 
-	dev->ops->acpi_inject_dsdt_generator = chromeos_dsdt_generator;
-}
-
-
-static void mainboard_final(void *chip_info)
-{
-	struct global_nvs_t *gnvs;
-
-	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-
-	if (gnvs) {
-		gnvs->tmps = CTL_TDP_SENSOR_ID;
-		gnvs->tcrt = CRITICAL_TEMPERATURE;
-		gnvs->tpsv = PASSIVE_TEMPERATURE;
-	}
 }
 
 int mainboard_get_xhci_oc_map(uint16_t *map)
@@ -204,8 +155,7 @@ void mainboard_suspend_resume(void)
 
 struct chip_operations mainboard_ops = {
 	.init = mainboard_init,
-	.enable_dev = kahlee_enable,
-	.final = mainboard_final,
+	.enable_dev = mainboard_enable,
 };
 
 /* Variants may override these functions so see definitions in variants/ */

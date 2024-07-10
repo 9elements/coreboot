@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/gpio.h>
 
@@ -43,7 +30,7 @@ Scope (\_SB)
 
 		Device (EJCT)
 		{
-			Name (_ADR, Zero)
+			Name (_ADR, 0)
 
 			Name (_DSD, Package () {
 				ToUUID("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -68,7 +55,7 @@ Scope (\_SB.PCI0.I2C2)
 {
 	Device (DIGI)
 	{
-		Name (_HID, "ACPI0C50")
+		Name (_HID, "WCOM005C")
 		Name (_CID, "PNP0C50")
 		Name (_UID, 1)
 		Name (_S0W, 4)
@@ -100,26 +87,25 @@ Scope (\_SB.PCI0.I2C2)
 		 */
 		Method (_DSM, 4, NotSerialized)
 		{
-			If (LEqual (Arg0, ToUUID
-			            ("3cdff6f7-4267-4555-ad05-b30a3d8938de"))) {
-				If (LEqual (Arg2, Zero)) {
+			If (Arg0 == ToUUID ("3cdff6f7-4267-4555-ad05-b30a3d8938de")) {
+				If (Arg2 == 0) {
 					/* Function 0 - Query */
-					If (LEqual (Arg1, One)) {
+					If (Arg1 == 1) {
 						/* Revision 1 Function 1 */
-						Return (Buffer (One) { 0x03 })
+						Return (Buffer (1) { 0x03 })
 					} Else {
 						/* Revision 2+ not supported */
-						Return (Buffer (One) { 0x00 })
+						Return (Buffer (1) { 0x00 })
 					}
-				} ElseIf (LEqual (Arg2, One)) {
+				} ElseIf (Arg2 == 1) {
 					/* Function 1 - HID Descriptor Addr */
 					Return (0x0001)
 				} Else {
 					/* Function 2+ not supported */
-					Return (Buffer (One) { 0x00 })
+					Return (Buffer (1) { 0x00 })
 				}
 			} Else {
-				Return (Buffer (One) { 0x00 })
+				Return (Buffer (1) { 0x00 })
 			}
 		}
 	}

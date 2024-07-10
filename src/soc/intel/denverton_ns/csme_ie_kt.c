@@ -1,21 +1,5 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 - 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stdint.h>
-#include <stdlib.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <console/console.h>
@@ -71,19 +55,17 @@ static struct device_operations csme_ie_kt_ops = {
 	.read_resources = pci_csme_ie_kt_read_resources,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
-	.scan_bus = 0,
-	.init = 0,
 	.ops_pci = &soc_pci_ops,
 };
 
 static const unsigned short pci_device_ids[] = {
-	ME_MEKT_DEVID, /* DVN CSME KT */
-	IE_MEKT_DEVID, /* DVN IE KT */
+	PCI_DID_INTEL_DNV_ME_KT,
+	PCI_DID_INTEL_DNV_IE_KT,
 	0
 };
 
 static const struct pci_driver csme_ie_kt __pci_driver = {
 	.ops = &csme_ie_kt_ops,
-	.vendor = PCI_VENDOR_ID_INTEL,
+	.vendor = PCI_VID_INTEL,
 	.devices = pci_device_ids,
 };

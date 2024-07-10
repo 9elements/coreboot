@@ -1,25 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <types.h>
 #include <console/console.h>
-#include <cpu/x86/cache.h>
 #include <device/pci_def.h>
-#include <cpu/x86/smm.h>
-#include <elog.h>
 #include <southbridge/intel/common/pmbase.h>
 #include <southbridge/intel/common/gpio.h>
 
@@ -90,6 +73,7 @@ void dump_smi_status(u32 smi_sts)
 {
 	printk(BIOS_DEBUG, "SMI_STS: ");
 	if (smi_sts & (1 << 26)) printk(BIOS_DEBUG, "SPI ");
+	if (smi_sts & (1 << 25)) printk(BIOS_DEBUG, "EL_SMI ");
 	if (smi_sts & (1 << 21)) printk(BIOS_DEBUG, "MONITOR ");
 	if (smi_sts & (1 << 20)) printk(BIOS_DEBUG, "PCI_EXP_SMI ");
 	if (smi_sts & (1 << 18)) printk(BIOS_DEBUG, "INTEL_USB2 ");
@@ -111,20 +95,21 @@ void dump_smi_status(u32 smi_sts)
 	printk(BIOS_DEBUG, "\n");
 }
 
-
 /**
  * @brief read and clear GPE0_STS
  * @return GPE0_STS register
  */
 u64 reset_gpe0_status(void)
 {
-	u32 reg_h, reg_l;
+	u32 reg_h = 0, reg_l;
 
 	reg_l = read_pmbase32(GPE0_STS);
-	reg_h = read_pmbase32(GPE0_STS + 4);
+	if (GPE0_HAS_64_EVENTS)
+		reg_h = read_pmbase32(GPE0_STS + 4);
 	/* set status bits are cleared by writing 1 to them */
 	write_pmbase32(GPE0_STS, reg_l);
-	write_pmbase32(GPE0_STS + 4, reg_h);
+	if (GPE0_HAS_64_EVENTS)
+		write_pmbase32(GPE0_STS + 4, reg_h);
 
 	return (((u64)reg_h) << 32) | reg_l;
 }
@@ -146,7 +131,7 @@ void dump_gpe0_status(u64 gpe0_sts)
 	if (gpe0_sts & (1 <<  8)) printk(BIOS_DEBUG, "RI ");
 	if (gpe0_sts & (1 <<  7)) printk(BIOS_DEBUG, "SMB_WAK ");
 	if (gpe0_sts & (1 <<  6)) printk(BIOS_DEBUG, "TCO_SCI ");
-	if (gpe0_sts & (1 <<  5)) printk(BIOS_DEBUG, "USB5 ");
+	if (gpe0_sts & (1 <<  5)) printk(BIOS_DEBUG, "AC97/USB5 ");
 	if (gpe0_sts & (1 <<  4)) printk(BIOS_DEBUG, "USB2 ");
 	if (gpe0_sts & (1 <<  3)) printk(BIOS_DEBUG, "USB1 ");
 	if (gpe0_sts & (1 <<  2)) printk(BIOS_DEBUG, "SWGPE ");
@@ -175,7 +160,6 @@ u32 reset_tco_status(void)
 	return reg32;
 }
 
-
 void dump_tco_status(u32 tco_sts)
 {
 	printk(BIOS_DEBUG, "TCO_STS: ");
@@ -194,19 +178,6 @@ void dump_tco_status(u32 tco_sts)
 	if (tco_sts & (1 <<  0)) printk(BIOS_DEBUG, "NMI2SMI ");
 	printk(BIOS_DEBUG, "\n");
 }
-
-/**
- * @brief Set the EOS bit
- */
-void smi_set_eos(void)
-{
-	u8 reg8;
-
-	reg8 = read_pmbase8(SMI_EN);
-	reg8 |= EOS;
-	write_pmbase8(SMI_EN, reg8);
-}
-
 
 void dump_alt_gp_smi_status(u16 alt_gp_smi_sts)
 {
@@ -231,4 +202,13 @@ u16 reset_alt_gp_smi_status(void)
 	write_pmbase16(ALT_GP_SMI_STS, reg16);
 
 	return reg16;
+}
+
+void dump_all_status(void)
+{
+	dump_smi_status(reset_smi_status());
+	dump_pm1_status(reset_pm1_status());
+	dump_gpe0_status(reset_gpe0_status());
+	dump_alt_gp_smi_status(reset_alt_gp_smi_status());
+	dump_tco_status(reset_tco_status());
 }

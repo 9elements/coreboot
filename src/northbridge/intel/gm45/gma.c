@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Chromium OS Authors
- * Copyright (C) 2013 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/mmio.h>
 #include <console/console.h>
@@ -25,8 +11,6 @@
 #include <string.h>
 #include <device/pci_ops.h>
 #include <commonlib/helpers.h>
-#include <cbmem.h>
-#include <southbridge/intel/i82801ix/nvs.h>
 #include <types.h>
 
 #include "drivers/intel/gma/i915_reg.h"
@@ -45,24 +29,38 @@ void gtt_write(u32 reg, u32 data)
 	write32(res2mmio(gtt_res, reg, 0), data);
 }
 
-uintptr_t gma_get_gnvs_aslb(const void *gnvs)
+static const char *gm45_get_lvds_edid_str(void)
 {
-	const global_nvs_t *gnvs_ptr = gnvs;
-	return (uintptr_t)(gnvs_ptr ? gnvs_ptr->aslb : 0);
-}
+	u8 *mmio;
+	u8 edid_data_lvds[128];
+	struct edid edid_lvds;
+	static char edid_str[EDID_ASCII_STRING_LENGTH + 1];
 
-void gma_set_gnvs_aslb(void *gnvs, uintptr_t aslb)
-{
-	global_nvs_t *gnvs_ptr = gnvs;
-	if (gnvs_ptr)
-		gnvs_ptr->aslb = aslb;
+	if (edid_str[0])
+		return edid_str;
+	if (!gtt_res) {
+		printk(BIOS_ERR, "Never call %s() outside dev.init() context.\n", __func__);
+		return NULL;
+	}
+	mmio = res2mmio(gtt_res, 0, 0);
+
+	printk(BIOS_DEBUG, "LVDS EDID\n");
+	intel_gmbus_read_edid(mmio + GMBUS0, GMBUS_PORT_PANEL, 0x50,
+			edid_data_lvds, sizeof(edid_data_lvds));
+	intel_gmbus_stop(mmio + GMBUS0);
+
+	if (decode_edid(edid_data_lvds, sizeof(edid_data_lvds), &edid_lvds)
+	    != EDID_CONFORMANT)
+		return NULL;
+	memcpy(edid_str, edid_lvds.ascii_string, sizeof(edid_str));
+	return edid_str;
 }
 
 static u32 get_cdclk(struct device *const dev)
 {
-	const u16 cdclk_sel =
-		pci_read_config16 (dev, GCFGC_OFFSET) & GCFGC_CD_MASK;
-	switch (MCHBAR8(HPLLVCO_MCHBAR) & 0x7) {
+	const u16 cdclk_sel = pci_read_config16(dev, GCFGC_OFFSET) & GCFGC_CD_MASK;
+
+	switch (mchbar_read8(HPLLVCO_MCHBAR) & 0x7) {
 	case VCO_2666:
 	case VCO_4000:
 	case VCO_5333:
@@ -89,7 +87,7 @@ static u32 freq_to_blc_pwm_ctl(struct device *const dev,
 		return (blc_mod << 16) | blc_mod;
 }
 
-u16 get_blc_pwm_freq_value(const char *edid_ascii_string)
+u16 get_blc_pwm_freq_value(void)
 {
 	static u16 blc_pwm_freq;
 	const struct blc_pwm_t *blc_pwm;
@@ -98,6 +96,12 @@ u16 get_blc_pwm_freq_value(const char *edid_ascii_string)
 
 	if (blc_pwm_freq > 0)
 		return blc_pwm_freq;
+
+	const char *const edid_ascii_string = gm45_get_lvds_edid_str();
+	if (!edid_ascii_string) {
+		printk(BIOS_ERR, "Need LVDS EDID string to derive backlight PWM frequency!\n");
+		return 0;
+	}
 
 	blc_array_len = get_blc_values(&blc_pwm);
 	/* Find EDID string and pwm freq in lookup table */
@@ -111,19 +115,17 @@ u16 get_blc_pwm_freq_value(const char *edid_ascii_string)
 	}
 
 	if (i == blc_array_len)
-		printk(BIOS_NOTICE, "Your panels EDID `%s` wasn't found in the"
-		       "lookup table.\n You may have issues with your panels"
-		       "backlight.\n If you want to help improving coreboot"
-		       "please report: this EDID string\n and the result"
-		       "of `intel_read read BLC_PWM_CTL`"
-		       "(from intel-gpu-tools)\n while running vendor BIOS\n",
+		printk(BIOS_NOTICE, "Your panel's EDID `%s` wasn't found in the lookup table.\n"
+		       "You may have issues with your panel's backlight.\n"
+		       "If you want to help improving coreboot please report: this EDID string\n"
+		       "and the result of `intel_reg read BLC_PWM_CTL` (from intel-gpu-tools)\n"
+		       "while running vendor BIOS\n",
 		       edid_ascii_string);
 
 	return blc_pwm_freq;
 }
 
-static void gma_pm_init_post_vbios(struct device *const dev,
-				const char *edid_ascii_string)
+static void gma_pm_init_post_vbios(struct device *const dev)
 {
 	const struct northbridge_intel_gm45_config *const conf = dev->chip_info;
 
@@ -160,7 +162,7 @@ static void gma_pm_init_post_vbios(struct device *const dev,
 	reg8 = 100;
 	if (conf->duty_cycle != 0)
 		reg8 = conf->duty_cycle;
-	pwm_freq = get_blc_pwm_freq_value(edid_ascii_string);
+	pwm_freq = get_blc_pwm_freq_value();
 	if (pwm_freq == 0 && conf->default_pwm_freq != 0)
 		pwm_freq = conf->default_pwm_freq;
 
@@ -173,22 +175,25 @@ static void gma_pm_init_post_vbios(struct device *const dev,
 
 static void gma_func0_init(struct device *dev)
 {
-	u32 reg32;
-	u8 *mmio;
-	u8 edid_data_lvds[128];
-	struct edid edid_lvds;
 	const struct northbridge_intel_gm45_config *const conf = dev->chip_info;
 
-	/* IGD needs to be Bus Master */
-	reg32 = pci_read_config32(dev, PCI_COMMAND);
-	reg32 |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY | PCI_COMMAND_IO;
-	pci_write_config32(dev, PCI_COMMAND, reg32);
-
-	gtt_res = find_resource(dev, PCI_BASE_ADDRESS_0);
-	if (gtt_res == NULL)
+	/* Probe MMIO resource first. It's needed even for
+	   intel_gma_init_igd_opregion() which may call back. */
+	gtt_res = probe_resource(dev, PCI_BASE_ADDRESS_0);
+	if (!gtt_res)
 		return;
-	mmio = res2mmio(gtt_res, 0, 0);
 
+	intel_gma_init_igd_opregion();
+
+	/*
+	 * GTT base is at a 2M offset and is 2M big. If GTT is smaller than 2M
+	 * cycles are simply not decoded which is fine.
+	 */
+	pci_or_config16(dev, PCI_COMMAND, PCI_COMMAND_MASTER);
+	memset(res2mmio(gtt_res, 2*MiB, 0), 0, 2*MiB);
+
+	if (CONFIG(NO_GFX_INIT))
+		pci_and_config16(dev, PCI_COMMAND, ~PCI_COMMAND_MASTER);
 
 	if (!CONFIG(MAINBOARD_USE_LIBGFXINIT)) {
 		/* PCI Init, will run VBIOS */
@@ -196,16 +201,10 @@ static void gma_func0_init(struct device *dev)
 		pci_dev_init(dev);
 	}
 
-	printk(BIOS_DEBUG, "LVDS EDID\n");
-	intel_gmbus_read_edid(mmio + GMBUS0, GMBUS_PORT_PANEL, 0x50,
-			edid_data_lvds, sizeof(edid_data_lvds));
-	intel_gmbus_stop(mmio + GMBUS0);
-	decode_edid(edid_data_lvds, sizeof(edid_data_lvds), &edid_lvds);
-
 	/* Post VBIOS init */
-	gma_pm_init_post_vbios(dev, edid_lvds.ascii_string);
+	gma_pm_init_post_vbios(dev);
 
-	if (CONFIG(MAINBOARD_USE_LIBGFXINIT)) {
+	if (CONFIG(MAINBOARD_USE_LIBGFXINIT) && !acpi_is_wakeup_s3()) {
 		int vga_disable = (pci_read_config16(dev, D0F0_GGC) & 2) >> 1;
 		if (vga_disable) {
 			printk(BIOS_INFO,
@@ -217,55 +216,13 @@ static void gma_func0_init(struct device *dev)
 			generate_fake_intel_oprom(&conf->gfx, dev, "$VBT CANTIGA");
 		}
 	}
-
-	intel_gma_restore_opregion();
 }
 
-const struct i915_gpu_controller_info *
-intel_gma_get_controller_info(void)
+static void gma_generate_ssdt(const struct device *device)
 {
-	struct device *dev = pcidev_on_root(0x2, 0);
-	if (!dev) {
-		return NULL;
-	}
-	struct northbridge_intel_gm45_config *chip = dev->chip_info;
-	return &chip->gfx;
-}
+	const struct northbridge_intel_gm45_config *chip = device->chip_info;
 
-static void gma_ssdt(struct device *device)
-{
-	const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
-	if (!gfx) {
-		return;
-	}
-
-	drivers_intel_gma_displays_ssdt_generate(gfx);
-}
-
-static unsigned long
-gma_write_acpi_tables(struct device *const dev,
-		      unsigned long current,
-		      struct acpi_rsdp *const rsdp)
-{
-	igd_opregion_t *opregion = (igd_opregion_t *)current;
-	global_nvs_t *gnvs;
-
-	if (intel_gma_init_igd_opregion(opregion) != CB_SUCCESS)
-		return current;
-
-	current += sizeof(igd_opregion_t);
-
-	/* GNVS has been already set up */
-	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-	if (gnvs) {
-		/* IGD OpRegion Base Address */
-		gma_set_gnvs_aslb(gnvs, (uintptr_t)opregion);
-	} else {
-		printk(BIOS_ERR, "Error: GNVS table not found.\n");
-	}
-
-	current = acpi_align_current(current);
-	return current;
+	drivers_intel_gma_displays_ssdt_generate(&chip->gfx);
 }
 
 static const char *gma_acpi_name(const struct device *dev)
@@ -273,21 +230,14 @@ static const char *gma_acpi_name(const struct device *dev)
 	return "GFX0";
 }
 
-static struct pci_operations gma_pci_ops = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
-
 static struct device_operations gma_func0_ops = {
-	.read_resources = pci_dev_read_resources,
-	.set_resources = pci_dev_set_resources,
-	.enable_resources = pci_dev_enable_resources,
-	.acpi_fill_ssdt_generator = gma_ssdt,
-	.init = gma_func0_init,
-	.scan_bus = 0,
-	.enable = 0,
-	.ops_pci = &gma_pci_ops,
-	.acpi_name = gma_acpi_name,
-	.write_acpi_tables = gma_write_acpi_tables,
+	.read_resources		= pci_dev_read_resources,
+	.set_resources		= pci_dev_set_resources,
+	.enable_resources	= pci_dev_enable_resources,
+	.acpi_fill_ssdt		= gma_generate_ssdt,
+	.init			= gma_func0_init,
+	.ops_pci		= &pci_dev_ops_pci,
+	.acpi_name		= gma_acpi_name,
 };
 
 static const unsigned short pci_device_ids[] =
@@ -297,6 +247,6 @@ static const unsigned short pci_device_ids[] =
 
 static const struct pci_driver gma __pci_driver = {
 	.ops = &gma_func0_ops,
-	.vendor = PCI_VENDOR_ID_INTEL,
+	.vendor = PCI_VID_INTEL,
 	.devices = pci_device_ids,
 };

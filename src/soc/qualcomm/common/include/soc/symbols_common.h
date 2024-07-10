@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018, The Linux Foundation.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_QUALCOMM_SYMBOLS_COMMON_H_
 #define _SOC_QUALCOMM_SYMBOLS_COMMON_H_
@@ -21,5 +8,23 @@
 DECLARE_REGION(ddr_training);
 DECLARE_REGION(qclib_serial_log);
 DECLARE_REGION(ddr_information);
+DECLARE_REGION(ssram)
+DECLARE_REGION(bsram)
+DECLARE_REGION(dram_aop)
+DECLARE_REGION(dram_soc)
+DECLARE_REGION(dcb)
+DECLARE_REGION(pmic)
+DECLARE_REGION(limits_cfg)
+DECLARE_REGION(aop)
+DECLARE_REGION(modem_id)
+DECLARE_REGION(aop_code_ram)
+DECLARE_REGION(aop_data_ram)
+DECLARE_REGION(dram_modem_wifi_only)
+DECLARE_REGION(dram_modem_extra)
+DECLARE_REGION(dram_wlan)
+DECLARE_REGION(dram_wpss)
+DECLARE_REGION(shrm)
+DECLARE_REGION(dram_cpucp)
+DECLARE_REGION(dram_modem)
 
 #endif // _SOC_QUALCOMM_SYMBOLS_COMMON_H_

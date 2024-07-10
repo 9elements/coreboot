@@ -55,15 +55,15 @@ is here: https://github.com/siro20/coreboot/tree/cbui/payloads/cbui
 
 ### UEFI support: A long road to go
 
-coreboot can be used with the Tianocore EDK2 UEFI implementation which
+coreboot can be used with the edk2 UEFI implementation which
 is open source and available at Github. Sadly it is not currently
 integrated into the coreboot build. This has several reasons:
 
-* EDK2 only supports GCC 4.8 profile. coreboot is now running on GCC 6.3.0.
-* Incompatibilities with code inside the EDK2 which has not been updated.
+* edk2 only supports GCC 4.8 profile. coreboot is now running on GCC 6.3.0.
+* Incompatibilities with code inside the edk2 which has not been updated.
 
 We started to make progress with the integration into our sources and
-the hope is that by the end of the summer, we finally support the EDK2
+the hope is that by the end of the summer, we finally support the edk2
 payload out-of-the- box. See the current patch state at
 http://review.coreboot.org/#/c/15057/
 
@@ -164,7 +164,7 @@ Drivers (29 commits)
 * i2c/hid: Add generic I2C HID driver
 * i2c/max98927: add i2c driver for Maxim 98927 codec
 * i2c/wacom_ts: Add support for WCOM touchscreen device driver
-* pc80/rtc: Check cmos checksum BEFORE reading cmos value
+* pc80/rtc: Check CMOS checksum BEFORE reading CMOS value
 * regulator: Add driver for handling GPIO-based fixed regulator
 * storage: Add SD/MMC/eMMC driver based upon depthcharge
 
@@ -180,7 +180,7 @@ SuperIO (12 commits)
 * Add 2 new chips
 * Consolidate code to use common routines
 
-Vboot (23 commits)
+vboot (23 commits)
 * Add support for recovery hash space in TPM
 
 RISC-V (25 commits)

@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <AGESA.h>
-#include <northbridge/amd/pi/agesawrapper.h>
+#include <northbridge/amd/agesa/state_machine.h>
 
+#include "gpio_ftns.h"
 
 static const PCIe_PORT_DESCRIPTOR PortList[] = {
 	{
@@ -25,7 +13,9 @@ static const PCIe_PORT_DESCRIPTOR PortList[] = {
 				HotplugDisabled,
 				PcieGenMaxSupported,
 				PcieGenMaxSupported,
-				AspmDisabled, 0x01, 0)
+				AspmL0sL1,
+				0x01,
+				0)
 	},
 	/* Initialize Port descriptor (PCIe port, Lanes 1, PCI Device Number 2, ...) */
 	{
@@ -35,7 +25,9 @@ static const PCIe_PORT_DESCRIPTOR PortList[] = {
 				HotplugDisabled,
 				PcieGenMaxSupported,
 				PcieGenMaxSupported,
-				AspmDisabled, 0x02, 0)
+				AspmL0sL1,
+				0x02,
+				0)
 	},
 	/* Initialize Port descriptor (PCIe port, Lanes 2, PCI Device Number 2, ...) */
 	{
@@ -45,7 +37,9 @@ static const PCIe_PORT_DESCRIPTOR PortList[] = {
 				HotplugDisabled,
 				PcieGenMaxSupported,
 				PcieGenMaxSupported,
-				AspmDisabled, 0x03, 0)
+				AspmL0sL1,
+				0x03,
+				0)
 	},
 	/* Initialize Port descriptor (PCIe port, Lanes 3, PCI Device Number 2, ...) */
 	{
@@ -55,7 +49,9 @@ static const PCIe_PORT_DESCRIPTOR PortList[] = {
 				HotplugDisabled,
 				PcieGenMaxSupported,
 				PcieGenMaxSupported,
-				AspmDisabled, 0x04, 0)
+				AspmL0sL1,
+				0x04,
+				0)
 	},
 	/* Initialize Port descriptor (PCIe port, Lanes 4-7, PCI Device Number 4, ...) */
 	{
@@ -65,7 +61,9 @@ static const PCIe_PORT_DESCRIPTOR PortList[] = {
 				HotplugDisabled,
 				PcieGenMaxSupported,
 				PcieGenMaxSupported,
-				AspmDisabled, 0x05, 0)
+				AspmL0sL1,
+				0x05,
+				0)
 	}
 };
 
@@ -76,27 +74,23 @@ static const PCIe_COMPLEX_DESCRIPTOR PcieComplex = {
 	.DdiLinkList  = NULL,
 };
 
-/*---------------------------------------------------------------------------------------*/
-/**
- *  OemCustomizeInitEarly
- *
- *  Description:
- *    This stub function will call the host environment through the binary block
- *    interface (call-out port) to provide a user hook opportunity
- *
- *  Parameters:
- *    @param[in]      *InitEarly
- *
- *    @retval         VOID
- *
- **/
-/*---------------------------------------------------------------------------------------*/
-VOID
-OemCustomizeInitEarly (
-	IN  OUT AMD_EARLY_PARAMS    *InitEarly
-	)
+void board_BeforeInitEarly(struct sysinfo *cb, AMD_EARLY_PARAMS *InitEarly)
 {
 	InitEarly->GnbConfig.PcieComplexList = &PcieComplex;
 	InitEarly->PlatformConfig.CStateMode = CStateModeC6;
 	InitEarly->PlatformConfig.CpbMode = CpbModeAuto;
+}
+
+void board_BeforeInitPost(struct sysinfo *cb, AMD_POST_PARAMS *Post)
+{
+	/*
+	 * Bank interleaving does not work on this platform.
+	 * Disable it so AGESA will return success.
+	 */
+	Post->MemConfig.EnableBankIntlv = FALSE;
+	/* 4GB variants have ECC */
+	if (get_spd_offset())
+		Post->MemConfig.EnableEccFeature = TRUE;
+	else
+		Post->MemConfig.EnableEccFeature = FALSE;
 }

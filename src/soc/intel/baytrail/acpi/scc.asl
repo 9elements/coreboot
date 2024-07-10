@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (EMMC)
 {
@@ -33,13 +19,13 @@ Device (EMMC)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^BAR0._BAS, RBAS)
-		Store (\C0B0, RBAS)
+		RBAS = \C0B0
 		Return (^RBUF)
 	}
 
 	Method (_STA)
 	{
-		If (LEqual (\C0EN, 1)) {
+		If (\C0EN == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -55,14 +41,14 @@ Device (EMMC)
 
 	Method (_PS3)
 	{
-		Or (PSAT, 0x00000003, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT |= 3
+		PSAT |= 0
 	}
 
 	Method (_PS0)
 	{
-		And (PSAT, 0xfffffffc, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT &= 0xfffffffc
+		PSAT |= 0
 	}
 
 	Device (EM45)
@@ -96,13 +82,13 @@ Device (SDIO)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^BAR0._BAS, RBAS)
-		Store (\C1B0, RBAS)
+		RBAS = \C1B0
 		Return (^RBUF)
 	}
 
 	Method (_STA)
 	{
-		If (LEqual (\C1EN, 1)) {
+		If (\C1EN == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -118,14 +104,14 @@ Device (SDIO)
 
 	Method (_PS3)
 	{
-		Or (PSAT, 0x00000003, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT |= 3
+		PSAT |= 0
 	}
 
 	Method (_PS0)
 	{
-		And (PSAT, 0xfffffffc, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT &= 0xfffffffc
+		PSAT |= 0
 	}
 }
 
@@ -148,13 +134,13 @@ Device (SDCD)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^BAR0._BAS, RBAS)
-		Store (\C2B0, RBAS)
+		RBAS = \C2B0
 		Return (^RBUF)
 	}
 
 	Method (_STA)
 	{
-		If (LEqual (\C2EN, 1)) {
+		If (\C2EN == 1) {
 			Return (0xF)
 		} Else {
 			Return (0x0)
@@ -170,13 +156,13 @@ Device (SDCD)
 
 	Method (_PS3)
 	{
-		Or (PSAT, 0x00000003, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT |= 3
+		PSAT |= 0
 	}
 
 	Method (_PS0)
 	{
-		And (PSAT, 0xfffffffc, PSAT)
-		Or (PSAT, 0x00000000, PSAT)
+		PSAT &= 0xfffffffc
+		PSAT |= 0
 	}
 }

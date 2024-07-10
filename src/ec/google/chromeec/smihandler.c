@@ -1,19 +1,7 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
+#include <acpi/acpi_gnvs.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <ec/google/chromeec/ec.h>
@@ -26,8 +14,8 @@ static int chromeec_process_one_event(void)
 	uint8_t event = google_chromeec_get_event();
 
 	/* Log this event */
-	if (CONFIG(ELOG_GSMI) && event)
-		elog_add_event_byte(ELOG_TYPE_EC_EVENT, event);
+	if (event)
+		elog_gsmi_add_event_byte(ELOG_TYPE_EC_EVENT, event);
 
 	switch (event) {
 	case EC_HOST_EVENT_LID_CLOSED:
@@ -50,12 +38,25 @@ static void clear_pending_events(void)
 {
 	struct ec_response_get_next_event mkbp_event;
 
-	while (google_chromeec_get_event() != 0)
+	while (google_chromeec_get_event() != EC_HOST_EVENT_NONE)
 		;
 
-	printk(BIOS_DEBUG,"Clearing pending EC events. Error code 1 is expected.\n");
+	printk(BIOS_DEBUG, "Clearing pending EC events. Error code EC_RES_UNAVAILABLE(9) is expected.\n");
 	while (google_chromeec_get_mkbp_event(&mkbp_event) == 0)
 		;
+}
+
+void chromeec_set_usb_charge_mode(int slp_type)
+{
+	bool usb0_disable = 0, usb1_disable = 0;
+
+	usb_charge_mode_from_gnvs(slp_type, &usb0_disable, &usb1_disable);
+
+	if (usb0_disable)
+		google_chromeec_set_usb_charge_mode(0, USB_CHARGE_MODE_DISABLED);
+
+	if (usb1_disable)
+		google_chromeec_set_usb_charge_mode(1, USB_CHARGE_MODE_DISABLED);
 }
 
 void chromeec_smi_sleep(int slp_type, uint64_t s3_mask, uint64_t s5_mask)
@@ -66,6 +67,7 @@ void chromeec_smi_sleep(int slp_type, uint64_t s3_mask, uint64_t s5_mask)
 			/* Enable wake events */
 			google_chromeec_set_wake_mask(s3_mask);
 			break;
+		case ACPI_S4:
 		case ACPI_S5:
 			/* Enable wake events */
 			google_chromeec_set_wake_mask(s5_mask);

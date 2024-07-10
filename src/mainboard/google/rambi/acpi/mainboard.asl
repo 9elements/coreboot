@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <variant/onboard.h>
 
@@ -37,7 +23,7 @@ Scope (\_SB)
 		Method (_CRS)
 		{
 			/* Only return interrupt if I2C1 is PCI mode */
-			If (LEqual (\S1EN, 0)) {
+			If (\S1EN == 0) {
 				Return (^RBUF)
 			}
 
@@ -65,7 +51,7 @@ Scope (\_SB)
 		Method (_CRS)
 		{
 			/* Return interrupt if I2C6 is PCI mode */
-			If (LEqual (\S6EN, 0)) {
+			If (\S6EN == 0) {
 				Return (^RBUF)
 			}
 
@@ -103,11 +89,14 @@ Scope (\_SB.PCI0.I2C2)
 			{
 				BOARD_CODEC_IRQ
 			}
+			GpioIo (Exclusive, PullNone, 0, 0, , "\\_SB.GPSC", 0, ResourceConsumer, ,){ 0x000E }
+
+			GpioIo (Exclusive, PullNone, 0, 0, , "\\_SB.GPSC", 0, ResourceConsumer, ,){ 0x000F }
 		})
 
 		Method (_STA)
 		{
-			If (LEqual (\S2EN, 1)) {
+			If (\S2EN == 1) {
 				Return (0xF)
 			} Else {
 				Return (0x0)
@@ -121,13 +110,22 @@ Scope (\_SB.PCI0.LPEA)
 	Name (GBUF, ResourceTemplate ()
 	{
 		/* Jack Detect (index 0) */
-		GpioInt (Level, ActiveHigh, Exclusive, PullNone,,
-			 "\\_SB.GPSC") { 14 }
+		GpioIo (Exclusive, PullNone, 0, 0, , "\\_SB.GPSC", 0, ResourceConsumer, ,){ 0x000E }
 
 		/* Mic Detect (index 1) */
-		GpioInt (Level, ActiveHigh, Exclusive, PullNone,,
-			 "\\_SB.GPSC") { 15 }
+		GpioIo (Exclusive, PullNone, 0, 0, , "\\_SB.GPSC", 0, ResourceConsumer, ,){ 0x000F }
+
+		/* SST Wants This */
+		GpioInt (Edge, ActiveHigh, Exclusive, PullNone, 0x0000,
+			"\\_SB.GPSS", 0x00, ResourceConsumer, ,)
+		{
+			0x001C	// Pin list
+		}
 	})
+	Method (_DIS, 0x0, NotSerialized)
+	{
+		//Add a dummy disable function
+	}
 }
 
 #include <variant/acpi/mainboard.asl>

@@ -1,32 +1,19 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/exception.h>
 #include <arch/stages.h>
 #include <cbmem.h>
-#include <console/cbmem_console.h>
 #include <console/console.h>
 #include <lib.h>
 #include <program_loading.h>
+#include <romstage_common.h>
 #include <soc/addressmap.h>
 #include <soc/ccplex.h>
 #include <soc/clock.h>
+#include <soc/nvidia/tegra/apbmisc.h>
+#include <soc/romstage.h>
 #include <soc/sdram.h>
 #include <soc/sdram_configs.h>
-#include <soc/romstage.h>
-#include <soc/nvidia/tegra/apbmisc.h>
 #include <symbols.h>
 #include <vendorcode/google/chromeos/chromeos.h>
 
@@ -40,6 +27,11 @@ void romstage(void)
 	console_init();
 	exception_init();
 
+	romstage_main();
+}
+
+void __noreturn romstage_main(void)
+{
 	printk(BIOS_INFO, "T210: romstage here\n");
 
 #if CONFIG(BOOTROM_SDRAM_INIT)

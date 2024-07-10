@@ -1,25 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <types.h>
-#include <string.h>
-#include <arch/cpu.h>
-#include <cpu/x86/msr.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/speedstep.h>
+#include <cpu/x86/msr.h>
+#include <string.h>
+#include <types.h>
 
 /**
  * @brief Gather speedstep limits for current processor
@@ -118,7 +104,6 @@ void speedstep_gen_pstates(sst_table_t *const table)
 	/* Gather speedstep limits. */
 	speedstep_get_limits(&params);
 
-
 	/*\ First, find the number of normal states: \*/
 
 	/* Calculate with doubled values to work
@@ -143,7 +128,6 @@ void speedstep_gen_pstates(sst_table_t *const table)
 			SPEEDSTEP_MAX_NORMAL_STATES);
 	if (states < 2) /* Report at least two normal states. */
 		states = 2;
-
 
 	/*\ Now, fill the table: \*/
 

@@ -1,23 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Use simple device model for this file even in ramstage
 #define __SIMPLE_DEVICE__
 
 #include <stdint.h>
-#include <arch/io.h>
+#include <amdblocks/acpimmio.h>
 #include <device/mmio.h>
 #include <device/pci_ehci.h>
 #include <device/pci_def.h>
@@ -28,8 +15,7 @@
 pci_devfn_t pci_ehci_dbg_dev(unsigned int hcd_idx)
 {
 	/* Enable all of the USB controllers */
-	outb(0xEF, PM_INDEX);
-	outb(0x7F, PM_DATA);
+	pm_io_write8(0xef, 0x7f);
 
 	if (hcd_idx == 3)
 		return PCI_DEV(0, 0x16, 0);

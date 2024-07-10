@@ -1,19 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2017 Advanced Micro Devices, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-Device(PCI0) {
+#include <soc/amd/common/acpi/pci_root.asl>
+
+ROOT_BRIDGE(PCI0)
+
+Scope(PCI0) {
 	/* Describe the AMD Northbridge */
 	#include "northbridge.asl"
 
@@ -24,8 +15,8 @@ Device(PCI0) {
 /* Describe PCI INT[A-H] for the Southbridge */
 #include "pci_int.asl"
 
-/* Describe the devices in the Southbridge */
-#include "sb_fch.asl"
+/* Describe the MMIO devices in the FCH */
+#include "mmio.asl"
 
 /* Add GPIO library */
 #include <soc/amd/common/acpi/gpio_bank_lib.asl>

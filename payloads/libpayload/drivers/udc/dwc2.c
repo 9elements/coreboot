@@ -1,5 +1,4 @@
 /*
- * This file is part of the coreboot project.
  *
  * Copyright (C) 2015 Rockchip Electronics
  *
@@ -253,7 +252,7 @@ static void dwc2_halt_ep(struct usbdev_ctrl *this, int ep, int in_dir)
 
 	usb_debug("dwc2_halt_ep ep %d-%d\n", ep, in_dir);
 	depctl.d32 = readl(&ep_reg->depctl);
-	/*Alread disabled*/
+	/* Already disabled */
 	if (!depctl.epena)
 		return;
 	/* First step: disable EP */
@@ -503,7 +502,7 @@ static void complete_ep_transfer(struct usbdev_ctrl *this, int endpoint,
 	}
 	SIMPLEQ_REMOVE_HEAD(&p->eps[endpoint][in_dir].job_queue, queue);
 
-	usb_debug("%d-%d: scheduled %zd, now %d bytes\n", endpoint, in_dir,
+	usb_debug("%d-%d: scheduled %zd, now %zd bytes\n", endpoint, in_dir,
 	      job->length, job->xfered_length);
 
 	if (this->current_config &&
@@ -558,7 +557,7 @@ static void dwc2_outep_intr(struct usbdev_ctrl *this, dwc2_ep_t *ep)
 		writel(DXEPINT_AHBERR, &ep->ep_regs->depint);
 	}
 
-	/* Handle Setup Phase Done (Contorl Ep) */
+	/* Handle Setup Phase Done (Control Ep) */
 	if (depint.setup) {
 		usb_debug("DEPINT_SETUP\n");
 		writel(DXEPINT_SETUP, &ep->ep_regs->depint);

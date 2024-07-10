@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2010 Patrick Georgi
  *
@@ -33,9 +32,9 @@
 #include <pci.h>
 #include <usb/usb.h>
 
-hci_t *xhci_pci_init (pcidev_t addr);
-hci_t *xhci_init (unsigned long physical_bar);
+hci_t *xhci_pci_init(pcidev_t addr);
+hci_t *xhci_init(unsigned long physical_bar);
 
-void xhci_rh_init (usbdev_t *dev);
+void xhci_rh_init(usbdev_t *dev);
 
 #endif

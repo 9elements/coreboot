@@ -1,21 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _MAINBOARD_EC_OEM_H
 #define _MAINBOARD_EC_OEM_H
+
+#include <types.h>
 
 #define EC_OEM_DATA	0x68
 #define EC_OEM_SC	0x6c
@@ -35,12 +23,10 @@
 #define   BD_EC	0x83 // Burst Disable Embedded Controller
 #define   QR_EC	0x84 // Query Embedded Controller
 
-int send_ec_oem_command(u8 command);
-int send_ec_oem_data(u8 data);
-int send_ec_oem_data_nowait(u8 data);
+enum cb_err send_ec_oem_command(u8 command);
+enum cb_err send_ec_oem_data(u8 data);
 u8 recv_ec_oem_data(void);
 u8 ec_oem_read(u8 addr);
-int ec_oem_write(u8 addr, u8 data);
 
 int ec_dump_status(void);
 int ec_oem_dump_status(void);

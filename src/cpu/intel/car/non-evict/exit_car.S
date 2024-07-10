@@ -1,19 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2000,2007 Ronald G. Minnich <rminnich@gmail.com>
- * Copyright (C) 2007-2008 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/intel/post_codes.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/post_code.h>
@@ -26,14 +13,14 @@
 chipset_teardown_car:
 	pop %esp
 
-	post_code(0x30)
+	post_code(POSTCODE_POSTCAR_DISABLE_CACHE)
 
 	/* Disable cache. */
 	movl	%cr0, %eax
 	orl	$CR0_CacheDisable, %eax
 	movl	%eax, %cr0
 
-	post_code(0x31)
+	post_code(POSTCODE_POSTCAR_DISABLE_DEF_MTRR)
 
 	/* Disable MTRR. */
 	movl	$MTRR_DEF_TYPE_MSR, %ecx
@@ -49,7 +36,7 @@ chipset_teardown_car:
 	andl	$~1, %eax
 	wrmsr
 
-	post_code(0x32)
+	post_code(POSTCODE_POSTCAR_TEARDOWN_DONE)
 
 	/* Return to caller. */
 	jmp	*%esp

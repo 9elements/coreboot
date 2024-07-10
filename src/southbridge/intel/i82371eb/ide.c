@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007 Uwe Hermann <uwe@hermann-uwe.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /* TODO: Check if this really works for all of the southbridges. */
 
@@ -22,6 +8,7 @@
 #include <device/pci.h>
 #include <device/pci_ops.h>
 #include <device/pci_ids.h>
+#include "chip.h"
 #include "i82371eb.h"
 
 /**
@@ -45,14 +32,14 @@ static void ide_init_enable(struct device *dev)
 	reg16 = pci_read_config16(dev, IDETIM_PRI);
 	reg16 = ONOFF(conf->ide0_enable, reg16, IDE_DECODE_ENABLE);
 	pci_write_config16(dev, IDETIM_PRI, reg16);
-	printk(BIOS_DEBUG, "IDE: %s IDE interface: %s\n", "Primary",
+	printk(BIOS_DEBUG, "IDE: %s: %s\n", "Primary interface",
 		     conf->ide0_enable ? "on" : "off");
 
 	/* Enable/disable the secondary IDE interface. */
 	reg16 = pci_read_config16(dev, IDETIM_SEC);
 	reg16 = ONOFF(conf->ide1_enable, reg16, IDE_DECODE_ENABLE);
 	pci_write_config16(dev, IDETIM_SEC, reg16);
-	printk(BIOS_DEBUG, "IDE: %s IDE interface: %s\n", "Secondary",
+	printk(BIOS_DEBUG, "IDE: %s: %s\n", "Secondary interface",
 		     conf->ide1_enable ? "on" : "off");
 
 	/* Enable access to the legacy IDE ports (both primary and secondary),
@@ -94,10 +81,10 @@ static void ide_init_udma33(struct device *dev)
 		pci_write_config8(dev, UDMACTL, reg8);
 
 		printk(BIOS_DEBUG, "IDE: %s, drive %d: UDMA/33: %s\n",
-			     "Primary IDE interface", 0,
+			     "Primary interface", 0,
 			     conf->ide0_drive0_udma33_enable ? "on" : "off");
 		printk(BIOS_DEBUG, "IDE: %s, drive %d: UDMA/33: %s\n",
-			     "Primary IDE interface", 1,
+			     "Primary interface", 1,
 			     conf->ide0_drive1_udma33_enable ? "on" : "off");
 	}
 
@@ -109,10 +96,10 @@ static void ide_init_udma33(struct device *dev)
 		pci_write_config8(dev, UDMACTL, reg8);
 
 		printk(BIOS_DEBUG, "IDE: %s, drive %d: UDMA/33: %s\n",
-			     "Secondary IDE interface", 0,
+			     "Secondary interface", 0,
 			     conf->ide1_drive0_udma33_enable ? "on" : "off");
 		printk(BIOS_DEBUG, "IDE: %s, drive %d: UDMA/33: %s\n",
-			     "Secondary IDE interface", 1,
+			     "Secondary interface", 1,
 			     conf->ide1_drive1_udma33_enable ? "on" : "off");
 	}
 }
@@ -146,8 +133,6 @@ static const struct device_operations ide_ops_fb_sb = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= ide_init_i82371fb_sb,
-	.scan_bus		= 0,
-	.enable			= 0,
 	.ops_pci		= 0, /* No subsystem IDs on 82371XX! */
 };
 
@@ -157,42 +142,40 @@ static const struct device_operations ide_ops_ab_eb_mb = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= ide_init_i82371ab_eb_mb,
-	.scan_bus		= 0,
-	.enable			= 0,
 	.ops_pci		= 0, /* No subsystem IDs on 82371XX! */
 };
 
 /* Intel 82371FB (PIIX) */
 static const struct pci_driver ide_driver_fb __pci_driver = {
 	.ops	= &ide_ops_fb_sb,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82371FB_IDE,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82371FB_IDE,
 };
 
 /* Intel 82371SB (PIIX3) */
 static const struct pci_driver ide_driver_sb __pci_driver = {
 	.ops	= &ide_ops_fb_sb,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82371SB_IDE,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82371SB_IDE,
 };
 
 /* Intel 82371MX (MPIIX) */
 static const struct pci_driver ide_driver_mx __pci_driver = {
 	.ops	= &ide_ops_fb_sb,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82371MX_ISA_IDE,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82371MX_ISA_IDE,
 };
 
 /* Intel 82437MX (part of the 430MX chipset) */
 static const struct pci_driver ide_driver_82437mx __pci_driver = {
 	.ops	= &ide_ops_fb_sb,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82437MX_ISA_IDE,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82437MX_ISA_IDE,
 };
 
 /* Intel 82371AB/EB/MB */
 static const struct pci_driver ide_driver_ab_eb_mb __pci_driver = {
 	.ops	= &ide_ops_ab_eb_mb,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82371AB_IDE,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82371AB_IDE,
 };

@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -71,40 +58,40 @@ Device (EC0)
 	Method (_REG, 2, NotSerialized)
 	{
 		// Initialize AC power state
-		Store (ACEX, \PWRS)
+		\PWRS = ACEX
 
 		// Initialize LID switch state
-		Store (LIDS, \LIDS)
+		\LIDS = LIDS
 
 		// Enable OS control of fan speed
-		Store (One, FCOS)
+		FCOS = 1
 
 		// Force a read of CPU temperature
-		Store (CPUT, Local0)
+		Local0 = CPUT
 		/* So that we don't get a warning that Local0 is unused.  */
-		Increment (Local0)
+		Local0++
 	}
 
 	PowerResource (FNP0, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 0)) {
-				Return (One)
+			If (\FLVL <= 0) {
+				Return (1)
 			} Else {
-				Return (Zero)
+				Return (0)
 			}
 		}
 		Method (_ON)  {
 			If (FCOS) {
-				Store (One, FSL0)
-				Store (0, \FLVL)
+				FSL0 = 1
+				\FLVL = 0
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
 		Method (_OFF) {
 			If (FCOS) {
-				Store (Zero, FSL0)
-				Store (1, \FLVL)
+				FSL0 = 0
+				\FLVL = 1
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
@@ -113,23 +100,23 @@ Device (EC0)
 	PowerResource (FNP1, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 1)) {
-				Return (One)
+			If (\FLVL <= 1) {
+				Return (1)
 			} Else {
-				Return (Zero)
+				Return (0)
 			}
 		}
 		Method (_ON)  {
 			If (FCOS) {
-				Store (One, FSL1)
-				Store (1, \FLVL)
+				FSL1 = 1
+				\FLVL = 1
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
 		Method (_OFF) {
 			If (FCOS) {
-				Store (Zero, FSL1)
-				Store (2, \FLVL)
+				FSL1 = 0
+				\FLVL = 2
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
@@ -138,23 +125,23 @@ Device (EC0)
 	PowerResource (FNP2, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 2)) {
-				Return (One)
+			If (\FLVL <= 2) {
+				Return (1)
 			} Else {
-				Return (Zero)
+				Return (0)
 			}
 		}
 		Method (_ON)  {
 			If (FCOS) {
-				Store (One, FSL2)
-				Store (2, \FLVL)
+				FSL2 = 1
+				\FLVL = 2
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
 		Method (_OFF) {
 			If (FCOS) {
-				Store (Zero, FSL2)
-				Store (3, \FLVL)
+				FSL2 = 0
+				\FLVL = 3
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
@@ -163,23 +150,23 @@ Device (EC0)
 	PowerResource (FNP3, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 3)) {
-				Return (One)
+			If (\FLVL <= 3) {
+				Return (1)
 			} Else {
-				Return (Zero)
+				Return (0)
 			}
 		}
 		Method (_ON)  {
 			If (FCOS) {
-				Store (One, FSL3)
-				Store (3, \FLVL)
+				FSL3 = 1
+				\FLVL = 3
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
 		Method (_OFF) {
 			If (FCOS) {
-				Store (Zero, FSL3)
-				Store (4, \FLVL)
+				FSL3 = 0
+				\FLVL = 4
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
@@ -188,23 +175,23 @@ Device (EC0)
 	PowerResource (FNP4, 0, 0)
 	{
 		Method (_STA) {
-			If (LLessEqual (\FLVL, 4)) {
-				Return (One)
+			If (\FLVL <= 4) {
+				Return (1)
 			} Else {
-				Return (Zero)
+				Return (0)
 			}
 		}
 		Method (_ON)  {
 			If (FCOS) {
-				Store (One, FSL4)
-				Store (4, \FLVL)
+				FSL4 = 1
+				\FLVL = 4
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
 		Method (_OFF) {
 			If (FCOS) {
-				Store (Zero, FSL4)
-				Store (5, \FLVL)
+				FSL4 = 0
+				\FLVL = 5
 				Notify (\_TZ.THRM, 0x81)
 			}
 		}
@@ -248,7 +235,7 @@ Device (EC0)
 	// AC Power Connected
 	Method (_Q51, 0, NotSerialized)
 	{
-		Store (One, \PWRS)
+		\PWRS = 1
 		Notify (AC, 0x80)
 		\PNOT ()
 	}
@@ -256,7 +243,7 @@ Device (EC0)
 	// AC Power Removed
 	Method (_Q52, 0, NotSerialized)
 	{
-		Store (Zero, \PWRS)
+		\PWRS = 0
 		Notify (AC, 0x80)
 		\PNOT ()
 	}
@@ -284,14 +271,14 @@ Device (EC0)
 	// Lid Switch Event
 	Method (_Q5E, 0, NotSerialized)
 	{
-		Store (LIDS, \LIDS)
+		\LIDS = LIDS
 		Notify (\_SB.LID0, 0x80)
 	}
 
 	// Lid Switch Event
 	Method (_Q5F, 0, NotSerialized)
 	{
-		Store (LIDS, \LIDS)
+		\LIDS = LIDS
 		Notify (\_SB.LID0, 0x80)
 	}
 

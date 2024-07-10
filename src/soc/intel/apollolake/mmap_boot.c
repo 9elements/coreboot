@@ -1,27 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 Intel Corp.
- * (Written by Andrey Petrov <andrey.petrov@intel.com> for Intel Corp.)
- * (Written by Alexandru Gagniuc <alexandrux.gagniuc@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <boot_device.h>
-#include <cbfs.h>
 #include <commonlib/region.h>
 #include <console/console.h>
 #include <fmap.h>
 #include <intelblocks/fast_spi.h>
+#include <spi_flash.h>
 
 /*
  * BIOS region on the flash is mapped right below 4GiB in the address
@@ -58,8 +42,9 @@
 
 static size_t bios_size;
 
-static struct mem_region_device shadow_dev;
+static struct region_device shadow_dev;
 static struct xlate_region_device real_dev;
+static struct xlate_window real_dev_window;
 
 static void bios_mmap_init(void)
 {
@@ -82,14 +67,22 @@ static void bios_mmap_init(void)
 	 */
 	bios_mapped_size = size - 256 * KiB;
 
-	mem_region_device_ro_init(&shadow_dev, (void *)base,
-			       bios_mapped_size);
+	rdev_chain_mem(&shadow_dev, (void *)base, bios_mapped_size);
 
-	xlate_region_device_ro_init(&real_dev, &shadow_dev.rdev,
-				 start, bios_mapped_size,
-				 CONFIG_ROM_SIZE);
+	xlate_window_init(&real_dev_window, &shadow_dev, start, bios_mapped_size);
+	xlate_region_device_ro_init(&real_dev, 1, &real_dev_window, CONFIG_ROM_SIZE);
 
 	bios_size = size;
+
+	/* Check that the CBFS lies within the memory mapped area. It's too
+	   easy to forget the SRAM mapping when crafting an FMAP file. */
+	struct region cbfs_region;
+	if (!fmap_locate_area("COREBOOT", &cbfs_region) &&
+	    !region_is_subregion(&real_dev_window.sub_region, &cbfs_region))
+		printk(BIOS_CRIT,
+		       "ERROR: CBFS @ %zx size %zx exceeds mem-mapped area @ %zx size %zx\n",
+		       region_offset(&cbfs_region), region_sz(&cbfs_region),
+		       start, bios_mapped_size);
 }
 
 const struct region_device *boot_device_ro(void)
@@ -99,39 +92,13 @@ const struct region_device *boot_device_ro(void)
 	return &real_dev.rdev;
 }
 
-static int iafw_boot_region_properties(struct cbfs_props *props)
+uint32_t spi_flash_get_mmap_windows(struct flash_mmap_window *table)
 {
-	struct region *real_dev_reg;
-	struct region regn;
+	bios_mmap_init();
 
-	/* use fmap to locate CBFS area */
-	if (fmap_locate_area("COREBOOT", &regn))
-		return -1;
+	table->flash_base = region_offset(&real_dev_window.sub_region);
+	table->host_base = (uintptr_t)rdev_mmap_full(&shadow_dev);
+	table->size = region_sz(&real_dev_window.sub_region);
 
-	props->offset = region_offset(&regn);
-	props->size = region_sz(&regn);
-
-	/* Check that we are within the memory mapped area. It's too
-	   easy to forget the SRAM mapping when crafting an FMAP file. */
-	real_dev_reg = &real_dev.sub_region;
-	if (region_is_subregion(real_dev_reg, &regn)) {
-		printk(BIOS_DEBUG, "CBFS @ %zx size %zx\n",
-		       props->offset, props->size);
-	} else {
-		printk(BIOS_CRIT,
-		       "ERROR: CBFS @ %zx size %zx exceeds mem-mapped area @ %zx size %zx\n",
-		       props->offset, props->size,
-		       region_offset(real_dev_reg), region_sz(real_dev_reg));
-	}
-
-	return 0;
+	return 1;
 }
-
-/*
- * Named cbfs_master_header_locator so that it overrides the default, but
- * incompatible locator in cbfs.c
- */
-const struct cbfs_locator cbfs_master_header_locator = {
-	.name = "IAFW Locator",
-	.locate = iafw_boot_region_properties,
-};

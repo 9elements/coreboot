@@ -1,26 +1,11 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/variants.h>
-#include <console/console.h>
 #include <ec/google/chromeec/ec.h>
 #include <gpio.h>
 #include <memory_info.h>
 #include <soc/cnl_memcfg_init.h>
 #include <soc/romstage.h>
-#include <string.h>
 #include <variant/gpio.h>
 
 /*
@@ -29,7 +14,7 @@
  */
 #define GPIO_MEM_CH_SEL		GPP_F2
 
-static int memory_sku(void)
+int __weak variant_memory_sku(void)
 {
 	const gpio_t spd_gpios[] = {
 		GPIO_MEM_CONFIG_0,
@@ -46,9 +31,11 @@ void mainboard_memory_init_params(FSPM_UPD *memupd)
 	struct cnl_mb_cfg memcfg;
 	int mem_sku;
 	int is_single_ch_mem;
+	const struct pad_config *pads;
+	size_t pads_num;
 
 	variant_memory_params(&memcfg);
-	mem_sku = memory_sku();
+	mem_sku = variant_memory_sku();
 	/*
 	 * GPP_F2 is the MEM_CH_SEL gpio, which is set to 1 for single
 	 * channel skus and 0 for dual channel skus.
@@ -68,30 +55,7 @@ void mainboard_memory_init_params(FSPM_UPD *memupd)
 	}
 
 	cannonlake_memcfg_init(&memupd->FspmConfig, &memcfg);
-}
 
-void mainboard_get_dram_part_num(const char **part_num, size_t *len)
-{
-	static char part_num_store[DIMM_INFO_PART_NUMBER_SIZE];
-	static enum {
-		PART_NUM_NOT_READ,
-		PART_NUM_AVAILABLE,
-		PART_NUM_NOT_IN_CBI,
-	} part_num_state = PART_NUM_NOT_READ;
-
-	if (part_num_state == PART_NUM_NOT_READ) {
-		if (google_chromeec_cbi_get_dram_part_num(&part_num_store[0],
-						sizeof(part_num_store)) < 0) {
-			printk(BIOS_ERR, "No DRAM part number in CBI!\n");
-			part_num_state = PART_NUM_NOT_IN_CBI;
-		} else {
-			part_num_state = PART_NUM_AVAILABLE;
-		}
-	}
-
-	if (part_num_state == PART_NUM_NOT_IN_CBI)
-		return;
-
-	*part_num = &part_num_store[0];
-	*len = strlen(part_num_store) + 1;
+	pads = variant_romstage_gpio_table(&pads_num);
+	gpio_configure_pads(pads, pads_num);
 }

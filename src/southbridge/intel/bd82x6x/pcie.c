@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
@@ -22,13 +8,44 @@
 #include <device/pci_ids.h>
 #include <southbridge/intel/common/pciehp.h>
 #include <assert.h>
+
+#include "chip.h"
 #include "pch.h"
+
+static const char *pch_pcie_acpi_name(const struct device *dev)
+{
+	ASSERT(dev);
+
+	if (PCI_SLOT(dev->path.pci.devfn) == 0x1c) {
+		static const char *names[] = { "RP01",
+				"RP02",
+				"RP03",
+				"RP04",
+				"RP05",
+				"RP06",
+				"RP07",
+				"RP08"};
+
+		return names[PCI_FUNC(dev->path.pci.devfn)];
+	}
+
+	return NULL;
+}
+
+static bool pci_is_hotplugable(struct device *dev)
+{
+	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
+
+	return config && config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)];
+}
 
 static void pch_pcie_pm_early(struct device *dev)
 {
 	u16 link_width_p0, link_width_p4;
+	struct device *child = NULL;
 	u8 slot_power_limit = 10; /* 10W for x1 */
-	u32 reg32;
+	static u8 slot_number = 1;
+	u32 reg32, cap;
 	u8 reg8;
 
 	reg32 = RCBA32(RPC);
@@ -100,9 +117,7 @@ static void pch_pcie_pm_early(struct device *dev)
 	pci_write_config8(dev, 0xe1, reg8);
 
 	/* Set 0xE8[0] = 1 */
-	reg32 = pci_read_config32(dev, 0xe8);
-	reg32 |= 1;
-	pci_write_config32(dev, 0xe8, reg32);
+	pci_or_config32(dev, 0xe8, 1);
 
 	/* Adjust Common Clock exit latency */
 	reg32 = pci_read_config32(dev, 0xd8);
@@ -111,143 +126,100 @@ static void pch_pcie_pm_early(struct device *dev)
 	reg32 &= ~(1 << 31); /* Disable PME# SCI for native PME handling */
 	pci_write_config32(dev, 0xd8, reg32);
 
+	cap = pci_find_capability(dev, PCI_CAP_ID_PCIE);
+
 	/* Adjust ASPM L1 exit latency */
-	reg32 = pci_read_config32(dev, 0x4c);
-	reg32 &= ~((1 << 17) | (1 << 16) | (1 << 15));
-	if (RCBA32(0x2320) & (1 << 16)) {
+	reg32 = pci_read_config32(dev, cap + PCI_EXP_LNKCAP);
+	reg32 &= ~PCI_EXP_LNKCAP_L1EL;
+	if (RCBA32(CIR9) & (1 << 16)) {
 		/* If RCBA+2320[15]=1 set ASPM L1 to 8-16us */
-		reg32 |= (1 << 17);
+		reg32 |= (4 << 15);
 	} else {
 		/* Else set ASPM L1 to 2-4us */
-		reg32 |= (1 << 16);
+		reg32 |= (2 << 15);
 	}
-	pci_write_config32(dev, 0x4c, reg32);
+	pci_write_config32(dev, cap + PCI_EXP_LNKCAP, reg32);
+
+	/*
+	 * PCI device enumeration hasn't started yet, thus any downstream device here
+	 * must be a static device from devicetree.cb.
+	 * If one is found assume it's an integrated device and not a PCIe slot.
+	 */
+	if (dev->downstream)
+		child = pcidev_path_behind(dev->downstream, PCI_DEVFN(0, 0));
 
 	/* Set slot power limit as configured above */
-	reg32 = pci_read_config32(dev, 0x54);
-	reg32 &= ~((1 << 15) | (1 << 16)); /* 16:15 = Slot power scale */
-	reg32 &= ~(0xff << 7);             /* 14:7  = Slot power limit */
-	reg32 |= (slot_power_limit << 7);
-	pci_write_config32(dev, 0x54, reg32);
+	reg32 = pci_read_config32(dev, cap + PCI_EXP_SLTCAP);
+	if (pci_is_hotplugable(dev))
+		reg32 |= (PCI_EXP_SLTCAP_HPS | PCI_EXP_SLTCAP_HPC);
+	else
+		reg32 &= ~(PCI_EXP_SLTCAP_HPS | PCI_EXP_SLTCAP_HPC);
+	reg32 &= ~PCI_EXP_SLTCAP_SPLS; /* 16:15 = Slot power scale */
+	reg32 &= ~PCI_EXP_SLTCAP_SPLV; /* 14:7  = Slot power limit */
+	reg32 &= ~PCI_EXP_SLTCAP_PSN;
+	if (!child || !child->on_mainboard) {
+		/* Only PCIe slots have a power limit and slot number */
+		reg32 |= (slot_power_limit << 7);
+		reg32 |= (slot_number++ << 19);
+	}
+	pci_write_config32(dev, cap + PCI_EXP_SLTCAP, reg32);
 }
 
 static void pch_pcie_pm_late(struct device *dev)
 {
 	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
 	enum aspm_type apmc = 0;
-	u32 reg32;
 
 	/* Set 0x314 = 0x743a361b */
 	pci_write_config32(dev, 0x314, 0x743a361b);
 
 	/* Set 0x318[31:16] = 0x1414 */
-	reg32 = pci_read_config32(dev, 0x318);
-	reg32 &= 0x0000ffff;
-	reg32 |= 0x14140000;
-	pci_write_config32(dev, 0x318, reg32);
+	pci_update_config32(dev, 0x318, 0x0000ffff, 0x14140000);
 
 	/* Set 0x324[5] = 1 */
-	reg32 = pci_read_config32(dev, 0x324);
-	reg32 |= (1 << 5);
-	pci_write_config32(dev, 0x324, reg32);
+	pci_or_config32(dev, 0x324, 1 << 5);
 
 	/* Set 0x330[7:0] = 0x40 */
-	reg32 = pci_read_config32(dev, 0x330);
-	reg32 &= ~(0xff);
-	reg32 |= 0x40;
-	pci_write_config32(dev, 0x330, reg32);
+	pci_update_config32(dev, 0x330, ~0xff, 0x40);
 
 	/* Set 0x33C[24:0] = 0x854c74 */
-	reg32 = pci_read_config32(dev, 0x33c);
-	reg32 &= 0xff000000;
-	reg32 |= 0x00854c74;
-	pci_write_config32(dev, 0x33c, reg32);
+	pci_update_config32(dev, 0x33c, 0xff000000, 0x00854c74);
 
 	/* No IO-APIC, Disable EOI forwarding */
-	reg32 = pci_read_config32(dev, 0xd4);
-	reg32 |= (1 << 1);
-	pci_write_config32(dev, 0xd4, reg32);
+	pci_or_config32(dev, 0xd4, 1 << 1);
 
 	/* Check for a rootport ASPM override */
-	switch (PCI_FUNC(dev->path.pci.devfn)) {
-	case 0:
-		apmc = config->pcie_aspm_f0;
-		break;
-	case 1:
-		apmc = config->pcie_aspm_f1;
-		break;
-	case 2:
-		apmc = config->pcie_aspm_f2;
-		break;
-	case 3:
-		apmc = config->pcie_aspm_f3;
-		break;
-	case 4:
-		apmc = config->pcie_aspm_f4;
-		break;
-	case 5:
-		apmc = config->pcie_aspm_f5;
-		break;
-	case 6:
-		apmc = config->pcie_aspm_f6;
-		break;
-	case 7:
-		apmc = config->pcie_aspm_f7;
-		break;
-	}
+	apmc = config->pcie_aspm[PCI_FUNC(dev->path.pci.devfn)];
 
 	/* Setup the override or get the real ASPM setting */
 	if (apmc) {
-		reg32 = pci_read_config32(dev, 0xd4);
-		reg32 |= (apmc << 2) | (1 << 4);
-		pci_write_config32(dev, 0xd4, reg32);
+		pci_or_config32(dev, 0xd4, (apmc << 2) | (1 << 4));
+
 	} else {
 		apmc = pci_read_config32(dev, 0x50) & 3;
 	}
 
 	/* If both L0s and L1 enabled then set root port 0xE8[1]=1 */
-	if (apmc == PCIE_ASPM_BOTH) {
-		reg32 = pci_read_config32(dev, 0xe8);
-		reg32 |= (1 << 1);
-		pci_write_config32(dev, 0xe8, reg32);
-	}
+	if (apmc == PCIE_ASPM_BOTH)
+		pci_or_config32(dev, 0xe8, 1 << 1);
 }
 
 static void pci_init(struct device *dev)
 {
 	u16 reg16;
-	u32 reg32;
-	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
 
 	printk(BIOS_DEBUG, "Initializing PCH PCIe bridge.\n");
 
 	/* Enable Bus Master */
-	reg32 = pci_read_config32(dev, PCI_COMMAND);
-	reg32 |= PCI_COMMAND_MASTER;
-	pci_write_config32(dev, PCI_COMMAND, reg32);
+	pci_or_config16(dev, PCI_COMMAND, PCI_COMMAND_MASTER);
 
 	/* Set Cache Line Size to 0x10 */
 	// This has no effect but the OS might expect it
 	pci_write_config8(dev, 0x0c, 0x10);
 
-	reg16 = pci_read_config16(dev, 0x3e);
-	reg16 &= ~(1 << 0); /* disable parity error response */
-	// reg16 &= ~(1 << 1); /* disable SERR */
-	reg16 |= (1 << 2); /* ISA enable */
-	pci_write_config16(dev, 0x3e, reg16);
+	pci_and_config16(dev, PCI_BRIDGE_CONTROL, ~PCI_BRIDGE_CTL_PARITY);
 
-#ifdef EVEN_MORE_DEBUG
-	reg32 = pci_read_config32(dev, 0x20);
-	printk(BIOS_SPEW, "    MBL    = 0x%08x\n", reg32);
-	reg32 = pci_read_config32(dev, 0x24);
-	printk(BIOS_SPEW, "    PMBL   = 0x%08x\n", reg32);
-	reg32 = pci_read_config32(dev, 0x28);
-	printk(BIOS_SPEW, "    PMBU32 = 0x%08x\n", reg32);
-	reg32 = pci_read_config32(dev, 0x2c);
-	printk(BIOS_SPEW, "    PMLU32 = 0x%08x\n", reg32);
-#endif
-
-	/* Clear errors in status registers */
+	/* Clear errors in status registers. FIXME: Do something? */
 	reg16 = pci_read_config16(dev, 0x06);
 	//reg16 |= 0xf900;
 	pci_write_config16(dev, 0x06, reg16);
@@ -257,12 +229,8 @@ static void pci_init(struct device *dev)
 	pci_write_config16(dev, 0x1e, reg16);
 
 	/* Enable expresscard hotplug events.  */
-	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
-		pci_write_config32(dev, 0xd8,
-				   pci_read_config32(dev, 0xd8)
-				   | (1 << 30));
-		pci_write_config16(dev, 0x42, 0x142);
-	}
+	if (pci_is_hotplugable(dev))
+		pci_or_config32(dev, 0xd8, 1 << 30);
 }
 
 static void pch_pcie_enable(struct device *dev)
@@ -273,44 +241,24 @@ static void pch_pcie_enable(struct device *dev)
 
 static void pch_pciexp_scan_bridge(struct device *dev)
 {
-	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
+	uint32_t cap = pci_find_capability(dev, PCI_CAP_ID_PCIE);
 
-	/* Normal PCIe Scan */
-	pciexp_scan_bridge(dev);
-
-	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
-		intel_acpi_pcie_hotplug_scan_slot(dev->link_list);
+	if (CONFIG(PCIEXP_HOTPLUG) && pci_is_hotplugable(dev)) {
+		pciexp_hotplug_scan_bridge(dev);
+	} else {
+		/* Normal PCIe Scan */
+		pciexp_scan_bridge(dev);
 	}
+	if ((pci_read_config16(dev, cap + PCI_EXP_SLTSTA) & PCI_EXP_SLTSTA_PDS) &&
+	    !dev_is_active_bridge(dev))
+		printk(BIOS_WARNING, "%s: Has a slow downstream device. Enumeration failed.\n",
+			dev_path(dev));
 
 	/* Late Power Management init after bridge device enumeration */
 	pch_pcie_pm_late(dev);
 }
 
-static const char *pch_pcie_acpi_name(const struct device *dev)
-{
-	ASSERT(dev);
-
-	if (PCI_SLOT(dev->path.pci.devfn) == 0x1c) {
-		static const char *names[] = { "RP01",
-				"RP02",
-				"RP03",
-				"RP04",
-				"RP05",
-				"RP06",
-				"RP07",
-				"RP08"};
-
-		return names[PCI_FUNC(dev->path.pci.devfn)];
-	}
-
-	return NULL;
-}
-
-static struct pci_operations pci_ops = {
-	.set_subsystem = pci_dev_set_subsystem,
-};
-
-static struct device_operations device_ops = {
+struct device_operations bd82x6x_pcie_rp_ops = {
 	.read_resources		= pci_bus_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_bus_enable_resources,
@@ -318,17 +266,5 @@ static struct device_operations device_ops = {
 	.enable			= pch_pcie_enable,
 	.scan_bus		= pch_pciexp_scan_bridge,
 	.acpi_name		= pch_pcie_acpi_name,
-	.ops_pci		= &pci_ops,
-};
-
-static const unsigned short pci_device_ids[] = { 0x1c10, 0x1c12, 0x1c14, 0x1c16,
-						 0x1c18, 0x1c1a, 0x1c1c, 0x1c1e,
-						 0x1e10, 0x1e12, 0x1e14, 0x1e16,
-						 0x1e18, 0x1e1a, 0x1e1c, 0x1e1e,
-						 0 };
-
-static const struct pci_driver pch_pcie __pci_driver = {
-	.ops	 = &device_ops,
-	.vendor	 = PCI_VENDOR_ID_INTEL,
-	.devices = pci_device_ids,
+	.ops_pci		= &pci_dev_ops_pci,
 };

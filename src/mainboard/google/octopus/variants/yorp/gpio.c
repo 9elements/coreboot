@@ -1,22 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google LLC
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/gpio.h>
 #include <baseboard/variants.h>
 #include <gpio.h>
-#include <soc/gpio.h>
 
 /* GPIOs needed prior to ramstage. */
 static const struct pad_config early_gpio_table[] = {
@@ -38,7 +24,7 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPO(GPIO_164, 0, DEEP), /* WLAN_PE_RST */
 
 	/*
-	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requies a weak
+	 * ESPI_IO1 acts as ALERT# (which is open-drain) and requires a weak
 	 * pull-up for proper operation. Since there is no external pull present
 	 * on this platform, configure an internal weak pull-up.
 	 */
@@ -50,4 +36,36 @@ const struct pad_config *variant_early_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(early_gpio_table);
 	return early_gpio_table;
+}
+
+static const struct pad_config default_override_table[] = {
+	 /* EN_PP3300_TOUCHSCREEN */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_146, 1, DEEP, NONE, Tx0RxDCRx0, DISPUPD),
+	/* GPIO_105 -- TOUCHSCREEN_RST */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_105, 0, DEEP, NONE, Tx1RxDCRx0, DISPUPD),
+	/* GPIO_140 -- PEN_RESET */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_140, 0, DEEP, NONE, Tx1RxDCRx0, DISPUPD),
+};
+
+const struct pad_config *variant_override_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(default_override_table);
+	return default_override_table;
+}
+
+/* GPIOs needed to be set in romstage. */
+static const struct pad_config romstage_gpio_table[] = {
+	/* Enable touchscreen, hold in reset */
+	 /* EN_PP3300_TOUCHSCREEN */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_146, 1, DEEP, NONE, Tx0RxDCRx0, DISPUPD),
+	/* GPIO_105 -- TOUCHSCREEN_RST */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_105, 1, DEEP, NONE, Tx1RxDCRx0, DISPUPD),
+	/* GPIO_140 -- PEN_RESET */
+	PAD_CFG_GPO_IOSSTATE_IOSTERM(GPIO_140, 1, DEEP, NONE, Tx1RxDCRx0, DISPUPD),
+};
+
+const struct pad_config *variant_romstage_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(romstage_gpio_table);
+	return romstage_gpio_table;
 }

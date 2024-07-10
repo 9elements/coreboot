@@ -1,5 +1,4 @@
 /*
- * This file is part of the coreboot project.
  *
  * Copyright 2014 Google Inc.
  *
@@ -42,7 +41,14 @@ static unsigned int max_tables;
 static uint64_t *xlat_addr;
 
 static int free_idx;
-static uint8_t ttb_buffer[TTB_DEFAULT_SIZE] __attribute__((aligned(GRANULE_SIZE)));
+
+/*
+ * We refer to the section ".bss.ttb_buffer" in the linker script for ChromeOS's depthcharge
+ * payload. Please DO NOT change the section name without discussing with us.
+ * Please contact: jwerner@chromium.org or yich@chromium.org
+ */
+static uint8_t ttb_buffer[TTB_DEFAULT_SIZE] __aligned(GRANULE_SIZE)
+	__section(".bss.ttb_buffer");
 
 static const char * const tag_to_string[] = {
 	[TYPE_NORMAL_MEM] = "normal",
@@ -273,7 +279,7 @@ uint64_t mmu_init(struct mmu_ranges *mmu_ranges)
 	max_tables = (TTB_DEFAULT_SIZE >> GRANULE_SIZE_SHIFT);
 	free_idx = 1;
 
-	printf("Libpayload ARM64: TTB_BUFFER: 0x%p Max Tables: %d\n",
+	printf("Libpayload ARM64: TTB_BUFFER: %p Max Tables: %d\n",
 	       (void*)xlat_addr, max_tables);
 
 	/*
@@ -301,30 +307,6 @@ static uint32_t is_mmu_enabled(void)
 	sctlr = raw_read_sctlr_el2();
 
 	return (sctlr & SCTLR_M);
-}
-
-/*
- * Func: mmu_disable
- * Desc: Invalidate caches and disable mmu
- */
-void mmu_disable(void)
-{
-	uint32_t sctlr;
-
-	sctlr = raw_read_sctlr_el2();
-	sctlr &= ~(SCTLR_C | SCTLR_M | SCTLR_I);
-
-	tlbiall_el2();
-	dcache_clean_invalidate_all();
-
-	dsb();
-	isb();
-
-	raw_write_sctlr_el2(sctlr);
-
-	dcache_clean_invalidate_all();
-	dsb();
-	isb();
 }
 
 /*
@@ -414,7 +396,7 @@ struct mmu_new_range_prop {
 
 /*
  * Func: mmu_is_range_free
- * Desc: We need to ensure that the new range being allocated doesnt overlap
+ * Desc: We need to ensure that the new range being allocated doesn't overlap
  * with any used memory range. Basically:
  * 1. Memory ranges used by the payload (usedmem_ranges)
  * 2. Any area that falls below _end symbol in linker script (Kernel needs to be
@@ -599,8 +581,6 @@ static struct mmu_memrange *_mmu_add_fb_range(
 
 	prop.type = TYPE_DMA_MEM;
 
-	/* make sure to allocate a size of multiple of GRANULE_SIZE */
-	size = ALIGN_UP(size, GRANULE_SIZE);
 	prop.size = size;
 	prop.lim_excl = MIN_64_BIT_ADDR;
 	prop.align = MB_SIZE;
@@ -650,17 +630,16 @@ static void mmu_extract_ranges(struct memrange *cb_ranges,
 static void mmu_add_fb_range(struct mmu_ranges *mmu_ranges)
 {
 	struct mmu_memrange *fb_range;
-	static struct cb_framebuffer modified_fb;
-	struct cb_framebuffer *framebuffer = lib_sysinfo.framebuffer;
+	struct cb_framebuffer *framebuffer = &lib_sysinfo.framebuffer;
 	uint32_t fb_size;
 
 	/* Check whether framebuffer is needed */
-	if (framebuffer == NULL)
-		return;
-
 	fb_size = framebuffer->bytes_per_line * framebuffer->y_resolution;
 	if (!fb_size)
 		return;
+
+	/* make sure to allocate a size of multiple of GRANULE_SIZE */
+	fb_size = ALIGN_UP(fb_size, GRANULE_SIZE);
 
 	/* framebuffer address has been set already, so just add it as DMA */
 	if (framebuffer->physical_address) {
@@ -677,16 +656,7 @@ static void mmu_add_fb_range(struct mmu_ranges *mmu_ranges)
 	if (fb_range == NULL)
 		mmu_error();
 
-	/*
-	 * Set framebuffer address. However, one needs to use a freshly
-	 * allocated framebuffer structure because the one in the coreboot
-	 * table is part of a checksum calculation. Therefore, one cannot
-	 * modify a field without recomputing the necessary checksum
-	 * calcuation.
-	 */
-	modified_fb = *framebuffer;
-	modified_fb.physical_address = fb_range->base;
-	lib_sysinfo.framebuffer = &modified_fb;
+	framebuffer->physical_address = fb_range->base;
 }
 
 /*
@@ -742,4 +712,9 @@ void mmu_presysinfo_enable(void)
 {
 	mmu_init(&usedmem_ranges);
 	mmu_enable();
+}
+
+const struct mmu_ranges *mmu_get_used_ranges(void)
+{
+	return &usedmem_ranges;
 }

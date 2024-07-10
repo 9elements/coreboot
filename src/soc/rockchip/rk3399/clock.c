@@ -1,29 +1,16 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Rockchip Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <assert.h>
+#include <commonlib/bsd/gcd.h>
 #include <console/console.h>
-#include <device/mmio.h>
 #include <delay.h>
+#include <device/mmio.h>
 #include <soc/addressmap.h>
 #include <soc/clock.h>
 #include <soc/grf.h>
 #include <soc/i2c.h>
 #include <soc/soc.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct pll_div {
@@ -95,7 +82,7 @@ enum {
 	PLL_SSMOD_RESET_SHIFT		= 2,
 	PLL_SSMOD_DOWNSPEAD_MASK	= 1,
 	PLL_SSMOD_DOWNSPEAD_SHIFT	= 3,
-	PLL_SSMOD_DIVVAL_MASK		= 0Xf,
+	PLL_SSMOD_DIVVAL_MASK		= 0xf,
 	PLL_SSMOD_DIVVAL_SHIFT		= 4,
 	PLL_SSMOD_SPREADAMP_MASK	= 0x1f,
 	PLL_SSMOD_SPREADAMP_SHIFT	= 8,
@@ -263,14 +250,8 @@ enum {
 	CLK_I2C3_DIV_CON_SHIFT		= 0,
 
 	/* CRU_SOFTRST_CON4 */
-	RESETN_DDR0_REQ_MASK		= 1,
-	RESETN_DDR0_REQ_SHIFT		= 8,
-	RESETN_DDRPHY0_REQ_MASK		= 1,
-	RESETN_DDRPHY0_REQ_SHIFT	= 9,
-	RESETN_DDR1_REQ_MASK		= 1,
-	RESETN_DDR1_REQ_SHIFT		= 12,
-	RESETN_DDRPHY1_REQ_MASK		= 1,
-	RESETN_DDRPHY1_REQ_SHIFT	= 13,
+#define RESETN_DDR_REQ_SHIFT(ch)	(8 + (ch) * 4)
+#define RESETN_DDRPHY_REQ_SHIFT(ch)	(9 + (ch) * 4)
 };
 
 #define VCO_MAX_KHZ	(3200 * (MHz / KHz))
@@ -305,7 +286,7 @@ static void rkclk_set_pll(u32 *pll_con, const struct pll_div *div)
 	u32 output_khz = vco_khz / div->postdiv1 / div->postdiv2;
 
 	printk(BIOS_DEBUG, "PLL at %p: fbdiv=%d, refdiv=%d, postdiv1=%d, "
-			   "postdiv2=%d, vco=%u khz, output=%u khz\n",
+			   "postdiv2=%d, vco=%u kHz, output=%u kHz\n",
 			   pll_con, div->fbdiv, div->refdiv, div->postdiv1,
 			   div->postdiv2, vco_khz, output_khz);
 	assert(vco_khz >= VCO_MIN_KHZ && vco_khz <= VCO_MAX_KHZ &&
@@ -374,9 +355,9 @@ static void rkclk_set_dpllssc(struct pll_div *dpll_cfg)
 	write32(&cru_ptr->dpll_con[3],
 		RK_CLRSETBITS(PLL_DSMPD_MASK << PLL_DSMPD_SHIFT,
 			      PLL_FRAC_MODE << PLL_DSMPD_SHIFT));
-	clrsetbits_le32(&cru_ptr->dpll_con[2],
-			PLL_FRACDIV_MASK << PLL_FRACDIV_SHIFT,
-			0 << PLL_FRACDIV_SHIFT);
+	clrsetbits32(&cru_ptr->dpll_con[2],
+		     PLL_FRACDIV_MASK << PLL_FRACDIV_SHIFT,
+		     0 << PLL_FRACDIV_SHIFT);
 
 	/*
 	 * Configure SSC divval.
@@ -486,7 +467,7 @@ void rkclk_init(void)
 
 	/* some cru registers changed by bootrom, we'd better reset them to
 	 * reset/default values described in TRM to avoid confusion in kernel.
-	 * Please consider these threee lines as a fix of bootrom bug.
+	 * Please consider these three lines as a fix of bootrom bug.
 	 */
 	write32(&cru_ptr->clksel_con[12], 0xffff4101);
 	write32(&cru_ptr->clksel_con[19], 0xffff033f);
@@ -664,6 +645,13 @@ void rkclk_configure_ddr(unsigned int hz)
 		rkclk_set_dpllssc(&dpll_cfg);
 }
 
+void rkclk_ddr_reset(u32 ch, u32 ctl, u32 phy)
+{
+	write32(&cru_ptr->softrst_con[4], RK_CLRSETBITS(
+		1 << RESETN_DDR_REQ_SHIFT(ch) | 1 << RESETN_DDRPHY_REQ_SHIFT(ch),
+		ctl << RESETN_DDR_REQ_SHIFT(ch) | phy << RESETN_DDRPHY_REQ_SHIFT(ch)));
+}
+
 #define SPI_CLK_REG_VALUE(bus, clk_div) \
 		RK_CLRSETBITS(CLK_SPI_PLL_SEL_MASK << \
 					CLK_SPI ##bus## _PLL_SEL_SHIFT | \
@@ -789,16 +777,6 @@ uint32_t rkclk_i2c_clock_for_bus(unsigned int bus)
 	return freq;
 }
 
-static u32 clk_gcd(u32 a, u32 b)
-{
-	while (b != 0) {
-		int r = b;
-		b = a % b;
-		a = r;
-	}
-	return a;
-}
-
 void rkclk_configure_i2s(unsigned int hz)
 {
 	int n, d;
@@ -818,7 +796,7 @@ void rkclk_configure_i2s(unsigned int hz)
 		RK_CLRBITS(1 << 12 | 1 << 5 | 1 << 4 | 1 << 3));
 
 	/* set frac divider */
-	v = clk_gcd(CPLL_HZ, hz);
+	v = gcd(CPLL_HZ, hz);
 	n = (CPLL_HZ / v) & (0xffff);
 	d = (hz / v) & (0xffff);
 	assert(hz == (u64)CPLL_HZ * d / n);

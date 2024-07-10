@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_MEDIATEK_USB_COMMON_H
 #define SOC_MEDIATEK_USB_COMMON_H
@@ -70,6 +57,8 @@ struct ssusb_ippc_regs {
 #define PA6_RG_U2_ISO_EN			(0x1 << 31)
 #define PA6_RG_U2_BC11_SW_EN		(0x1 << 23)
 #define PA6_RG_U2_OTG_VBUSCMP_EN	(0x1 << 20)
+#define PA6_RG_U2_DISCTH		(0xf << 4)
+#define PA6_RG_U2_DISCTH_VAL(x)		((0xf & (x)) << 4)
 #define PA6_RG_U2_SQTH			(0xf << 0)
 #define PA6_RG_U2_SQTH_VAL(x)		((0xf & (x)) << 0)
 
@@ -141,9 +130,13 @@ struct sif_u2_phy_com {
 check_member(sif_u2_phy_com, u2phydtm0, 0x68);
 
 struct sif_u3phyd {
-	u32 reserved0[23];
+	u32 reserved0[4];
+	u32 phyd_cal0;
+	u32 phyd_cal1;
+	u32 reserved1[15];
+	u32 phyd_reserved;
 	u32 phyd_cdr1;
-	u32 reserved1[40];
+	u32 reserved2[41];
 };
 
 struct sif_u3phya {
@@ -166,6 +159,7 @@ struct sif_u3phya_da {
  * SOCs will not need it.
  */
 void mtk_usb_prepare(void);
+void mtk_usb_adjust_phy_shift(void);
 
 void setup_usb_host(void);
 

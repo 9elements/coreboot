@@ -1,18 +1,4 @@
-/*
- * Copyright (C) 2012 Samsung Electronics
- *
- * Author: Donghwa Lee <dh09.lee@samsung.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <console/console.h>
 #include <delay.h>
@@ -21,7 +7,6 @@
 #include <soc/i2c.h>
 #include <soc/power.h>
 #include <soc/sysreg.h>
-#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -45,7 +30,6 @@
  *     parameters and recovers stream clock.
  * 11. Source sends video data.
  */
-
 
 static int exynos_dp_init_dp(void)
 {
@@ -352,8 +336,8 @@ static unsigned int exynos_dp_enable_rx_to_enhanced_mode(unsigned char enable)
 	ret = exynos_dp_write_byte_to_dpcd(DPCD_LANE_COUNT_SET,
 			data);
 	if (ret != EXYNOS_DP_SUCCESS) {
-			printk(BIOS_ERR, "DP write_to_dpcd failed\n");
-			return -1;
+		printk(BIOS_ERR, "DP write_to_dpcd failed\n");
+		return -1;
 
 	}
 
@@ -483,9 +467,9 @@ static unsigned int exynos_dp_process_clock_recovery(struct edp_device_info
 
 	ret = exynos_dp_read_dpcd_lane_stat(edp_info, &lane_stat);
 	if (ret != EXYNOS_DP_SUCCESS) {
-			printk(BIOS_ERR, "DP read lane status failed\n");
-			edp_info->lt_info.lt_status = DP_LT_FAIL;
-			return ret;
+		printk(BIOS_ERR, "DP read lane status failed\n");
+		edp_info->lt_info.lt_status = DP_LT_FAIL;
+		return ret;
 	}
 
 	if (lane_stat & DP_LANE_STAT_CR_DONE) {
@@ -857,7 +841,6 @@ static unsigned int exynos_dp_config_video(struct edp_device_info *edp_info)
 int exynos_init_dp(struct edp_device_info *edp_info)
 {
 	unsigned int ret;
-
 
 	dp_phy_control(1);
 

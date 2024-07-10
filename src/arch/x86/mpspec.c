@@ -1,31 +1,24 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Sage Electronic Engineering, LLC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/console.h>
-#include <device/path.h>
-#include <device/pci_ids.h>
+#include <acpi/acpi.h>
+#include <arch/ioapic.h>
 #include <arch/smp/mpspec.h>
-#include <string.h>
-#include <arch/cpu.h>
+#include <console/console.h>
+#include <cpu/cpu.h>
 #include <cpu/x86/lapic.h>
-#include <drivers/generic/ioapic/chip.h>
+#include <device/device.h>
+#include <device/path.h>
+#include <device/pci_def.h>
+#include <device/pci_ids.h>
+#include <identity.h>
+#include <string.h>
+#include <types.h>
 
 /* Initialize the specified "mc" struct with initial values. */
-void mptable_init(struct mp_config_table *mc, u32 lapic_addr)
+void mptable_init(struct mp_config_table *mc)
 {
 	int i;
+	u32 lapic_addr = cpu_get_lapic_addr();
 
 	memset(mc, 0, sizeof(*mc));
 
@@ -42,16 +35,16 @@ void mptable_init(struct mp_config_table *mc, u32 lapic_addr)
 	mc->mpe_checksum = 0;
 	mc->reserved = 0;
 
-	strncpy(mc->mpc_oem, CONFIG_MAINBOARD_VENDOR, 8);
-	strncpy(mc->mpc_productid, CONFIG_MAINBOARD_PART_NUMBER, 12);
+	strncpy(mc->mpc_oem, mainboard_vendor, 8);
+	strncpy(mc->mpc_productid, mainboard_part_number, 12);
 
 	/*
 	 * The oem/productid fields are exactly 8/12 bytes long. If the resp.
 	 * entry is shorter, the remaining bytes are filled with spaces.
 	 */
-	for (i = MIN(strlen(CONFIG_MAINBOARD_VENDOR), 8); i < 8; i++)
+	for (i = MIN(strlen(mainboard_vendor), 8); i < 8; i++)
 		mc->mpc_oem[i] = ' ';
-	for (i = MIN(strlen(CONFIG_MAINBOARD_PART_NUMBER), 12); i < 12; i++)
+	for (i = MIN(strlen(mainboard_part_number), 12); i < 12; i++)
 		mc->mpc_productid[i] = ' ';
 }
 
@@ -171,12 +164,7 @@ void smp_write_processors(struct mp_config_table *mc)
 	for (order_id = 0; order_id < 256; order_id++) {
 		for (cpu = all_devices; cpu; cpu = cpu->next) {
 			unsigned long cpu_flag;
-			if ((cpu->path.type != DEVICE_PATH_APIC) ||
-				(cpu->bus->dev->path.type !=
-					DEVICE_PATH_CPU_CLUSTER))
-				continue;
-
-			if (!cpu->enabled)
+			if (!is_enabled_cpu(cpu))
 				continue;
 
 			cpu_flag = MPC_CPU_ENABLED;
@@ -218,8 +206,8 @@ static void smp_write_bus(struct mp_config_table *mc,
  * Entry Type, APIC ID, Version,
  * APIC Flags:EN, Address
  */
-void smp_write_ioapic(struct mp_config_table *mc,
-	u8 id, u8 ver, void *apicaddr)
+static void smp_write_ioapic(struct mp_config_table *mc,
+	u8 id, u8 ver, uintptr_t apicaddr)
 {
 	struct mpc_config_ioapic *mpc;
 	mpc = smp_next_mpc_entry(mc);
@@ -228,8 +216,16 @@ void smp_write_ioapic(struct mp_config_table *mc,
 	mpc->mpc_apicid = id;
 	mpc->mpc_apicver = ver;
 	mpc->mpc_flags = MPC_APIC_USABLE;
-	mpc->mpc_apicaddr = apicaddr;
+	mpc->mpc_apicaddr = (void *)apicaddr;
 	smp_add_mpc_entry(mc, sizeof(*mpc));
+}
+
+u8 smp_write_ioapic_from_hw(struct mp_config_table *mc, uintptr_t apicaddr)
+{
+	u8 id = get_ioapic_id(apicaddr);
+	u8 ver = get_ioapic_version(apicaddr);
+	smp_write_ioapic(mc, id, ver, apicaddr);
+	return id;
 }
 
 /*
@@ -253,12 +249,6 @@ void smp_write_intsrc(struct mp_config_table *mc,
 	mpc->mpc_dstapic = dstapic;
 	mpc->mpc_dstirq = dstirq;
 	smp_add_mpc_entry(mc, sizeof(*mpc));
-#ifdef DEBUG_MPTABLE
-	printk(BIOS_DEBUG,
-		"add intsrc srcbus 0x%x srcbusirq 0x%x, dstapic 0x%x, dstirq 0x%x\n",
-				srcbus, srcbusirq, dstapic, dstirq);
-	hexdump(__func__, mpc, sizeof(*mpc));
-#endif
 }
 
 /*
@@ -292,48 +282,46 @@ void smp_write_intsrc_pci_bridge(struct mp_config_table *mc,
 	int srcbus;
 	int slot;
 
-	struct bus *link;
 	unsigned char dstirq_x[4];
 
-	for (link = dev->link_list; link; link = link->next) {
+	if (!dev->downstream)
+		return;
 
-		child = link->children;
-		srcbus = link->secondary;
+	child = dev->downstream->children;
+	srcbus = dev->downstream->secondary;
 
-		while (child) {
-			if (child->path.type != DEVICE_PATH_PCI)
-				goto next;
+	while (child) {
+		if (child->path.type != DEVICE_PATH_PCI)
+			goto next;
 
-			slot = (child->path.pci.devfn >> 3);
-			/* round pins */
+		slot = (child->path.pci.devfn >> 3);
+		/* round pins */
+		for (i = 0; i < 4; i++)
+			dstirq_x[i] = dstirq[(i + slot) % 4];
+
+		if ((child->class >> 16) != PCI_BASE_CLASS_BRIDGE) {
+			/* pci device */
+			printk(BIOS_DEBUG, "route irq: %s\n",
+			       dev_path(child));
 			for (i = 0; i < 4; i++)
-				dstirq_x[i] = dstirq[(i + slot) % 4];
-
-			if ((child->class >> 16) != PCI_BASE_CLASS_BRIDGE) {
-				/* pci device */
-				printk(BIOS_DEBUG, "route irq: %s\n",
-					dev_path(child));
-				for (i = 0; i < 4; i++)
-					smp_write_intsrc(mc, irqtype, irqflag,
-						srcbus, (slot<<2)|i, dstapic,
-						dstirq_x[i]);
-				goto next;
-			}
-
-			switch (child->class>>8) {
-			case PCI_CLASS_BRIDGE_PCI:
-			case PCI_CLASS_BRIDGE_PCMCIA:
-			case PCI_CLASS_BRIDGE_CARDBUS:
-				printk(BIOS_DEBUG, "route irq bridge: %s\n",
-					dev_path(child));
-				smp_write_intsrc_pci_bridge(mc, irqtype,
-					irqflag, child, dstapic, dstirq_x);
-			}
-
-next:
-			child = child->sibling;
+				smp_write_intsrc(mc, irqtype, irqflag,
+						 srcbus, (slot<<2)|i, dstapic,
+						 dstirq_x[i]);
+			goto next;
 		}
 
+		switch (child->class>>8) {
+		case PCI_CLASS_BRIDGE_PCI:
+		case PCI_CLASS_BRIDGE_PCMCIA:
+		case PCI_CLASS_BRIDGE_CARDBUS:
+			printk(BIOS_DEBUG, "route irq bridge: %s\n",
+			       dev_path(child));
+			smp_write_intsrc_pci_bridge(mc, irqtype,
+						    irqflag, child, dstapic, dstirq_x);
+		}
+
+next:
+		child = child->sibling;
 	}
 }
 
@@ -488,17 +476,16 @@ void mptable_write_buses(struct mp_config_table *mc, int *max_pci_bus,
 	memset(buses, 0, sizeof(buses));
 
 	for (dev = all_devices; dev; dev = dev->next) {
-		struct bus *bus;
-		for (bus = dev->link_list; bus; bus = bus->next) {
-			if (bus->secondary > 255) {
-				printk(BIOS_ERR,
-					"A bus claims to have a bus ID > 255?!? Aborting");
-				return;
-			}
-			buses[bus->secondary] = 1;
-			if (highest < bus->secondary)
-				highest = bus->secondary;
+		struct bus *bus = dev->downstream;
+		if (!bus)
+			continue;
+		if (bus->secondary > 255) {
+			printk(BIOS_ERR, "A bus claims to have a bus ID > 255?!? Aborting\n");
+			return;
 		}
+		buses[bus->secondary] = 1;
+		if (highest < bus->secondary)
+			highest = bus->secondary;
 	}
 	for (i = 0; i <= highest; i++) {
 		if (buses[i]) {
@@ -518,142 +505,4 @@ void *mptable_finalize(struct mp_config_table *mc)
 	printk(BIOS_DEBUG, "Wrote the mp table end at: %p - %p\n",
 		mc, smp_next_mpe_entry(mc));
 	return smp_next_mpe_entry(mc);
-}
-
-static const struct device *find_next_ioapic(unsigned int last_ioapic_id)
-{
-	const struct device *dev;
-	const struct device *result = NULL;
-	unsigned int ioapic_id = MAX_APICS;
-
-	for (dev = all_devices; dev; dev = dev->next) {
-		if (dev->path.type == DEVICE_PATH_IOAPIC &&
-		    dev->path.ioapic.ioapic_id > last_ioapic_id &&
-		    dev->path.ioapic.ioapic_id <= ioapic_id) {
-			result = dev;
-		}
-	}
-	return result;
-}
-
-unsigned long __weak write_smp_table(unsigned long addr)
-{
-	struct drivers_generic_ioapic_config *ioapic_config;
-	struct mp_config_table *mc;
-	int isa_bus, pin, parentpin;
-	const struct device *dev;
-	const struct device *parent;
-	const struct device *oldparent;
-	void *tmp, *v;
-	int isaioapic = -1, have_fixed_entries;
-	const struct pci_irq_info *pci_irq_info;
-	unsigned int ioapic_id = 0;
-
-	v = smp_write_floating_table(addr, 0);
-	mc = (void *)(((char *)v) + SMP_FLOATING_TABLE_LEN);
-
-	mptable_init(mc, LOCAL_APIC_ADDR);
-
-	smp_write_processors(mc);
-
-	mptable_write_buses(mc, NULL, &isa_bus);
-
-	while ((dev = find_next_ioapic(ioapic_id))) {
-		ioapic_config = dev->chip_info;
-		if (!ioapic_config) {
-			printk(BIOS_ERR, "%s has no config, ignoring\n",
-				dev_path(dev));
-			ioapic_id++;
-			continue;
-		}
-
-		ioapic_id = dev->path.ioapic.ioapic_id;
-		smp_write_ioapic(mc, ioapic_id,
-				     ioapic_config->version,
-				     ioapic_config->base);
-
-		if (ioapic_config->have_isa_interrupts) {
-			if (isaioapic >= 0)
-				printk(BIOS_ERR,
-					"More than one IOAPIC with ISA interrupts?\n");
-			else
-				isaioapic = dev->path.ioapic.ioapic_id;
-		}
-	}
-
-	if (isaioapic >= 0) {
-		/* Legacy Interrupts */
-		printk(BIOS_DEBUG, "Writing ISA IRQs\n");
-		mptable_add_isa_interrupts(mc, isa_bus, isaioapic, 0);
-	}
-
-	for (dev = all_devices; dev; dev = dev->next) {
-
-		if (dev->path.type != DEVICE_PATH_PCI || !dev->enabled)
-			continue;
-
-		have_fixed_entries = 0;
-		for (pin = 0; pin < 4; pin++) {
-			if (dev->pci_irq_info[pin].ioapic_dst_id) {
-				printk(BIOS_DEBUG,
-					"fixed IRQ entry for: %s: INT%c# -> IOAPIC %d PIN %d\n",
-						dev_path(dev),
-				       pin + 'A',
-				       dev->pci_irq_info[pin].ioapic_dst_id,
-				       dev->pci_irq_info[pin].ioapic_irq_pin);
-				smp_write_intsrc(mc, mp_INT,
-					 dev->pci_irq_info[pin].ioapic_flags,
-					 dev->bus->secondary,
-					 ((dev->path.pci.devfn & 0xf8) >> 1)
-						| pin,
-					 dev->pci_irq_info[pin].ioapic_dst_id,
-					 dev->pci_irq_info[pin].ioapic_irq_pin);
-				have_fixed_entries = 1;
-			}
-		}
-
-		if (!have_fixed_entries) {
-			pin = (dev->path.pci.devfn & 7) % 4;
-			oldparent = parent = dev;
-			while ((parent = parent->bus->dev)) {
-				parentpin = (oldparent->path.pci.devfn >> 3)
-					+ (oldparent->path.pci.devfn & 7);
-				parentpin += dev->path.pci.devfn & 7;
-				parentpin += dev->path.pci.devfn >> 3;
-				parentpin %= 4;
-
-				pci_irq_info = &parent->pci_irq_info[parentpin];
-				if (pci_irq_info->ioapic_dst_id) {
-					printk(BIOS_DEBUG,
-					       "automatic IRQ entry for %s: INT%c# -> IOAPIC %d PIN %d\n",
-					       dev_path(dev), pin + 'A',
-					       pci_irq_info->ioapic_dst_id,
-					       pci_irq_info->ioapic_irq_pin);
-					smp_write_intsrc(mc, mp_INT,
-						 pci_irq_info->ioapic_flags,
-						 dev->bus->secondary,
-						 ((dev->path.pci.devfn & 0xf8)
-							>> 1) | pin,
-						 pci_irq_info->ioapic_dst_id,
-						 pci_irq_info->ioapic_irq_pin);
-
-					break;
-				}
-
-				if (parent->path.type == DEVICE_PATH_DOMAIN) {
-					printk(BIOS_WARNING,
-						"no IRQ found for %s\n",
-						dev_path(dev));
-					break;
-				}
-				oldparent = parent;
-			}
-		}
-	}
-
-	mptable_lintsrc(mc, isa_bus);
-	tmp = mptable_finalize(mc);
-	printk(BIOS_INFO, "MPTABLE len: %d\n", (unsigned int)((uintptr_t)tmp -
-				(uintptr_t)v));
-	return (unsigned long)tmp;
 }

@@ -1,37 +1,14 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * linux/arch/arm/lib/lib1funcs.S: Optimized ARM division routines
- *
- * Author: Nicolas Pitre <nico@fluxnic.net>
- *   - contributed to gcc-3.4 on Sep 30, 2003
- *   - adapted for the Linux kernel on Oct 2, 2003
  */
-
-/* Copyright 1995, 1996, 1998, 1999, 2000, 2003 Free Software Foundation, Inc.
-
-This file is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
-later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
-
-This file is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
-*/
 
 
 #if defined __GNUC__
 
 #include <arch/asm.h>
+
+.syntax unified
 
 .macro ARM_DIV_BODY dividend, divisor, result, curbit
 
@@ -92,7 +69,7 @@ General Public License for more details.
 	subhs	\dividend, \dividend, \divisor, lsr #3
 	orrhs	\result,   \result,   \curbit,  lsr #3
 	cmp	\dividend, #0			@ Early termination?
-	movnes	\curbit,   \curbit,  lsr #4	@ No, any more bits to do?
+	movsne	\curbit,   \curbit,  lsr #4	@ No, any more bits to do?
 	movne	\divisor,  \divisor, lsr #4
 	bne	1b
 
@@ -178,7 +155,7 @@ General Public License for more details.
 	subhs	\dividend, \dividend, \divisor, lsr #3
 	cmp	\dividend, #1
 	mov	\divisor, \divisor, lsr #4
-	subges	\order, \order, #4
+	subsge	\order, \order, #4
 	bge	1b
 
 	tst	\order, #3

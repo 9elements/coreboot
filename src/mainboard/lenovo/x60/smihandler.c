@@ -1,27 +1,13 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
 #include <device/pci_ops.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
-#include <southbridge/intel/i82801gx/nvs.h>
+#include <soc/nvs.h>
 #include <southbridge/intel/common/pmutil.h>
 #include <ec/acpi/ec.h>
-#include <pc80/mc146818rtc.h>
+#include <option.h>
 #include <ec/lenovo/h8/h8.h>
 #include <delay.h>
 #include "dock.h"
@@ -29,58 +15,51 @@
 
 #define GPE_EC_SCI	12
 
-static void mainboard_smm_init(void)
-{
-	printk(BIOS_DEBUG, "initializing SMI\n");
-	/* Enable 0x1600/0x1600 register pair */
-	ec_set_bit(0x00, 0x05);
-}
-
 static void mainboard_smi_save_cmos(void)
 {
-	u8 val;
 	u8 tmp70, tmp72;
 
 	tmp70 = inb(0x70);
 	tmp72 = inb(0x72);
 
-	val = pci_read_config8(PCI_DEV(0, 2, 1), 0xf4);
-	set_option("tft_brightness", &val);
-	val = ec_read(H8_VOLUME_CONTROL);
-	set_option("volume", &val);
+	set_uint_option("tft_brightness", pci_read_config8(PCI_DEV(0, 2, 1), 0xf4));
+	set_uint_option("volume", ec_read(H8_VOLUME_CONTROL));
 
 	outb(tmp70, 0x70);
 	outb(tmp72, 0x72);
 }
 
+static void mainboard_smi_dock_connect(void)
+{
+	ec_clr_bit(0x03, 2);
+	mdelay(250);
+	if (!dock_connect()) {
+		ec_set_bit(0x03, 2);
+		/* set dock LED to indicate status */
+		ec_write(0x0c, 0x09);
+		ec_write(0x0c, 0x88);
+	} else {
+		/* blink dock LED to indicate failure */
+		ec_write(0x0c, 0x08);
+		ec_write(0x0c, 0xc9);
+	}
+}
+
+static void mainboard_smi_dock_disconnect(void)
+{
+	ec_clr_bit(0x03, 2);
+	dock_disconnect();
+}
+
 int mainboard_io_trap_handler(int smif)
 {
-	static int smm_initialized;
-
-	if (!smm_initialized) {
-		mainboard_smm_init();
-		smm_initialized = 1;
-	}
-
 	switch (smif) {
 	case SMI_DOCK_CONNECT:
-		ec_clr_bit(0x03, 2);
-		udelay(250000);
-		if (!dock_connect()) {
-			ec_set_bit(0x03, 2);
-			/* set dock LED to indicate status */
-			ec_write(0x0c, 0x09);
-			ec_write(0x0c, 0x88);
-		} else {
-			/* blink dock LED to indicate failure */
-			ec_write(0x0c, 0x08);
-			ec_write(0x0c, 0xc9);
-		}
+		mainboard_smi_dock_connect();
 		break;
 
 	case SMI_DOCK_DISCONNECT:
-		ec_clr_bit(0x03, 2);
-		dock_disconnect();
+		mainboard_smi_dock_disconnect();
 		break;
 
 	case SMI_SAVE_CMOS:
@@ -120,7 +99,7 @@ static void mainboard_smi_handle_ec_sci(void)
 		return;
 
 	event = ec_query();
-	printk(BIOS_DEBUG, "EC event %02x\n", event);
+	printk(BIOS_DEBUG, "EC event %#02x\n", event);
 
 	switch (event) {
 		/* brightness up */
@@ -139,12 +118,12 @@ static void mainboard_smi_handle_ec_sci(void)
 		case 0x27:
 			/* Undock Key */
 		case 0x50:
-			mainboard_io_trap_handler(SMI_DOCK_DISCONNECT);
+			mainboard_smi_dock_disconnect();
 			break;
 			/* Dock Event */
 		case 0x37:
 		case 0x58:
-			mainboard_io_trap_handler(SMI_DOCK_CONNECT);
+			mainboard_smi_dock_connect();
 			break;
 		default:
 			break;

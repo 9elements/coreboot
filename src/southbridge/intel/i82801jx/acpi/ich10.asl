@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* Intel 82801Ix support */
 
@@ -20,15 +6,6 @@
 
 Scope(\)
 {
-	// IO-Trap at 0x800. This is the ACPI->SMI communication interface.
-
-	OperationRegion(IO_T, SystemIO, 0x800, 0x10)
-	Field(IO_T, ByteAcc, NoLock, Preserve)
-	{
-		Offset(0x8),
-		TRP0, 8		// IO-Trap at 0x808
-	}
-
 	// ICH10 Power Management Registers, located at PMBASE (0x1f.0 0x40.l)
 	OperationRegion(PMIO, SystemIO, DEFAULT_PMBASE, 0x80)
 	Field(PMIO, ByteAcc, NoLock, Preserve)
@@ -47,7 +24,7 @@ Scope(\)
 	OperationRegion(GPIO, SystemIO, DEFAULT_GPIOBASE, 0x3c)
 	Field(GPIO, ByteAcc, NoLock, Preserve)
 	{
-		Offset(0x00),	// GPIO Use Select
+				// GPIO Use Select
 		GU00, 8,
 		GU01, 8,
 		GU02, 8,
@@ -126,7 +103,7 @@ Scope(\)
 
 
 	// ICH10 Root Complex Register Block. Memory Mapped through RCBA)
-	OperationRegion(RCRB, SystemMemory, DEFAULT_RCBA, 0x4000)
+	OperationRegion(RCRB, SystemMemory, CONFIG_FIXED_RCBA_MMIO_BASE, CONFIG_RCBA_LENGTH)
 	Field(RCRB, DWordAcc, Lock, Preserve)
 	{
 		Offset(0x0000), // Backbone
@@ -166,7 +143,7 @@ Scope(\)
 }
 
 // 0:1b.0 High Definition Audio (Azalia)
-#include "audio.asl"
+#include <southbridge/intel/common/acpi/audio_ich.asl>
 
 // PCI Express Ports
 #include <southbridge/intel/common/acpi/pcie.asl>
@@ -184,12 +161,12 @@ Scope(\)
 #include "sata.asl"
 
 // SMBus
-#include "smbus.asl"
+#include <southbridge/intel/common/acpi/smbus.asl>
 
 Method (_OSC, 4)
 {
 	/* Check for proper GUID */
-	If (LEqual (Arg0, ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766")))
+	If (Arg0 == ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766"))
 	{
 		/* Let OS control everything */
 		Return (Arg3)
@@ -198,7 +175,7 @@ Method (_OSC, 4)
 	{
 		/* Unrecognized UUID */
 		CreateDWordField (Arg3, 0, CDW1)
-		Or (CDW1, 4, CDW1)
+		CDW1 |= 4
 		Return (Arg3)
 	}
 }

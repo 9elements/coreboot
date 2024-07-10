@@ -1,21 +1,8 @@
-##
-## This file is part of the superiotool project.
-##
-## Copyright (C) 2007-2010 Uwe Hermann <uwe@hermann-uwe.de>
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; either version 2 of the License, or
-## (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
+# SPDX-License-Identifier: GPL-2.0-or-later
 
 PROGRAM = superiotool
 
+TOP     ?= $(abspath ../..)
 CC      ?= gcc
 INSTALL ?= /usr/bin/env install
 PREFIX  ?= /usr/local
@@ -25,19 +12,20 @@ PREFIX  ?= /usr/local
 VERSION := -D'SUPERIOTOOL_VERSION="$(shell git describe 2>/dev/null)"'
 
 CFLAGS += -O2 -Wall -Wstrict-prototypes -Wundef -Wstrict-aliasing \
-         -Werror-implicit-function-declaration -ansi -pedantic $(VERSION)
+         -Werror-implicit-function-declaration -std=c99 -pedantic $(VERSION) \
+         -Wno-variadic-macros -I $(TOP)/src/commonlib/bsd/include
 LDFLAGS += -lz
 
 OBJS = superiotool.o serverengines.o ali.o exar.o fintek.o ite.o nsc.o \
-       nuvoton.o smsc.o winbond.o infineon.o
+       nuvoton.o smsc.o winbond.o infineon.o aspeed.o
 
-OS_ARCH = $(shell uname)
+OS_ARCH ?= $(shell uname)
 ifeq ($(OS_ARCH), Darwin)
 LIBS = -framework IOKit -framework DirectHW -lpci -lz
 endif
 ifeq ($(OS_ARCH), FreeBSD)
 CFLAGS = -O2 -Wall -Werror -Wstrict-prototypes -Wundef -Wstrict-aliasing \
-         -Werror-implicit-function-declaration -ansi $(VERSION) \
+         -Werror-implicit-function-declaration -std=c99 $(VERSION) \
          -I/usr/local/include
 LDFLAGS += -L/usr/local/lib
 LIBS = -lz
@@ -68,9 +56,9 @@ $(PROGRAM): $(OBJS) superiotool.h
 	$(CC) $(LDFLAGS) -o $(PROGRAM) $(OBJS) $(LIBS)
 
 install: $(PROGRAM)
-	mkdir -p $(DESTDIR)$(PREFIX)/sbin
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/sbin
 	$(INSTALL) $(PROGRAM) $(DESTDIR)$(PREFIX)/sbin
-	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man8
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/share/man/man8
 	$(INSTALL) -p -m644 $(PROGRAM).8 $(DESTDIR)$(PREFIX)/share/man/man8
 
 clean:
@@ -103,7 +91,7 @@ export LIBPCI_TEST
 pciutils:
 	@printf "\nChecking for pciutils and zlib... "
 	@echo "$$LIBPCI_TEST" > .test.c
-	@$(CC) $(CFLAGS) .test.c -o .test $(LIBS) >/dev/null 2>&1 &&	  \
+	@$(CC) $(CFLAGS) .test.c -o .test $(LIBS) $(LDFLAGS) >/dev/null 2>&1 &&	  \
 		printf "found.\n" || ( printf "not found.\n\n";		  \
 		printf "Please install pciutils-devel and zlib-devel.\n"; \
 		printf "See README for more information.\n\n";		  \

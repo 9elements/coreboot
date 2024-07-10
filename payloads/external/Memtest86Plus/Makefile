@@ -1,27 +1,32 @@
-##
-## This file is part of the coreboot project.
-##
-## Copyright (C) 2016 Google Inc.
-##
-## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
-## the Free Software Foundation; version 2 of the License.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
-##
-
-TAG-$(CONFIG_MEMTEST_MASTER)=origin/master
-NAME-$(CONFIG_MEMTEST_MASTER)=Master
-TAG-$(CONFIG_MEMTEST_STABLE)=3754fd440f4009b62244e0f95c56bbb12c2fffcb
-NAME-$(CONFIG_MEMTEST_STABLE)=Stable
-TAG-$(CONFIG_MEMTEST_REVISION)=$(CONFIG_MEMTEST_REVISION_ID)
+## SPDX-License-Identifier: GPL-2.0-only
 
 project_name=Memtest86+
-project_dir=$(CURDIR)/memtest86plus
+
+ifeq ($(CONFIG_MEMTEST86PLUS_V6),y)
+project_dir=$(CURDIR)/memtest86plus_v6
+
+ifeq ($(MEMTEST86PLUS_ARCH_64),y)
+build_dir=$(project_dir)/build64
+else
+build_dir=$(project_dir)/build32
+endif
+project_git_repo=https://github.com/memtest86plus/memtest86plus.git
+TAG-$(CONFIG_MEMTEST_MAIN)=origin/main
+NAME-$(CONFIG_MEMTEST_MAIN)=Main
+TAG-$(CONFIG_MEMTEST_STABLE)=v6.20
+NAME-$(CONFIG_MEMTEST_STABLE)=Stable
+TAG-$(CONFIG_MEMTEST_REVISION)=$(CONFIG_MEMTEST_REVISION_ID)
+else
+project_dir=$(CURDIR)/memtest86plus_v5
+
+build_dir=$(project_dir)
 project_git_repo=https://review.coreboot.org/memtest86plus.git
+TAG-$(CONFIG_MEMTEST_MAIN)=origin/main
+NAME-$(CONFIG_MEMTEST_MAIN)=Main
+TAG-$(CONFIG_MEMTEST_STABLE)=0bd34c22604660e4283316331f3e7bf8a3863753
+NAME-$(CONFIG_MEMTEST_STABLE)=Stable
+TAG-$(CONFIG_MEMTEST_REVISION)=$(CONFIG_MEMTEST_REVISION_ID)
+endif
 
 all: build
 
@@ -38,24 +43,27 @@ ifeq ($(CONFIG_MEMTEST_REVISION),y)
 endif
 	false
 endif
-	-cd $(project_dir); git show $(TAG-y) >/dev/null 2>&1 ; \
-		if [ $$? -ne 0 ] || [ "$(TAG-y)" = "origin/master" ]; then \
+	-cd $(project_dir) 2>/dev/null; git show $(TAG-y) >/dev/null 2>&1 ; \
+		if [ $$? -ne 0 ] || [ "$(TAG-y)" = "origin/main" ]; then \
 		echo "    Fetching new commits from the $(project_name) git repo"; \
 		git fetch; fi
 
 checkout: fetch
 	echo "    Checking out $(project_name) revision $(NAME-y) ($(TAG-y))"
 	cd $(project_dir); \
-		git checkout master; \
+		git checkout main; \
 		git branch -D coreboot 2>/dev/null; \
 		git checkout -b coreboot $(TAG-y)
 
 build: checkout
 	echo "    MAKE       $(project_name) $(NAME-y)"
-	$(MAKE) -C $(project_dir) all
+	$(MAKE) -C $(build_dir) all
+ifeq ($(CONFIG_MEMTEST86PLUS_V6),y)
+	cp $(build_dir)/memtest.bin $(project_dir)/memtest
+endif
 
 clean:
-	test -d $(project_dir) && $(MAKE) -C $(project_dir) clean || exit 0
+	test -d $(build_dir) && $(MAKE) -C $(build_dir) clean || exit 0
 
 distclean:
 	rm -rf $(project_dir)
@@ -63,4 +71,4 @@ distclean:
 print-repo-info:
 	echo "$(project_git_repo) $(project_dir)"
 
-.PHONY: all build checkout clean distclean fetch print-repo-info
+.PHONY: all build checkout check_version clean distclean fetch print-repo-info

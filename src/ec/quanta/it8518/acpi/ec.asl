@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The mainboard must define a PNOT method to handle power
@@ -23,13 +10,13 @@ Device (EC0)
 {
 	Name (_HID, EISAID ("PNP0C09"))
 	Name (_UID, 1)
-	Name (_GPE, Add(EC_SCI_GPI, 16)) // GPE for Runtime SCI
+	Name (_GPE, EC_SCI_GPI + 16) // GPE for Runtime SCI
 
 	// EC RAM fields
 	OperationRegion(ERAM, EmbeddedControl, 0, 0xFF)
 	Field (ERAM, ByteAcc, NoLock, Preserve)
 	{
-		Offset(0x00),   // [Configuration Space 0]
+				//   [Configuration Space 0]
 		    , 1,        //   Reserved bit[0]
 		ENGA, 1,        //   Enable Global attention
 		ENHY, 1,        //   Enable Hotkey function
@@ -457,7 +444,7 @@ Device (EC0)
 		MBTH, 4,        //   bit 3-0: battery 0 highest level
 		SBTH, 4,        //   bit 7-4: battery 1 highest level
 		                //   note: if highest level is 0 or 0xF, it means not defined
-		                //         (in this case, use default hightest level, it is 6)
+		                //         (in this case, use default highest level, it is 6)
 
 		Offset(0xEF),   // [EC Function Specification Major Version]
 		Offset(0xF0),   // [Build ID]~ offset:0F7h
@@ -557,20 +544,19 @@ Device (EC0)
 	Method (_REG, 2, NotSerialized)
 	{
 		// Initialize AC power state
-		Store (ACPW, \PWRS)
+		\PWRS = ACPW
 
 		// Initialize LID switch state
-		Store (NOT(HPLD), \LIDS)
+		\LIDS = ~HPLD
 
 		// Enable OS control of fan speed
-		// TODO Store (One, FCOS)
+		// TODO FCOS = 1
 
 		// Force a read of CPU temperature
 		// TODO Which temperature corresponds to the CPU?
-		Store (TMP0, Local0)
+		Local0 = TMP0
 		/* So that we don't get a warning that Local0 is unused.  */
-		Increment (Local0)
-
+		Local0++
 	}
 
 /* Attention Codes
@@ -607,7 +593,7 @@ Device (EC0)
 	// AC Power Connected
 	Method (_Q26, 0, NotSerialized)
 	{
-		Store (One, \PWRS)
+		\PWRS = 1
 		Notify (AC, 0x80)
 		Notify (BATX, 0x80)
 		\PNOT ()
@@ -616,7 +602,7 @@ Device (EC0)
 	// AC Power Removed
 	Method (_Q27, 0, NotSerialized)
 	{
-		Store (Zero, \PWRS)
+		\PWRS = 0
 		Notify (AC, 0x80)
 		\PNOT ()
 	}
@@ -624,14 +610,14 @@ Device (EC0)
 	// LID Open
 	Method (_Q2A)
 	{
-		Store (One, \LIDS)
+		\LIDS = 1
 		Notify (\_SB.LID0, 0x80)
 	}
 
 	// LID Close (Suspend Trigger)
 	Method (_Q2B)
 	{
-		Store (Zero, \LIDS)
+		\LIDS = 0
 		Notify (\_SB.LID0, 0x80)
 	}
 
@@ -654,7 +640,7 @@ Device (EC0)
 	{
 		IF (DCWL) //if Wlan exist
 		{
-			//TODO Store (WLAT, LANE)
+			//TODO LANE = WLAT
 		}
 	}
 

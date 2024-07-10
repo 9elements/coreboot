@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_RODA_RK886EX
 
 config BOARD_SPECIFIC_OPTIONS
@@ -18,22 +20,17 @@ config BOARD_SPECIFIC_OPTIONS
 	select HAVE_ACPI_RESUME
 	select BOARD_ROMSIZE_KB_1024
 	select INTEL_INT15
+	select BOOT_DEVICE_NOT_SPI_FLASH
 
 config MAINBOARD_DIR
-	string
-	default roda/rk886ex
+	default "roda/rk886ex"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "RK886EX"
 
 config IRQ_SLOT_COUNT
 	int
 	default 18
-
-config MAX_CPUS
-	int
-	default 4
 
 config MAXIMUM_SUPPORTED_FREQUENCY
 	int

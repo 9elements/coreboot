@@ -1,51 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <device/pci_ops.h>
-#include <southbridge/intel/ibexpeak/nvs.h>
 #include <southbridge/intel/common/pmutil.h>
-#include <northbridge/intel/nehalem/nehalem.h>
+#include <northbridge/intel/ironlake/ironlake.h>
 #include <ec/acpi/ec.h>
-
-static void mainboard_smm_init(void)
-{
-	printk(BIOS_DEBUG, "initializing SMI\n");
-}
-
-int mainboard_io_trap_handler(int smif)
-{
-	static int smm_initialized;
-
-	if (!smm_initialized) {
-		mainboard_smm_init();
-		smm_initialized = 1;
-	}
-
-	switch (smif) {
-
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 1
-	 * On failure, the IO Trap Handler returns a value != 1 */
-	return 1;
-}
 
 void mainboard_smi_gpi(u32 gpi_sts)
 {

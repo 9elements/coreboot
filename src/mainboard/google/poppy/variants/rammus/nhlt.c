@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <baseboard/variants.h>
 #include <console/console.h>
@@ -29,7 +16,8 @@ void variant_nhlt_init(struct nhlt *nhlt)
 		printk(BIOS_ERR, "Couldn't add Dialog DA7219.\n");
 
 	/* Maxim MAX98927 Smart Amps for left and right channel */
-	if (nhlt_soc_add_max98927(nhlt, AUDIO_LINK_SSP0))
+	/* Render time_slot is 0 and feedback time_slot is 2 */
+	if (nhlt_soc_add_max98927(nhlt, AUDIO_LINK_SSP0, 0, 2))
 		printk(BIOS_ERR, "Couldn't add Maxim MAX98927\n");
 
 }

@@ -1,17 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Early initialization code for riscv
- *
- * Copyright 2015 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
- * GNU General Public License for more details.
  */
 
 #include <bits.h>
@@ -91,7 +80,7 @@
   csrrw  t0,mscratch,x0
   csrr   s0,mstatus
   csrr   t1,mepc
-  csrr   t2,mbadaddr
+  csrr   t2,mtval
   csrr   t3,mcause
   STORE  t0,2*REGBYTES(x2)
   STORE  s0,32*REGBYTES(x2)
@@ -121,7 +110,7 @@ trap_entry:
 .Lsmp_hang:
   bnez sp, .Lsmp_hang
 
-  # Use a different stack than in the main context, to to avoid overwriting
+  # Use a different stack than in the main context, to avoid overwriting
   # stack data.
   # TODO: Maybe use the old stack pointer (plus an offset) instead. But only if
   # the previous mode was M, because it would be a very bad idea to use a stack
@@ -132,7 +121,12 @@ trap_entry:
 
   save_tf
   move  a0,sp
-  jal trap_handler
+
+  # store pointer to stack frame (moved out from trap_handler)
+  csrw  mscratch, sp
+
+  LOAD	t0, trap_handler
+  jalr	t0
 
 trap_return:
 	csrr	a0, mscratch

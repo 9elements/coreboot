@@ -1,20 +1,6 @@
-/*
- * This file is part of the coreboot project.
- *
- * It was taken from the Linux kernel (include/linux/usb/ehci_def.h).
- *
- * Copyright (C) 2001-2002 David Brownell
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
+ /* This came from the Linux kernel (include/linux/usb/ehci_def.h). */
 
 #ifndef EHCI_H
 #define EHCI_H
@@ -54,10 +40,8 @@ struct ehci_caps {
 	u8		portroute[8];	 /* nibbles for routing - offset 0xC */
 } __packed;
 
-
 /* Section 2.3 Host Controller Operational Registers */
 struct ehci_regs {
-
 	/* USBCMD: offset 0x00 */
 	u32		command;
 
@@ -113,7 +97,7 @@ struct ehci_regs {
 #define FLAG_CF		(1<<0)		/* true: we'll support "high speed" */
 
 	/* PORTSC: offset 0x44 */
-	u32		port_status[0];	/* up to N_PORTS */
+	u32		port_status[];	/* up to N_PORTS */
 /* EHCI 1.1 addendum */
 #define PORTSC_SUSPEND_STS_ACK 0
 #define PORTSC_SUSPEND_STS_NYET 1

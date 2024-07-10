@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #define FV_SIGNATURE 0x4856465f
 typedef struct {
@@ -45,3 +32,8 @@ typedef struct {
 	uint8_t size[3];
 	uint8_t section_type;
 } common_section_header_t;
+
+typedef struct {
+	uint8_t  guid[16];
+	uint32_t ext_header_size;
+} firmware_volume_ext_header_t;

@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef SOC_INTEL_COMMON_BLOCK_PCR_H
 #define SOC_INTEL_COMMON_BLOCK_PCR_H
@@ -20,7 +7,8 @@
 #define PCR_PORTID_SHIFT	16
 
 #if !defined(__ACPI__)
-#include <stdint.h>
+#include <types.h>
+#include <device/pci_ops.h>
 
 uint32_t pcr_read32(uint8_t pid, uint16_t offset);
 uint16_t pcr_read16(uint8_t pid, uint16_t offset);
@@ -40,13 +28,13 @@ void pcr_or8(uint8_t pid, uint16_t offset, uint8_t ordata);
 
 /* SBI command */
 enum {
-	MEM_READ = 0,
-	MEM_WRITE = 1,
-	PCI_CONFIG_READ = 4,
-	PCI_CONFIG_WRITE = 5,
-	PCR_READ = 6,
-	PCR_WRITE = 7,
-	GPIO_LOCK_UNLOCK = 13,
+	MEM_READ = 0x00,
+	MEM_WRITE = 0x01,
+	PCI_CONFIG_READ = 0x04,
+	PCI_CONFIG_WRITE = 0x05,
+	PCR_READ = 0x06,
+	PCR_WRITE = 0x07,
+	GPIO_LOCK_UNLOCK = 0x13,
 };
 
 struct pcr_sbi_msg {
@@ -58,7 +46,6 @@ struct pcr_sbi_msg {
 	uint16_t bar; /* 0x09 - base address */
 	uint16_t fid; /* 0x0B - Function ID */
 };
-
 
 /*
  * API to perform sideband communication
@@ -76,7 +63,7 @@ struct pcr_sbi_msg {
  * 0: SBI message is successfully completed
  * -1: SBI message failure
  */
-int pcr_execute_sideband_msg(struct pcr_sbi_msg *msg, uint32_t *data,
+int pcr_execute_sideband_msg(pci_devfn_t dev, struct pcr_sbi_msg *msg, uint32_t *data,
 		uint8_t *response);
 
 /* Get the starting address of the port's registers. */

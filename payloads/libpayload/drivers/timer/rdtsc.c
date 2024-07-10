@@ -1,5 +1,4 @@
 /*
- * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
  *
@@ -34,6 +33,7 @@
 
 #include <libpayload.h>
 #include <arch/rdtsc.h>
+#include <assert.h>
 
 uint64_t timer_hz(void)
 {

@@ -1,33 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <soc/iomap.h>
 #include <soc/irq.h>
 
 Scope(\)
 {
-	/* IO-Trap at 0x800. This is the ACPI->SMI communication interface. */
-
-	OperationRegion(IO_T, SystemIO, 0x800, 0x10)
-	Field(IO_T, ByteAcc, NoLock, Preserve)
-	{
-		Offset(0x8),
-		TRP0, 8		/* IO-Trap at 0x808 */
-	}
-
 	/* Intel Legacy Block */
 	OperationRegion(ILBS, SystemMemory, ILB_BASE_ADDRESS, ILB_BASE_SIZE)
 	Field (ILBS, AnyAcc, NoLock, Preserve)
@@ -44,10 +21,11 @@ Scope(\)
 	}
 }
 
+External (\TOLM, IntObj)
+
 Name(_HID,EISAID("PNP0A08"))	/* PCIe */
 Name(_CID,EISAID("PNP0A03"))	/* PCI */
 
-Name(_ADR, 0)
 Name(_BBN, 0)
 
 Method (_CRS, 0, Serialized)
@@ -159,11 +137,11 @@ Method (_CRS, 0, Serialized)
 				0x00000000, 0x20000000, 0x201FFFFF, 0x00000000,
 				0x00200000,,, LMEM)
 
-		/* PCI Memory Region (Top of memory-0xfeafffff) */
+		/* PCI Memory Region (Top of memory-CONFIG_ECAM_MMCONF_BASE_ADDRESS) */
 		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
 				Cacheable, ReadWrite,
-				0x00000000, 0xfea00000, 0xfeafffff, 0x00000000,
-				0x00100000,,, PMEM)
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0x00000000,,, PMEM)
 
 		/* TPM Area (0xfed40000-0xfed44fff) */
 		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
@@ -176,17 +154,17 @@ Method (_CRS, 0, Serialized)
 	CreateDWordField (MCRS, LMEM._MIN, LMIN)
 	CreateDWordField (MCRS, LMEM._MAX, LMAX)
 	CreateDWordField (MCRS, LMEM._LEN, LLEN)
-	If (LAnd (LNotEqual (LPFW, Zero), LEqual (LPEN, One)))
+	If (LPFW != 0 && LPEN == 1)
 	{
-		Store (LPFW, LMIN)
-		Store (Add (LMIN, 0x001FFFFF), LMAX)
-		Store (0x00200000, LLEN)
+		LMIN = LPFW
+		LMAX = LMIN + 0x001FFFFF
+		LLEN = 0x00200000
 	}
 	Else
 	{
-		Store (Zero, LMIN)
-		Store (Zero, LMAX)
-		Store (Zero, LLEN)
+		LMIN = 0
+		LMAX = 0
+		LLEN = 0
 	}
 
 	/* Update PCI resource area */
@@ -195,9 +173,9 @@ Method (_CRS, 0, Serialized)
 	CreateDwordField(MCRS, PMEM._LEN, PLEN)
 
 	/* TOLM is BMBOUND accessible from IOSF so is saved in NVS */
-	Store (\TOLM, PMIN)
-	Store (Subtract(CONFIG_MMCONF_BASE_ADDRESS, 1), PMAX)
-	Add (Subtract (PMAX, PMIN), 1, PLEN)
+	PMIN = \TOLM
+	PMAX = CONFIG_ECAM_MMCONF_BASE_ADDRESS - 1
+	PLEN = PMAX - PMIN + 1
 
 	Return (MCRS)
 }
@@ -210,7 +188,6 @@ Device (PDRC)
 
 	Name (PDRS, ResourceTemplate() {
 		Memory32Fixed(ReadWrite, ABORT_BASE_ADDRESS, ABORT_BASE_SIZE)
-		Memory32Fixed(ReadWrite, MCFG_BASE_ADDRESS, MCFG_BASE_SIZE)
 		Memory32Fixed(ReadWrite, PMC_BASE_ADDRESS, PMC_BASE_SIZE)
 		Memory32Fixed(ReadWrite, ILB_BASE_ADDRESS, ILB_BASE_SIZE)
 		Memory32Fixed(ReadWrite, SPI_BASE_ADDRESS, SPI_BASE_SIZE)
@@ -229,7 +206,7 @@ Device (PDRC)
 Method (_OSC, 4)
 {
 	/* Check for proper GUID */
-	If (LEqual (Arg0, ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766")))
+	If (Arg0 == ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766"))
 	{
 		/* Let OS control everything */
 		Return (Arg3)
@@ -238,7 +215,7 @@ Method (_OSC, 4)
 	{
 		/* Unrecognized UUID */
 		CreateDWordField (Arg3, 0, CDW1)
-		Or (CDW1, 4, CDW1)
+		CDW1 |= 4
 		Return (Arg3)
 	}
 }
@@ -259,8 +236,17 @@ Device (IOSF)
 	Method (_CRS)
 	{
 		CreateDwordField (^RBUF, ^RBAR._BAS, RBAS)
-		Store (Add (MCFG_BASE_ADDRESS, 0xD0), RBAS)
+		RBAS = CONFIG_ECAM_MMCONF_BASE_ADDRESS + 0xD0
 		Return (^RBUF)
+	}
+
+	Method (_STA)
+	{
+#if CONFIG(CHROMEOS)
+		Return (0xF)
+#else
+		Return (0x0)
+#endif
 	}
 }
 
@@ -287,3 +273,6 @@ Scope (\_SB.PCI0)
 	/* SCC Devices */
 	#include "scc.asl"
 }
+
+/* Integrated graphics 0:2.0 */
+#include <drivers/intel/gma/acpi/gfx.asl>

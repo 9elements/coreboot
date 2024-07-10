@@ -1,18 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * This file is part of the coreboot project.
- *
- * Copyright 2018       Facebook, Inc.
- * Copyright 2003-2017  Cavium Inc.  <support@cavium.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  * Derived from Cavium's BSD-3 Clause OCTEONTX-SDK-6.2.0.
  */
 
@@ -175,7 +163,7 @@ static size_t ecam0_pci_enable_msix(struct device *dev,
 	}
 	nr_entries = pci_msix_table_size(dev);
 	if (nvec > nr_entries) {
-		printk(BIOS_ERR, "ERROR: %s: Specified to many table entries\n",
+		printk(BIOS_ERR, "%s: Specified to many table entries\n",
 		       dev_path(dev));
 		return nr_entries;
 	}
@@ -189,13 +177,13 @@ static size_t ecam0_pci_enable_msix(struct device *dev,
 	offset = 0;
 	bar_idx = 0;
 	if (pci_msix_table_bar(dev, &offset, &bar_idx)) {
-		printk(BIOS_ERR, "ERROR: %s: Failed to find MSI-X entry\n",
+		printk(BIOS_ERR, "%s: Failed to find MSI-X entry\n",
 		       dev_path(dev));
 		return -1;
 	}
 	bar = ecam0_get_bar_val(dev, bar_idx);
 	if (!bar) {
-		printk(BIOS_ERR, "ERROR: %s: Failed to find MSI-X bar\n",
+		printk(BIOS_ERR, "%s: Failed to find MSI-X bar\n",
 		       dev_path(dev));
 		return -1;
 	}
@@ -238,12 +226,12 @@ static void ecam0_init(struct device *dev)
 	 * Search for missing devices on BUS 1.
 	 * Only required for ARI capability programming.
 	 */
-	ecam0_fix_missing_devices(bridge->link_list);
+	ecam0_fix_missing_devices(bridge->downstream);
 
 	/* Program secure ARI capability on bus 1 */
 	child_last = NULL;
 	for (i = 0; i <= PCI_DEVFN(0x1f, 7); i++) {
-		child = pcidev_path_behind(bridge->link_list, i);
+		child = pcidev_path_behind(bridge->downstream, i);
 		if (!child || !child->enabled)
 			continue;
 
@@ -262,7 +250,7 @@ static void ecam0_init(struct device *dev)
 	/* Program insecure ARI capability on bus 1 */
 	child_last = NULL;
 	for (i = 0; i <= PCI_DEVFN(0x1f, 7); i++) {
-		child = pcidev_path_behind(bridge->link_list, i);
+		child = pcidev_path_behind(bridge->downstream, i);
 		if (!child)
 			continue;
 		config = child->chip_info;
@@ -293,7 +281,7 @@ static void ecam0_init(struct device *dev)
 
 	/* Enable / disable devices and functions on bus 1 */
 	for (i = 0; i <= PCI_DEVFN(0x1f, 7); i++) {
-		child = pcidev_path_behind(bridge->link_list, i);
+		child = pcidev_path_behind(bridge->downstream, i);
 		config = child ? child->chip_info : NULL;
 		if (child && child->enabled &&
 		    ((config && !config->secure) || !config))
@@ -305,7 +293,7 @@ static void ecam0_init(struct device *dev)
 	/* Apply IRQ on PCI devices */
 	/* UUA */
 	for (i = 0; i < 4; i++) {
-		child = pcidev_path_behind(bridge->link_list,
+		child = pcidev_path_behind(bridge->downstream,
 				      PCI_DEVFN(8, i));
 		if (!child)
 			continue;
@@ -322,9 +310,7 @@ static void ecam0_init(struct device *dev)
 }
 
 struct device_operations pci_domain_ops_ecam0 = {
-	.set_resources    = NULL,
-	.enable_resources = NULL,
 	.read_resources   = ecam0_read_resources,
 	.init             = ecam0_init,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 };

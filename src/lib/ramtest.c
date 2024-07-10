@@ -1,9 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <stdint.h>
-#include <lib.h> /* Prototypes */
+#include <lib.h>
 #include <console/console.h>
 #include <device/mmio.h>
 
-#if CONFIG(ARCH_X86) && CONFIG(SSE2)
+#if ENV_X86 && CONFIG(SSE2)
 /* Assembler in lib/ is ugly. */
 static void write_phys(uintptr_t addr, u32 value)
 {
@@ -22,7 +24,7 @@ static void phys_memory_barrier(void)
 #else
 static void write_phys(uintptr_t addr, u32 value)
 {
-	write32((void *)addr, value);
+	write32p(addr, value);
 }
 
 static void phys_memory_barrier(void)
@@ -33,7 +35,7 @@ static void phys_memory_barrier(void)
 
 static u32 read_phys(uintptr_t addr)
 {
-	return read32((void *)addr);
+	return read32p(addr);
 }
 
 /**
@@ -67,7 +69,7 @@ static inline void test_pattern(unsigned short int idx,
  *
  * @param start   System memory offset, aligned to 128bytes
  */
-static int ram_bitset_nodie(unsigned long start)
+static int ram_bitset_nodie(uintptr_t start)
 {
 	unsigned long addr, value, value2;
 	unsigned short int idx;
@@ -108,7 +110,7 @@ static int ram_bitset_nodie(unsigned long start)
 		}
 	}
 	if (failures) {
-		post_code(0xea);
+		post_code(POSTCODE_RAM_FAILURE);
 		printk(BIOS_DEBUG, "\nDRAM did _NOT_ verify!\n");
 		return 1;
 	}
@@ -117,7 +119,7 @@ static int ram_bitset_nodie(unsigned long start)
 }
 
 
-void ram_check(unsigned long start, unsigned long stop)
+void ram_check(uintptr_t start)
 {
 	/*
 	 * This is much more of a "Is my DRAM properly configured?"
@@ -131,7 +133,7 @@ void ram_check(unsigned long start, unsigned long stop)
 }
 
 
-int ram_check_nodie(unsigned long start, unsigned long stop)
+int ram_check_nodie(uintptr_t start)
 {
 	int ret;
 	/*
@@ -146,7 +148,7 @@ int ram_check_nodie(unsigned long start, unsigned long stop)
 	return ret;
 }
 
-int ram_check_noprint_nodie(unsigned long start, unsigned long stop)
+int ram_check_noprint_nodie(uintptr_t start)
 {
 	unsigned long addr, value, value2;
 	unsigned short int idx;
@@ -198,7 +200,7 @@ void quick_ram_check_or_die(uintptr_t dst)
 
 	write_phys(dst, backup);
 	if (fail) {
-		post_code(0xea);
+		post_code(POSTCODE_RAM_FAILURE);
 		die("RAM INIT FAILURE!\n");
 	}
 	phys_memory_barrier();

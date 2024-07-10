@@ -1,17 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 .code32
-.section ".text._gdt_", "ax", @progbits
+
+.section .init, "ax", @progbits
+
+.section .init._gdt_, "ax", @progbits
 
 	.globl gdt_init
 gdt_init:
@@ -24,6 +17,23 @@ gdt_init:
 gdtptr:
 	.word	gdt_end - gdt -1 /* compute the table limit */
 	.long	gdt		 /* we know the offset */
+
+#if ENV_X86_64
+.code64
+.section .init._gdt64_, "ax", @progbits
+	.globl gdt_init64
+gdt_init64:
+	movabs	$gdtptr64, %rax
+	lgdt	(%rax)
+	ret
+
+.previous
+	.align	4
+.globl gdtptr64
+gdtptr64:
+	.word	gdt_end - gdt -1 /* compute the table limit */
+	.quad	gdt		 /* we know the offset */
+#endif
 
 	.align	4
 gdt:

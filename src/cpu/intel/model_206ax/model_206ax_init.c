@@ -1,116 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2009 coresystems GmbH
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
-#include <arch/acpi.h>
-#include <arch/cpu.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/msr.h>
-#include <cpu/x86/lapic.h>
 #include <cpu/x86/mp.h>
 #include <cpu/intel/microcode.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/intel/turbo.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/name.h>
-#include <pc80/mc146818rtc.h>
 #include "model_206ax.h"
 #include "chip.h"
-#include <cpu/intel/smm/gen1/smi.h>
+#include <cpu/intel/smm_reloc.h>
 #include <cpu/intel/common/common.h>
-
-/*
- * List of supported C-states in this processor
- *
- * Latencies are typical worst-case package exit time in uS
- * taken from the SandyBridge BIOS specification.
- */
-static acpi_cstate_t cstate_map[] = {
-	{	/* 0: C0 */
-	}, {	/* 1: C1 */
-		.latency = 1,
-		.power = 1000,
-		.resource = {
-			.addrl = 0x00,	/* MWAIT State 0 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{	/* 2: C1E */
-		.latency = 1,
-		.power = 1000,
-		.resource = {
-			.addrl = 0x01,	/* MWAIT State 0 Sub-state 1 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{	/* 3: C3 */
-		.latency = 63,
-		.power = 500,
-		.resource = {
-			.addrl = 0x10,	/* MWAIT State 1 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{	/* 4: C6 */
-		.latency = 87,
-		.power = 350,
-		.resource = {
-			.addrl = 0x20,	/* MWAIT State 2 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{	/* 5: C7 */
-		.latency = 90,
-		.power = 200,
-		.resource = {
-			.addrl = 0x30,	/* MWAIT State 3 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{	/* 6: C7S */
-		.latency = 90,
-		.power = 200,
-		.resource = {
-			.addrl = 0x31,	/* MWAIT State 3 Sub-state 1 */
-			.space_id = ACPI_ADDRESS_SPACE_FIXED,
-			.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,
-			.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,
-			.access_size = ACPI_FFIXEDHW_FLAG_HW_COORD,
-		}
-	},
-	{ 0 }
-};
+#include <smbios.h>
+#include <smp/node.h>
+#include <types.h>
 
 /* Convert time in seconds to POWER_LIMIT_1_TIME MSR value */
 static const u8 power_limit_time_sec_to_msr[] = {
@@ -260,74 +167,79 @@ static void configure_c_states(void)
 	msr.lo |= (1 << 25);	// C3 Auto Demotion Enable
 	msr.lo &= ~(1 << 10);	// Disable IO MWAIT redirection
 	msr.lo |= 7;		// No package C-state limit
+
+	msr.lo |= (1 << 15);	// Lock C-State MSR
 	wrmsr(MSR_PKG_CST_CONFIG_CONTROL, msr);
 
-	msr = rdmsr(MSR_PMG_IO_CAPTURE_ADDR);
-	msr.lo &= ~0x7ffff;
-	msr.lo |= (PMB0_BASE + 4);	// LVL_2 base address
-	msr.lo |= (2 << 16);		// CST Range: C7 is max C-state
-	wrmsr(MSR_PMG_IO_CAPTURE_ADDR, msr);
+	if (boot_cpu()) {
+		/*
+		 * The following MSRs are in scope 'Package', thus it's sufficient
+		 * to write them once on one core.
+		 */
 
-	msr = rdmsr(MSR_MISC_PWR_MGMT);
-	msr.lo &= ~(1 << 0);	// Enable P-state HW_ALL coordination
-	wrmsr(MSR_MISC_PWR_MGMT, msr);
+		msr = rdmsr(MSR_MISC_PWR_MGMT);
+		msr.lo &= ~(1 << 0);	// Enable P-state HW_ALL coordination
+		wrmsr(MSR_MISC_PWR_MGMT, msr);
 
-	msr = rdmsr(MSR_POWER_CTL);
-	msr.lo |= (1 << 18);	// Enable Energy Perf Bias MSR 0x1b0
-	msr.lo |= (1 << 1);	// C1E Enable
-	msr.lo |= (1 << 0);	// Bi-directional PROCHOT#
-	wrmsr(MSR_POWER_CTL, msr);
+		msr = rdmsr(MSR_POWER_CTL);
+		msr.lo |= (1 << 18);	// Enable Energy Perf Bias MSR 0x1b0
+		msr.lo |= (1 << 1);	// C1E Enable
+		msr.lo |= (1 << 0);	// Bi-directional PROCHOT#
+		wrmsr(MSR_POWER_CTL, msr);
 
-	/* C3 Interrupt Response Time Limit */
-	msr.hi = 0;
-	msr.lo = IRTL_VALID | IRTL_1024_NS | 0x50;
-	wrmsr(MSR_PKGC3_IRTL, msr);
+		/* C3 Interrupt Response Time Limit */
+		msr.hi = 0;
+		msr.lo = IRTL_VALID | IRTL_1024_NS | 0x50;
+		wrmsr(MSR_PKGC3_IRTL, msr);
 
-	/* C6 Interrupt Response Time Limit */
-	msr.hi = 0;
-	msr.lo = IRTL_VALID | IRTL_1024_NS | 0x68;
-	wrmsr(MSR_PKGC6_IRTL, msr);
+		/* C6 Interrupt Response Time Limit */
+		msr.hi = 0;
+		msr.lo = IRTL_VALID | IRTL_1024_NS | 0x68;
+		wrmsr(MSR_PKGC6_IRTL, msr);
 
-	/* C7 Interrupt Response Time Limit */
-	msr.hi = 0;
-	msr.lo = IRTL_VALID | IRTL_1024_NS | 0x6D;
-	wrmsr(MSR_PKGC7_IRTL, msr);
+		/* C7 Interrupt Response Time Limit */
+		msr.hi = 0;
+		msr.lo = IRTL_VALID | IRTL_1024_NS | 0x6D;
+		wrmsr(MSR_PKGC7_IRTL, msr);
 
-	/* Primary Plane Current Limit */
-	msr = rdmsr(MSR_PP0_CURRENT_CONFIG);
-	msr.lo &= ~0x1fff;
-	msr.lo |= PP0_CURRENT_LIMIT;
-	wrmsr(MSR_PP0_CURRENT_CONFIG, msr);
+		/* Primary Plane Current Limit */
+		msr = rdmsr(MSR_PP0_CURRENT_CONFIG);
+		msr.lo &= ~0x1fff;
+		msr.lo |= PP0_CURRENT_LIMIT;
+		msr.lo |= PP0_CURRENT_LIMIT_LOCK;
+		wrmsr(MSR_PP0_CURRENT_CONFIG, msr);
 
-	/* Secondary Plane Current Limit */
-	msr = rdmsr(MSR_PP1_CURRENT_CONFIG);
-	msr.lo &= ~0x1fff;
-	if (cpuid_eax(1) >= 0x30600)
-		msr.lo |= PP1_CURRENT_LIMIT_IVB;
-	else
-		msr.lo |= PP1_CURRENT_LIMIT_SNB;
-	wrmsr(MSR_PP1_CURRENT_CONFIG, msr);
+		/* Secondary Plane Current Limit */
+		msr = rdmsr(MSR_PP1_CURRENT_CONFIG);
+		msr.lo &= ~0x1fff;
+		if (IS_IVY_CPU(cpu_get_cpuid()))
+			msr.lo |= PP1_CURRENT_LIMIT_IVB;
+		else
+			msr.lo |= PP1_CURRENT_LIMIT_SNB;
+		msr.lo |= PP1_CURRENT_LIMIT_LOCK;
+		wrmsr(MSR_PP1_CURRENT_CONFIG, msr);
+	}
 }
 
-static void configure_thermal_target(void)
+static void configure_thermal_target(struct device *dev)
 {
-	struct cpu_intel_model_206ax_config *conf;
-	struct device *lapic;
+	struct cpu_intel_model_206ax_config *conf = dev->upstream->dev->chip_info;
 	msr_t msr;
 
-	/* Find pointer to CPU configuration */
-	lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
-	if (!lapic || !lapic->chip_info)
-		return;
-	conf = lapic->chip_info;
+	if (boot_cpu()) {
+		/*
+		 * The following MSR is in scope 'Package', thus it's sufficient
+		 * to write it once on one core.
+		 */
 
-	/* Set TCC activation offset if supported */
-	msr = rdmsr(MSR_PLATFORM_INFO);
-	if ((msr.lo & (1 << 30)) && conf->tcc_offset) {
-		msr = rdmsr(MSR_TEMPERATURE_TARGET);
-		msr.lo &= ~(0xf << 24); /* Bits 27:24 */
-		msr.lo |= (conf->tcc_offset & 0xf) << 24;
-		wrmsr(MSR_TEMPERATURE_TARGET, msr);
+		/* Set TCC activation offset if supported */
+		msr = rdmsr(MSR_PLATFORM_INFO);
+		if ((msr.lo & (1 << 30)) && conf->tcc_offset) {
+			msr = rdmsr(MSR_TEMPERATURE_TARGET);
+			msr.lo &= ~(0xf << 24); /* Bits 27:24 */
+			msr.lo |= (conf->tcc_offset & 0xf) << 24;
+			wrmsr(MSR_TEMPERATURE_TARGET, msr);
+		}
 	}
 }
 
@@ -346,32 +258,16 @@ static void configure_misc(void)
 	msr.hi = 0;
 	wrmsr(IA32_THERM_INTERRUPT, msr);
 
-	/* Enable package critical interrupt only */
-	msr.lo = 1 << 4;
-	msr.hi = 0;
-	wrmsr(IA32_PACKAGE_THERM_INTERRUPT, msr);
-}
+	if (boot_cpu()) {
+		/*
+		 * The following MSR is in scope 'Package', thus it's sufficient
+		 * to write it once on one core.
+		 */
 
-static void enable_lapic_tpr(void)
-{
-	msr_t msr;
-
-	msr = rdmsr(MSR_PIC_MSG_CONTROL);
-	msr.lo &= ~(1 << 10);	/* Enable APIC TPR updates */
-	wrmsr(MSR_PIC_MSG_CONTROL, msr);
-}
-
-static void configure_dca_cap(void)
-{
-	uint32_t feature_flag;
-	msr_t msr;
-
-	/* Check feature flag in CPUID.(EAX=1):ECX[18]==1 */
-	feature_flag = cpu_get_feature_flags_ecx();
-	if (feature_flag & CPUID_DCA) {
-		msr = rdmsr(IA32_PLATFORM_DCA_CAP);
-		msr.lo |= 1;
-		wrmsr(IA32_PLATFORM_DCA_CAP, msr);
+		/* Enable package critical interrupt only */
+		msr.lo = 1 << 4;
+		msr.hi = 0;
+		wrmsr(IA32_PACKAGE_THERM_INTERRUPT, msr);
 	}
 }
 
@@ -397,33 +293,23 @@ static void set_max_ratio(void)
 	       ((perf_ctl.lo >> 8) & 0xff) * SANDYBRIDGE_BCLK);
 }
 
-static void set_energy_perf_bias(u8 policy)
+unsigned int smbios_cpu_get_max_speed_mhz(void)
 {
 	msr_t msr;
-
-	/* Energy Policy is bits 3:0 */
-	msr = rdmsr(IA32_ENERGY_PERF_BIAS);
-	msr.lo &= ~0xf;
-	msr.lo |= policy & 0xf;
-	wrmsr(IA32_ENERGY_PERF_BIAS, msr);
-
-	printk(BIOS_DEBUG, "model_x06ax: energy policy set to %u\n",
-	       policy);
+	msr = rdmsr(MSR_TURBO_RATIO_LIMIT);
+	return (msr.lo & 0xff) * SANDYBRIDGE_BCLK;
 }
 
-static void configure_mca(void)
+unsigned int smbios_cpu_get_current_speed_mhz(void)
 {
 	msr_t msr;
-	int i;
-	int num_banks;
+	msr = rdmsr(MSR_PLATFORM_INFO);
+	return ((msr.lo >> 8) & 0xff) * SANDYBRIDGE_BCLK;
+}
 
-	msr = rdmsr(IA32_MCG_CAP);
-	num_banks = msr.lo & 0xff;
-
-	msr.lo = msr.hi = 0;
-	/* This should only be done on a cold boot */
-	for (i = 0; i < num_banks; i++)
-		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
+unsigned int smbios_processor_external_clock(void)
+{
+	return SANDYBRIDGE_BCLK;
 }
 
 static void model_206ax_report(void)
@@ -436,9 +322,6 @@ static void model_206ax_report(void)
 	/* Print processor name */
 	fill_processor_name(processor_name);
 	printk(BIOS_INFO, "CPU: %s.\n", processor_name);
-
-	/* Print platform ID */
-	printk(BIOS_INFO, "CPU: platform id %x\n", get_platform_id());
 
 	/* CPUID and features */
 	cpu_id = cpu_get_cpuid();
@@ -455,12 +338,9 @@ static void model_206ax_report(void)
 
 static void model_206ax_init(struct device *cpu)
 {
-
-	/* Turn on caching if we haven't already */
-	x86_enable_cache();
-
 	/* Clear out pending MCEs */
-	configure_mca();
+	/* This should only be done on a cold boot */
+	mca_clear_status();
 
 	/* Print infos */
 	model_206ax_report();
@@ -468,9 +348,7 @@ static void model_206ax_init(struct device *cpu)
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
 
-	/* Enable the local CPU APICs */
 	enable_lapic_tpr();
-	setup_lapic();
 
 	/* Set virtualization based on Kconfig option */
 	set_vmx_and_lock();
@@ -482,7 +360,9 @@ static void model_206ax_init(struct device *cpu)
 	configure_misc();
 
 	/* Thermal throttle activation offset */
-	configure_thermal_target();
+	configure_thermal_target(cpu);
+
+	set_aesni_lock();
 
 	/* Enable Direct Cache Access */
 	configure_dca_cap();
@@ -498,8 +378,6 @@ static void model_206ax_init(struct device *cpu)
 }
 
 /* MP initialization support. */
-static const void *microcode_patch;
-
 static void pre_mp_init(void)
 {
 	/* Setup MTRRs based on physical address size. */
@@ -510,8 +388,8 @@ static void pre_mp_init(void)
 static int get_cpu_count(void)
 {
 	msr_t msr;
-	int num_threads;
-	int num_cores;
+	unsigned int num_threads;
+	unsigned int num_cores;
 
 	msr = rdmsr(MSR_CORE_THREAD_COUNT);
 	num_threads = (msr.lo >> 0) & 0xffff;
@@ -524,9 +402,8 @@ static int get_cpu_count(void)
 
 static void get_microcode_info(const void **microcode, int *parallel)
 {
-	microcode_patch = intel_microcode_find();
-	*microcode = microcode_patch;
-	*parallel = 1;
+	*microcode = intel_microcode_find();
+	*parallel = !intel_ht_supported();
 }
 
 static void per_cpu_smm_trigger(void)
@@ -535,6 +412,7 @@ static void per_cpu_smm_trigger(void)
 	smm_relocate();
 
 	/* After SMM relocation a 2nd microcode load is required. */
+	const void *microcode_patch = intel_microcode_find();
 	intel_microcode_load_unlocked(microcode_patch);
 }
 
@@ -542,12 +420,11 @@ static void post_mp_init(void)
 {
 	/* Now that all APs have been relocated as well as the BSP let SMIs
 	 * start flowing. */
-	southbridge_smm_init();
+	global_smi_enable();
 
 	/* Lock down the SMRAM space. */
 	smm_lock();
 }
-
 
 static const struct mp_ops mp_ops = {
 	.pre_mp_init = pre_mp_init,
@@ -560,10 +437,10 @@ static const struct mp_ops mp_ops = {
 	.post_mp_init = post_mp_init,
 };
 
-void bsp_init_and_start_aps(struct bus *cpu_bus)
+void mp_init_cpus(struct bus *cpu_bus)
 {
-	if (mp_init_with_smm(cpu_bus, &mp_ops))
-		printk(BIOS_ERR, "MP initialization failure.\n");
+	/* TODO: Handle mp_init_with_smm failure? */
+	mp_init_with_smm(cpu_bus, &mp_ops);
 }
 
 static struct device_operations cpu_dev_ops = {
@@ -571,21 +448,12 @@ static struct device_operations cpu_dev_ops = {
 };
 
 static const struct cpu_device_id cpu_table[] = {
-	{ X86_VENDOR_INTEL, 0x206a0 }, /* Intel Sandybridge */
-	{ X86_VENDOR_INTEL, 0x206a6 }, /* Intel Sandybridge D1 */
-	{ X86_VENDOR_INTEL, 0x206a7 }, /* Intel Sandybridge D2/J1 */
-	{ X86_VENDOR_INTEL, 0x306a0 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a2 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a4 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a5 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a6 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a8 }, /* Intel IvyBridge */
-	{ X86_VENDOR_INTEL, 0x306a9 }, /* Intel IvyBridge */
-	{ 0, 0 },
+	{ X86_VENDOR_INTEL, 0x206a0, CPUID_ALL_STEPPINGS_MASK }, /* Intel Sandybridge */
+	{ X86_VENDOR_INTEL, 0x306a0, CPUID_ALL_STEPPINGS_MASK }, /* Intel IvyBridge */
+	CPU_TABLE_END
 };
 
 static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
-	.cstates  = cstate_map,
 };

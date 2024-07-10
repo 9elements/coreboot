@@ -1,26 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Edward O'Callaghan <eocallaghan@alterapraxis.com>
- * Copyright (C) 2015 BAP - Bruhnspace Advanced Projects
- * (Written by Fabian Kunkel <fabi@adv.bruhnspace.com> for BAP)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <device/device.h>
 #include <device/pnp.h>
 #include <superio/conf_mode.h>
-#include <stdlib.h>
 #include <pc80/keyboard.h>
+
 #include "f81866d.h"
 #include "fintek_internal.h"
 
@@ -89,6 +73,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_fintek_f81866d_ops = {
-	CHIP_NAME("Fintek F81866AD-I Super I/O")
+	.name = "Fintek F81866AD-I Super I/O",
 	.enable_dev = enable_dev
 };

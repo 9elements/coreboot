@@ -1,24 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- * Copyright (C) 2011 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <southbridge/intel/common/pmbase.h>
 #include <southbridge/intel/common/tco.h>
@@ -37,23 +21,18 @@ void watchdog_off(void)
 
 	value = pci_read_config16(dev, PCI_COMMAND);
 
-	if (CONFIG(SOUTHBRIDGE_INTEL_FSP_RANGELEY)) {
-		/* Enable I/O space. */
-		value |= PCI_COMMAND_IO;
-	} else {
-		/* Disable interrupt. */
-		value |= PCI_COMMAND_INT_DISABLE;
-	}
+	/* Disable interrupt. */
+	value |= PCI_COMMAND_INT_DISABLE;
 	pci_write_config16(dev, PCI_COMMAND, value);
 
 	/* Disable the watchdog timer. */
 	value = read_pmbase16(PMBASE_TCO_OFFSET + TCO1_CNT);
-	value |= TCO_TMR_HLT;
+	value |= TCO1_TMR_HLT;
 	write_pmbase16(PMBASE_TCO_OFFSET + TCO1_CNT, value);
 
 	/* Clear TCO timeout status. */
-	write_pmbase16(PMBASE_TCO_OFFSET + TCO1_STS, TCO1_TIMEOUT);
-	write_pmbase16(PMBASE_TCO_OFFSET + TCO2_STS, SECOND_TO_STS);
+	write_pmbase16(PMBASE_TCO_OFFSET + TCO1_STS, TCO1_STS_TIMEOUT);
+	write_pmbase16(PMBASE_TCO_OFFSET + TCO2_STS, TCO2_STS_SECOND_TO);
 
 	printk(BIOS_DEBUG, "ICH-NM10-PCH: watchdog disabled\n");
 }

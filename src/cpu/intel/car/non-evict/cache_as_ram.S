@@ -1,45 +1,28 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2000,2007 Ronald G. Minnich <rminnich@gmail.com>
- * Copyright (C) 2007-2008 coresystems GmbH
- * Copyright (C) 2012 Kyösti Mälkki <kyosti.malkki@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/intel/post_codes.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/post_code.h>
-
-#define CACHE_AS_RAM_SIZE (CONFIG_DCACHE_RAM_SIZE \
-		+ CONFIG_DCACHE_RAM_MRC_VAR_SIZE)
-#define CACHE_AS_RAM_BASE CONFIG_DCACHE_RAM_BASE
+#include <cpu/x86/64bit/entry64.inc>
 
 #define NoEvictMod_MSR 0x2e0
 #define BBL_CR_CTL3_MSR 0x11e
 
+.section .init
 .global bootblock_pre_c_entry
+
+#include <cpu/intel/car/cache_as_ram_symbols.inc>
 
 .code32
 _cache_as_ram_setup:
 
 bootblock_pre_c_entry:
-
-#if CONFIG(C_ENVIRONMENT_BOOTBLOCK)
 	movl	$cache_as_ram, %esp /* return address */
 	jmp	check_mtrr /* Check if CPU properly reset */
-#endif
 
 cache_as_ram:
-	post_code(0x20)
+	post_code(POSTCODE_BOOTBLOCK_CAR)
 
 	/* Send INIT IPI to all excluding ourself. */
 	movl	$0x000C4500, %eax
@@ -52,24 +35,25 @@ wait_for_sipi:
 	bt	$12, %eax
 	jc	wait_for_sipi
 
-	post_code(0x21)
+	post_code(POSTCODE_SOC_SET_DEF_MTRR_TYPE)
 	/* Clean-up MTRR_DEF_TYPE_MSR. */
 	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	xorl	%eax, %eax
 	xorl	%edx, %edx
 	wrmsr
 
-	post_code(0x22)
+	post_code(POSTCODE_SOC_CLEAR_FIXED_MTRRS)
 	/* Clear/disable fixed MTRRs */
-	mov	$fixed_mtrr_list_size, %ebx
+	mov	$fixed_mtrr_list, %ebx
 	xor	%eax, %eax
 	xor	%edx, %edx
 
 clear_fixed_mtrr:
-	add	$-2, %ebx
-	movzwl	fixed_mtrr_list(%ebx), %ecx
+	movzwl	(%ebx), %ecx
 	wrmsr
-	jnz	clear_fixed_mtrr
+	add	$2, %ebx
+	cmp	$fixed_mtrr_list_end, %ebx
+	jl	clear_fixed_mtrr
 
 	/* Zero out all variable range MTRRs. */
 	movl	$MTRR_CAP_MSR, %ecx
@@ -105,33 +89,36 @@ addrsize_set_high:
 	movl	$MTRR_PHYS_MASK(1), %ecx
 	wrmsr
 
-
-	post_code(0x23)
+	post_code(POSTCODE_SOC_SET_MTRR_BASE)
 	/* Set Cache-as-RAM base address. */
 	movl	$(MTRR_PHYS_BASE(0)), %ecx
-	movl	$(CACHE_AS_RAM_BASE | MTRR_TYPE_WRBACK), %eax
+	movl	car_mtrr_start, %eax
+	orl	$MTRR_TYPE_WRBACK, %eax
 	xorl	%edx, %edx
 	wrmsr
 
-	post_code(0x24)
+	post_code(POSTCODE_SOC_SET_MTRR_MASK)
 	/* Set Cache-as-RAM mask. */
 	movl	$(MTRR_PHYS_MASK(0)), %ecx
 	rdmsr
-	movl	$(~(CACHE_AS_RAM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
+	mov	car_mtrr_mask, %eax
+	orl	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
 
 	/* Enable cache for our code in Flash because we do XIP here */
 	movl	$MTRR_PHYS_BASE(1), %ecx
 	xorl	%edx, %edx
-	movl	$(CACHE_ROM_BASE | MTRR_TYPE_WRPROT), %eax
+	mov	rom_mtrr_base, %eax
+	orl	$MTRR_TYPE_WRPROT, %eax
 	wrmsr
 
 	movl	$MTRR_PHYS_MASK(1), %ecx
 	rdmsr
-	movl	$(~(CACHE_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
+	mov	rom_mtrr_mask, %eax
+	orl	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
 
-	post_code(0x25)
+	post_code(POSTCODE_SOC_ENABLE_MTRRS)
 
 	/* Enable MTRR. */
 	movl	$MTRR_DEF_TYPE_MSR, %ecx
@@ -189,10 +176,11 @@ end_microcode_update:
 	wrmsr
 
 	/* Clear the cache memory region. This will also fill up the cache. */
-	movl	$CACHE_AS_RAM_BASE, %esi
-	movl	%esi, %edi
-	movl	$(CACHE_AS_RAM_SIZE >> 2), %ecx
+	cld
 	xorl	%eax, %eax
+	movl	$_car_mtrr_start, %edi
+	movl	$_car_mtrr_size, %ecx
+	shr	$2, %ecx
 	rep	stosl
 
 	/* enable the 'no eviction run' state */
@@ -201,7 +189,7 @@ end_microcode_update:
 	orl	$3, %eax
 	wrmsr
 
-	post_code(0x26)
+	post_code(POSTCODE_SOC_DISABLE_CACHE)
 	/* Enable Cache-as-RAM mode by disabling cache. */
 	movl	%cr0, %eax
 	orl	$CR0_CacheDisable, %eax
@@ -212,20 +200,30 @@ end_microcode_update:
 	orl	$MTRR_PHYS_MASK_VALID, %eax
 	wrmsr
 
-	post_code(0x28)
+	post_code(POSTCODE_SOC_ENABLE_CACHE)
 	/* Enable cache. */
 	movl	%cr0, %eax
 	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
 	movl	%eax, %cr0
 
 	/* Setup the stack. */
-	mov	$_car_stack_end, %esp
+	mov	$_ecar_stack, %esp
 
 	/* Need to align stack to 16 bytes at call instruction. Account for
 	the pushes below. */
 	andl	$0xfffffff0, %esp
-	subl	$4, %esp
 
+#if ENV_X86_64
+	setup_longmode $(CONFIG_ARCH_X86_64_PGTBL_LOC)
+
+	movd	%mm2, %rdi
+	shlq	$32, %rdi
+	movd	%mm1, %rsi
+	or	%rsi, %rdi
+	movd	%mm0, %rsi
+
+#else
+	subl	$4, %esp
 	/* push TSC and BIST to stack */
 	movd	%mm0, %eax
 	pushl	%eax	/* BIST */
@@ -233,13 +231,17 @@ end_microcode_update:
 	pushl	%eax	/* tsc[63:32] */
 	movd	%mm1, %eax
 	pushl	%eax	/* tsc[31:0] */
+#endif
+
+	/* Copy .data section content to Cache-As-Ram */
+#include <cpu/x86/copy_data_section.inc>
 
 before_c_entry:
-	post_code(0x29)
+	post_code(POSTCODE_BOOTBLOCK_BEFORE_C_ENTRY)
 	call	bootblock_c_entry_bist
 
 	/* Should never see this postcode */
-	post_code(POST_DEAD_CODE)
+	post_code(POSTCODE_DEAD_CODE)
 
 
 .Lhlt:
@@ -258,6 +260,6 @@ fixed_mtrr_list:
 	.word	MTRR_FIX_4K_E8000
 	.word	MTRR_FIX_4K_F0000
 	.word	MTRR_FIX_4K_F8000
-fixed_mtrr_list_size = . - fixed_mtrr_list
+fixed_mtrr_list_end:
 
 _cache_as_ram_setup_end:

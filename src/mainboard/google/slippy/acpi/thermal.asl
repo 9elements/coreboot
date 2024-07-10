@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2012 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 // Thermal Zone
 
@@ -25,7 +12,7 @@ Scope (\_TZ)
 	//  1 = Start throttling
 	Method (THRT, 1, Serialized)
 	{
-		If (LEqual (Arg0, 0)) {
+		If (Arg0 == 0) {
 			/* Disable Power Limit */
 			\_SB.PCI0.MCHC.CTLD ()
 		} Else {
@@ -48,10 +35,10 @@ Scope (\_TZ)
 		// Convert from Degrees C to 1/10 Kelvin for ACPI
 		Method (CTOK, 1) {
 			// 10th of Degrees C
-			Multiply (Arg0, 10, Local0)
+			Local0 = Arg0 * 10
 
 			// Convert to Kelvin
-			Add (Local0, 2732, Local0)
+			Local0 += 2732
 
 			Return (Local0)
 		}
@@ -77,56 +64,54 @@ Scope (\_TZ)
 		Method (TCHK, 0, Serialized)
 		{
 			// Get Temperature from TIN# set in NVS
-			Store (\_SB.PCI0.LPCB.EC0.TINS (TMPS), Local0)
+			Local0 = \_SB.PCI0.LPCB.EC0.TINS (TMPS)
 
 			// Check for sensor not calibrated
-			If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNCA)) {
+			If (Local0 == \_SB.PCI0.LPCB.EC0.TNCA) {
 				Return (CTOK(0))
 			}
 
 			// Check for sensor not present
-			If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNPR)) {
+			If (Local0 == \_SB.PCI0.LPCB.EC0.TNPR) {
 				Return (CTOK(0))
 			}
 
 			// Check for sensor not powered
-			If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TNOP)) {
+			If (Local0 == \_SB.PCI0.LPCB.EC0.TNOP) {
 				Return (CTOK(0))
 			}
 
 			// Check for sensor bad reading
-			If (LEqual (Local0, \_SB.PCI0.LPCB.EC0.TBAD)) {
+			If (Local0 == \_SB.PCI0.LPCB.EC0.TBAD) {
 				Return (CTOK(0))
 			}
 
 			// Adjust by offset to get Kelvin
-			Add (\_SB.PCI0.LPCB.EC0.TOFS, Local0, Local0)
+			Local0 += \_SB.PCI0.LPCB.EC0.TOFS
 
 			// Convert to 1/10 Kelvin
-			Multiply (Local0, 10, Local0)
+			Local0 *= 10
 			Return (Local0)
 		}
 
 		Method (_TMP, 0, Serialized)
 		{
 			// Get temperature from EC in deci-kelvin
-			Store (TCHK (), Local0)
+			Local0 = TCHK ()
 
 			// Critical temperature in deci-kelvin
-			Store (CTOK (\TCRT), Local1)
+			Local1 = CTOK (\TCRT)
 
-			If (LGreaterEqual (Local0, Local1)) {
-				Store ("CRITICAL TEMPERATURE", Debug)
-				Store (Local0, Debug)
+			If (Local0 >= Local1) {
+				Printf ("CRITICAL TEMPERATURE: %o", Local0)
 
 				// Wait 1 second for EC to re-poll
 				Sleep (1000)
 
 				// Re-read temperature from EC
-				Store (TCHK (), Local0)
+				Local0 = TCHK ()
 
-				Store ("RE-READ TEMPERATURE", Debug)
-				Store (Local0, Debug)
+				Printf ("RE-READ TEMPERATURE: %o", Local0)
 			}
 
 			Return (Local0)

@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016-2017 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <types.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
-#include <device/pci_def.h>
 #include <device/mmio.h>
 #include <hwilib.h>
 #include <bootstate.h>
@@ -33,7 +19,7 @@ static void *nc_fpga_bar0;
 		dst = ((typeof(dst))var); \
 }
 
-static void init_temp_mon (void *base_adr)
+static void init_temp_mon(void *base_adr)
 {
 	uint32_t cc[5], i = 0;
 	uint8_t num = 0;
@@ -45,7 +31,7 @@ static void init_temp_mon (void *base_adr)
 	if ((hwilib_get_field(FANSensorNum, &num, 1) != 1) ||
 	    (num == 0) || (num > MAX_NUM_SENSORS))
 		return;
-	for (i = 0; i < num; i ++) {
+	for (i = 0; i < num; i++) {
 		if (hwilib_get_field(FANSensorCfg0 + i, (uint8_t *)&cc[0],
 		    sizeof(cc)) == sizeof(cc)) {
 			ctrl->sensorcfg[cc[0]].rmin = cc[1] & 0xffff;
@@ -62,7 +48,7 @@ static void init_temp_mon (void *base_adr)
 	FPGA_SET_PARAM(T_Crit, ctrl->t_crit);
 }
 
-static void init_fan_ctrl (void *base_adr)
+static void init_fan_ctrl(void *base_adr)
 {
 	uint8_t mask = 0, freeze_disable = 0, fan_req = 0;
 	volatile fan_ctrl_t *ctrl = (fan_ctrl_t *)base_adr;
@@ -155,19 +141,29 @@ static void set_fw_done(void *unused)
 BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_BOOT, BS_ON_ENTRY, set_fw_done, NULL);
 #endif
 
+static void nc_fpga_set_resources(struct device *dev)
+{
+	pci_dev_set_resources(dev);
+
+	if (CONFIG(NC_FPGA_POST_CODE)) {
+		/* Re-initialize base address after set_resources for POST display
+		   to work properly.*/
+		nc_fpga_remap(pci_read_config32(dev, PCI_BASE_ADDRESS_0) & ~0xf);
+	}
+}
+
+
 static struct device_operations nc_fpga_ops  = {
 	.read_resources   = pci_dev_read_resources,
-	.set_resources    = pci_dev_set_resources,
+	.set_resources    = nc_fpga_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = nc_fpga_init,
-	.scan_bus         = 0,
-	.ops_pci          = 0,
 };
 
 static const unsigned short nc_fpga_device_ids[] = { 0x4080, 0x4091, 0 };
 
 static const struct pci_driver nc_fpga_driver __pci_driver = {
 	.ops    = &nc_fpga_ops,
-	.vendor = PCI_VENDOR_ID_SIEMENS,
+	.vendor = PCI_VID_SIEMENS,
 	.devices = nc_fpga_device_ids,
 };

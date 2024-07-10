@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2019 Google LLC
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * The Realtek r8152 driver in the Linux kernel supports a MAC address
@@ -25,7 +11,7 @@
  * The Linux kernel implementation can be found at
  * drivers/net/usb/r8152.c:vendor_mac_passthru_addr_read()
  *
- * For Chrome OS, the policy which controls where the dock MAC address
+ * For ChromeOS, the policy which controls where the dock MAC address
  * comes from is written into RW_VPD property "dock_passthrough":
  *
  *   "dock_mac" or empty: Use MAC address from RO_VPD value "dock_mac"
@@ -43,22 +29,22 @@ Scope (\_SB)
 		/* Get "dock_passthrough" value from RW_VPD */
 		Local0 = \VPD.VPDF ("RW", "dock_passthrough")
 
-		Local1 = Zero
+		Local1 = 0
 		Switch (ToString (Local0))
 		{
 			Case ("ethernet_mac0") {
 				Local1 = \VPD.VPDF ("RO", "ethernet_mac0")
 			}
 			Case ("builtin") {
-				Return (Zero)
+				Return (0)
 			}
 			/* "dock_mac" or policy not found. */
 			Default {
 				Local1 = \VPD.VPDF ("RO", "dock_mac")
 			}
 		}
-		If (Local1 == Zero) {
-			Return (Zero)
+		If (Local1 == 0) {
+			Return (0)
 		}
 		Printf ("MAC address returned from VPD: %o", Local1)
 
@@ -66,7 +52,7 @@ Scope (\_SB)
 		For (Local3 = 2, Local3 < 17, Local3 += 3) {
 			If (ToString (DerefOf (Local1[Local3])) != ":") {
 				Printf ("Invalid MAC address byte %o", Local3)
-				Return (Zero)
+				Return (0)
 			}
 		}
 

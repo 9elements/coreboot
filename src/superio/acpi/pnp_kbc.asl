@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Christoph Grenz <christophg+cb@grenz-bonn.de>
- * Copyright (C) 2013 secunet Security Networks AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /* =================== Keyboard Controller ================== */
 
@@ -22,8 +8,8 @@
  *
  * Controlled by the following preprocessor defines:
  *
- * SUPERIO_CHIP_NAME	The name of the super i/o chip (unique, required)
- * SUPERIO_KBC_LDN	The logical device number on the super i/o
+ * SUPERIO_CHIP_NAME	The name of the Super I/O chip (unique, required)
+ * SUPERIO_KBC_LDN	The logical device number on the Super I/O
  *			chip for this keyboard controller (required)
  * SUPERIO_KBC_PS2M	If defined, PS/2 mouse support is included in
  *			the KBC_LDN. Mouse irq is set at IRQ1 of the
@@ -60,7 +46,7 @@ Device (SUPERIO_ID(KBD, SUPERIO_KBC_LDN)) {
 	Method (_DIS)
 	{
 		ENTER_CONFIG_MODE (SUPERIO_KBC_LDN)
-		  Store (Zero, PNP_DEVICE_ACTIVE)
+		  PNP_DEVICE_ACTIVE = 0
 		EXIT_CONFIG_MODE ()
 		#if defined(SUPERIO_KBC_PS2LDN)
 		Notify (SUPERIO_ID(PS2, SUPERIO_KBC_PS2LDN), 1)
@@ -109,7 +95,7 @@ Device (SUPERIO_ID(KBD, SUPERIO_KBC_LDN)) {
 		  PNP_WRITE_IO(PNP_IO0, Arg0, IO0)
 		  PNP_WRITE_IO(PNP_IO1, Arg0, IO1)
 		  PNP_WRITE_IRQ(PNP_IRQ0, Arg0, IR0)
-		  Store (One, PNP_DEVICE_ACTIVE)
+		  PNP_DEVICE_ACTIVE = 1
 		EXIT_CONFIG_MODE ()
 		#if defined(SUPERIO_KBC_PS2LDN)
 		Notify (SUPERIO_ID(PS2, SUPERIO_KBC_PS2LDN), 1)
@@ -169,8 +155,8 @@ Device (SUPERIO_ID(PS2, SUPERIO_KBC_PS2LDN)) {
 
 	Method (_STA)
 	{
-		Store (^^SUPERIO_ID(KBD, SUPERIO_KBC_LDN)._STA (), Local0)
-		If (LEqual (Local0, DEVICE_PRESENT_ACTIVE)) {
+		Local0 = ^^SUPERIO_ID(KBD, SUPERIO_KBC_LDN)._STA ()
+		If (Local0 == DEVICE_PRESENT_ACTIVE) {
 			PNP_GENERIC_STA(SUPERIO_KBC_PS2LDN)
 		} Else {
 			Return (Local0)
@@ -180,7 +166,7 @@ Device (SUPERIO_ID(PS2, SUPERIO_KBC_PS2LDN)) {
 	Method (_DIS)
 	{
 		ENTER_CONFIG_MODE (SUPERIO_KBC_PS2LDN)
-		  Store (Zero, PNP_DEVICE_ACTIVE)
+		  PNP_DEVICE_ACTIVE = 0
 		EXIT_CONFIG_MODE ()
 	}
 
@@ -214,7 +200,7 @@ Device (SUPERIO_ID(PS2, SUPERIO_KBC_PS2LDN)) {
 		})
 		ENTER_CONFIG_MODE (SUPERIO_KBC_PS2LDN)
 		  PNP_WRITE_IRQ(PNP_IRQ0, Arg0, IR1)
-		  Store (One, PNP_DEVICE_ACTIVE)
+		  PNP_DEVICE_ACTIVE = 1
 		EXIT_CONFIG_MODE ()
 	}
 }

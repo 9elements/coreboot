@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: GPL-2.0-only
+
 with CB.Config;
 
 use CB;
@@ -16,56 +18,29 @@ with GMA.Mainboard;
 package body GMA.GFX_Init
 is
 
-   fb_valid : boolean := false;
-
-   linear_fb_addr : word64;
-
-   fb : Framebuffer_Type;
-
-   function fill_lb_framebuffer
-     (framebuffer : in out lb_framebuffer)
-      return Interfaces.C.int
-   is
-      use type word32;
-      use type Interfaces.C.int;
-   begin
-      if fb_valid then
-         framebuffer :=
-           (tag                  =>  0,
-            size                 =>  0,
-            physical_address     => linear_fb_addr,
-            x_resolution         => word32 (fb.Width),
-            y_resolution         => word32 (fb.Height),
-            bytes_per_line       => 4 * word32 (fb.Stride),
-            bits_per_pixel       => 32,
-            reserved_mask_pos    => 24,
-            reserved_mask_size   =>  8,
-            red_mask_pos         => 16,
-            red_mask_size        =>  8,
-            green_mask_pos       =>  8,
-            green_mask_size      =>  8,
-            blue_mask_pos        =>  0,
-            blue_mask_size       =>  8);
-         return 0;
-      else
-         return -1;
-      end if;
-   end fill_lb_framebuffer;
-
+   configs : Pipe_Configs;
    ----------------------------------------------------------------------------
 
    procedure gfxinit (lightup_ok : out Interfaces.C.int)
    is
       use type pos32;
       use type word64;
+      use type word32;
+      use type Interfaces.C.size_t;
 
       ports : Port_List;
-      configs : Pipe_Configs;
 
       success : boolean;
 
+      linear_fb_addr : word64;
+
+      fb : Framebuffer_Type;
+
       min_h : pos32 := Config.LINEAR_FRAMEBUFFER_MAX_WIDTH;
       min_v : pos32 := Config.LINEAR_FRAMEBUFFER_MAX_HEIGHT;
+
+      fbinfo : Interfaces.C.size_t;
+
    begin
       lightup_ok := 0;
 
@@ -95,7 +70,7 @@ is
                configs (i).Framebuffer := fb;
             end loop;
 
-            HW.GFX.GMA.Dump_Configs (configs);
+            pragma Debug (HW.GFX.GMA.Dump_Configs (configs));
 
             HW.GFX.GMA.Setup_Default_FB
               (FB       => fb,
@@ -106,12 +81,31 @@ is
                HW.GFX.GMA.Update_Outputs (configs);
 
                HW.GFX.GMA.Map_Linear_FB (linear_fb_addr, fb);
-               fb_valid := linear_fb_addr /= 0;
-
-               lightup_ok := (if fb_valid then 1 else 0);
+               if linear_fb_addr /= 0 then
+                  fbinfo := c_fb_add_framebuffer_info
+                     (fb_addr        => Interfaces.C.size_t (linear_fb_addr),
+                      x_resolution   => word32 (fb.Width),
+                      y_resolution   => word32 (fb.Height),
+                      bytes_per_line => word32 (fb.Stride) * 4,
+                      bits_per_pixel => 32);
+                  if fbinfo /= 0 then
+                     lightup_ok := 1;
+                  end if;
+               end if;
             end if;
          end if;
       end if;
    end gfxinit;
+
+   procedure gfxstop
+   is
+   begin
+      if configs (Primary).Port /= Disabled then
+         for i in Pipe_Index loop
+            configs (i).Port := Disabled;
+         end loop;
+         HW.GFX.GMA.Update_Outputs (configs);
+      end if;
+   end gfxstop;
 
 end GMA.GFX_Init;

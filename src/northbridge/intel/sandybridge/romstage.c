@@ -1,99 +1,86 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2007-2010 coresystems GmbH
- * Copyright (C) 2011 The ChromiumOS Authors.  All rights reserved.
- * Copyright (C) 2014 Vladimir Serbinenko
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stdint.h>
 #include <console/console.h>
 #include <cf9_reset.h>
 #include <device/pci_ops.h>
-#include <cpu/x86/lapic.h>
-#include <timestamp.h>
+#include <romstage_handoff.h>
 #include "sandybridge.h"
-#include <cpu/x86/bist.h>
-#include <cpu/intel/romstage.h>
+#include <arch/romstage.h>
 #include <device/pci_def.h>
 #include <device/device.h>
 #include <northbridge/intel/sandybridge/chip.h>
+#include <security/intel/txt/txt.h>
+#include <security/intel/txt/txt_platform.h>
+#include <security/intel/txt/txt_register.h>
 #include <southbridge/intel/bd82x6x/pch.h>
 #include <southbridge/intel/common/pmclib.h>
 #include <elog.h>
 
-static void early_pch_reset_pmcon(void)
+__weak void mainboard_early_init(int s3resume)
 {
-	u8 reg8;
-
-	// reset rtc power status
-	reg8 = pci_read_config8(PCH_LPC_DEV, GEN_PMCON_3);
-	reg8 &= ~(1 << 2);
-	pci_write_config8(PCH_LPC_DEV, GEN_PMCON_3, reg8);
 }
 
-/* Platform has no romstage entry point under mainboard directory,
- * so this one is named with prefix mainboard.
- */
-void mainboard_romstage_entry(unsigned long bist)
+__weak void mainboard_late_rcba_config(void)
+{
+}
+
+static void configure_dpr(void)
+{
+	union dpr_register dpr = txt_get_chipset_dpr();
+
+	/*
+	 * Just need to program the size of DPR, enable and lock it.
+	 * The dpr.top will always point to TSEG_BASE (updated by hardware).
+	 * We do it early because it will be needed later to calculate cbmem_top.
+	 */
+	dpr.lock = 1;
+	dpr.epm = 1;
+	dpr.size = CONFIG_INTEL_TXT_DPR_SIZE;
+	pci_write_config32(HOST_BRIDGE, DPR, dpr.raw);
+}
+
+static void early_pch_reset_pmcon(void)
+{
+	/* Reset RTC power status */
+	pci_and_config8(PCH_LPC_DEV, GEN_PMCON_3, ~(1 << 2));
+}
+
+/* The romstage entry point for this platform is not mainboard-specific, hence the name */
+void mainboard_romstage_entry(void)
 {
 	int s3resume = 0;
 
-	if (MCHBAR16(SSKPD) == 0xCAFE)
+	if (mchbar_read16(SSKPD_HI) == 0xcafe)
 		system_reset();
-
-	if (bist == 0)
-		enable_lapic();
 
 	/* Init LPC, GPIO, BARs, disable watchdog ... */
 	early_pch_init();
 
-	/* Initialize superio */
-	mainboard_config_superio();
-
-	/* USB is initialized in MRC if MRC is used.  */
+	/* When using MRC, USB is initialized by MRC */
 	if (CONFIG(USE_NATIVE_RAMINIT)) {
 		early_usb_init(mainboard_usb_ports);
 	}
 
-	/* Initialize console device(s) */
-	console_init();
-
-	/* Halt if there was a built in self test failure */
-	report_bist_failure(bist);
-
-	/* Perform some early chipset initialization required
-	 * before RAM initialization can work
-	 */
+	/* Perform some early chipset init needed before RAM initialization can work */
 	systemagent_early_init();
 	printk(BIOS_DEBUG, "Back from systemagent_early_init()\n");
 
 	s3resume = southbridge_detect_s3_resume();
 
-	if (CONFIG(ELOG_BOOT_COUNT) && !s3resume)
-		boot_count_increment();
+	elog_boot_notify(s3resume);
 
 	post_code(0x38);
 
 	mainboard_early_init(s3resume);
 
-	/* Enable SPD ROMs and DDR-III DRAM */
-	enable_smbus();
-
 	post_code(0x39);
 
-	perform_raminit(s3resume);
+	if (CONFIG(INTEL_TXT)) {
+		configure_dpr();
+		intel_txt_romstage_init();
+	}
 
-	timestamp_add_now(TS_AFTER_INITRAM);
+	perform_raminit(s3resume);
 
 	post_code(0x3b);
 	/* Perform some initialization that must run before stage2 */
@@ -102,11 +89,13 @@ void mainboard_romstage_entry(unsigned long bist)
 
 	southbridge_configure_default_intmap();
 	southbridge_rcba_config();
-	mainboard_rcba_config();
+	mainboard_late_rcba_config();
 
 	post_code(0x3d);
 
-	northbridge_romstage_finalize(s3resume);
+	northbridge_romstage_finalize();
 
 	post_code(0x3f);
+
+	romstage_handoff_init(s3resume);
 }

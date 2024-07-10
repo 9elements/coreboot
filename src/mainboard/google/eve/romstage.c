@@ -1,26 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2016 Google Inc.
- * Copyright (C) 2016 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
 #include <boardid.h>
 #include <string.h>
-#include <stddef.h>
+#include <ec/google/chromeec/ec.h>
 #include <fsp/soc_binding.h>
 #include <soc/romstage.h>
 #include <console/console.h>
 #include "spd/spd.h"
+#include "ec.h"
 
 void mainboard_memory_init_params(FSPM_UPD *mupd)
 {
@@ -40,8 +28,10 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 	/* Rcomp target */
 	const u16 rcomp_target[] = { 100, 40, 40, 23, 40 };
 
-	memcpy(&mem_cfg->DqByteMapCh0, dq_map, sizeof(dq_map));
-	memcpy(&mem_cfg->DqsMapCpu2DramCh0, dqs_map, sizeof(dqs_map));
+	memcpy(&mem_cfg->DqByteMapCh0, dq_map[0], sizeof(dq_map[0]));
+	memcpy(&mem_cfg->DqByteMapCh1, dq_map[1], sizeof(dq_map[1]));
+	memcpy(&mem_cfg->DqsMapCpu2DramCh0, dqs_map[0], sizeof(dqs_map[0]));
+	memcpy(&mem_cfg->DqsMapCpu2DramCh1, dqs_map[1], sizeof(dqs_map[1]));
 	memcpy(&mem_cfg->RcompResistor, rcomp_resistor, sizeof(rcomp_resistor));
 	memcpy(&mem_cfg->RcompTarget, rcomp_target, sizeof(rcomp_target));
 
@@ -54,4 +44,8 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 		printk(BIOS_WARNING, "Limiting memory to 1600MHz\n");
 		mem_cfg->DdrFreqLimit = 1600;
 	}
+
+	/* Turn on keyboard backlight to indicate we are booting */
+	if (!acpi_is_wakeup_s3())
+		google_chromeec_kbbacklight(50);
 }

@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Christoph Grenz <christophg+cb@grenz-bonn.de>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * include this file into a mainboard's DSDT _SB device tree and it will expose the
@@ -46,14 +33,16 @@
  * NO_W83627HF_GAME:     don't expose the game port
  * NO_W83627HF_MIDI:     don't expose the MIDI port
  * NO_W83627HF_HWMON:    don't expose the hardware monitor as
- *                       PnP "Motherboard Ressource"
+ *                       PnP "Motherboard Resource"
  * W83627HF_KBC_COMPAT:  show the keyboard controller and the PS/2 mouse as
  *                       enabled if it is disabled but an address is assigned
- *                       to it. This may be neccessary in some cases.
+ *                       to it. This may be necessary in some cases.
  *
  * Datasheet: "W83627HF/F WINBOND I/O" rev. 6.0
  * http://www.itox.com/pages/support/wdt/W83627HF.pdf
  */
+
+#include <superio/acpi/pnp.asl>
 
 Device(SIO) {
 	Name (_HID, EisaId("PNP0A05"))
@@ -64,141 +53,141 @@ Device(SIO) {
 	Mutex(CRMX, 1)
 
 	/* SuperIO configuration ports */
-	OperationRegion (CREG, SystemIO, 0x2E, 0x02)
+	OperationRegion (CREG, SystemIO, SUPERIO_PNP_BASE, 0x02)
 	Field (CREG, ByteAcc, NoLock, Preserve)
 	{
-		ADDR,   8,
-		DATA,   8
+		PNP_ADDR_REG,	8,
+		PNP_DATA_REG,	8
 	}
-	IndexField (ADDR, DATA, ByteAcc, NoLock, Preserve)
+	IndexField (PNP_ADDR_REG, PNP_DATA_REG, ByteAcc, NoLock, Preserve)
 	{
 		Offset (0x02),
-		RST,    1,     /* Soft reset */
-		,       7,
+		RST,	1,	/* Soft reset */
+		,	7,
 		Offset (0x07),
-		LDN,    8,     /* Logical device selector */
+		LDN,	8,	/* Logical device selector */
 		Offset (0x20),
-		DID,    8,     /* Device ID */
-		DREV,   8,     /* Device Revision */
-		FDPW,   1,     /* FDC Power Down */
-		,       2,
-		PRPW,   1,     /* PRT Power Down */
-		UAPW,   1,     /* UART A Power Down */
-		UBPW,   1,     /* UART B Power Down */
-		HWPW,   1,     /* HWM Power Down */
-		,       1,
-		IPD,    1,     /* Immediate Chip Power Down */
-		,       7,
-		PNPS,   1,     /* PnP Address Select Register Default Value Mode */
-		,       1,
-		KBCR,   1,     /* KBC enabled after system reset (read-only) */
-		,       3,
-		CLKS,   1,     /* Clock select */
-		AQ16,   1,     /* 16bit Address Qualification */
-		FDCT,   1,     /* Tristate FDC (?) */
-		,       2,
-		PRTT,   1,     /* Tristate parallel port (?) */
-		URAT,   1,     /* Tristate UART A (?) */
-		URBT,   1,     /* Tristate UART B (?) */
-		,       2,
-		URAI,   1,     /* UART A Legacy IRQ Select Disable */
-		URBI,   1,     /* UART B Legacy IRQ Select Disable */
-		PRTI,   1,     /* Parallel Port Legacy IRQ/DRQ Select Disable */
-		FDCI,   1,     /* FDC Legacy IRQ/DRQ Select Disable */
-		,       1,
-		LCKC,   1,     /* Lock Configuration Registers */
+		DID,	8,	/* Device ID */
+		DREV,	8,	/* Device Revision */
+		FDPW,	1,	/* FDC Power Down */
+		,	2,
+		PRPW,	1,	/* PRT Power Down */
+		UAPW,	1,	/* UART A Power Down */
+		UBPW,	1,	/* UART B Power Down */
+		HWPW,	1,	/* HWM Power Down */
+		,	1,
+		IPD,	1,	/* Immediate Chip Power Down */
+		,	7,
+		PNPS,	1,	/* PnP Address Select Register Default Value Mode */
+		,	1,
+		KBCR,	1,	/* KBC enabled after system reset (read-only) */
+		,	3,
+		CLKS,	1,	/* Clock select */
+		AQ16,	1,	/* 16bit Address Qualification */
+		FDCT,	1,	/* Tristate FDC (?) */
+		,	2,
+		PRTT,	1,	/* Tristate parallel port (?) */
+		URAT,	1,	/* Tristate UART A (?) */
+		URBT,	1,	/* Tristate UART B (?) */
+		,	2,
+		URAI,	1,	/* UART A Legacy IRQ Select Disable */
+		URBI,	1,	/* UART B Legacy IRQ Select Disable */
+		PRTI,	1,	/* Parallel Port Legacy IRQ/DRQ Select Disable */
+		FDCI,	1,	/* FDC Legacy IRQ/DRQ Select Disable */
+		,	1,
+		LCKC,	1,	/* Lock Configuration Registers */
 		Offset (0x29),
-		IO3S,   8,     /* GPIO3 pin selection register */
+		IO3S,	8,	/* GPIO3 pin selection register */
 		Offset (0x30),
-		ACTR,   1,     /* Logical device activation */
-		ACT1,   1,     /* Logical part activation 1 (mostly unused) */
-		ACT2,   1,     /* Logical part activation 2 (mostly unused) */
-		,       5,
+		ACTR,	1,	/* Logical device activation */
+		ACT1,	1,	/* Logical part activation 1 (mostly unused) */
+		ACT2,	1,	/* Logical part activation 2 (mostly unused) */
+		,	5,
 		Offset (0x60),
-		IO1H,   8,      /* First I/O port base - high byte */
-		IO1L,   8,      /* First I/O port base - low byte */
-		IO2H,   8,      /* Second I/O port base - high byte */
-		IO2L,   8,      /* Second I/O port base - low byte */
+		IO1H,	8,	/* First I/O port base - high byte */
+		IO1L,	8,	/* First I/O port base - low byte */
+		IO2H,	8,	/* Second I/O port base - high byte */
+		IO2L,	8,	/* Second I/O port base - low byte */
 		Offset (0x70),
-		IRQ0,   8,      /* First IRQ */
+		IRQ0,	8,	/* First IRQ */
 		Offset (0x72),
-		IRQ1,   8,      /* First IRQ */
+		IRQ1,	8,	/* First IRQ */
 		Offset (0x74),
-		DMA0,   8,      /* DMA */
+		DMA0,	8,	/* DMA */
 		Offset (0xE0),
-		/* CRE0-CRE4: function logical device dependant, seems to be reserved for ACPI settings */
-		CRE0,   8,
-		CRE1,   8,
-		CRE2,   8,
-		CRE3,   8,
-		CRE4,   8,
+		/* CRE0-CRE4: function logical device dependent, seems to be reserved for ACPI settings */
+		CRE0,	8,
+		CRE1,	8,
+		CRE2,	8,
+		CRE3,	8,
+		CRE4,	8,
 		Offset (0xF0),
-		/* OPT1-OPTA aka CRF0-CRF9: function logical device dependant */
-		OPT1,   8,
-		OPT2,   8,
-		OPT3,   8,
-		OPT4,   8,
-		OPT5,   8,
-		OPT6,   8,
-		OPT7,   8,
-		OPT8,   8,
-		OPT9,   8,
-		OPTA,   8
+		/* OPT1-OPTA aka CRF0-CRF9: function logical device dependent */
+		OPT1,	8,
+		OPT2,	8,
+		OPT3,	8,
+		OPT4,	8,
+		OPT5,	8,
+		OPT6,	8,
+		OPT7,	8,
+		OPT8,	8,
+		OPT9,	8,
+		OPTA,	8
 	}
 
 	Method (_CRS)
 	{
 		Return (ResourceTemplate () {
-		IO (Decode16, 0x002E, 0x002E, 0x02, 0x01) /* Announce the used I/O ports to the OS */
-		IO (Decode16, 0x004E, 0x004E, 0x01, 0x01) /* this port is used in some configurations, so announce it to be sure */
+		/* Announce the used I/O ports to the OS */
+		IO (Decode16, SUPERIO_PNP_BASE, SUPERIO_PNP_BASE, 0x02, 0x01)
 		})
 	}
 
-	/* Enter configuration mode (and aquire mutex)
-	   Method must be run before accesssing the configuration region.
+	/* Enter configuration mode (and acquire mutex)
+	   Method must be run before accessing the configuration region.
 	   Parameter is the LDN which should be accessed. Values >= 0xFF mean
 	   no LDN switch should be done.
 	*/
-	Method (ENCM, 1)
+	Method (ENTER_CONFIG_MODE, 1)
 	{
 		Acquire (CRMX, 0xFFFF)
-		Store (0x87, ADDR)
-		Store (0x87, ADDR)
-		If (LLess(Arg0, 0xFF)) {
-			Store(Arg0, LDN)
+		ADDR = 0x87
+		ADDR = 0x87
+		If (Arg0 < 0xFF) {
+			LDN = Arg0
 		}
 	}
 
 	/* Exit configuration mode (and release mutex)
 	   Method must be run after accessing the configuration region.
 	*/
-	Method (EXCM)
+	Method (EXIT_CONFIG_MODE)
 	{
-		Store (0xAA, ADDR)
+		ADDR = 0xAA
 		Release (CRMX)
 	}
 
-	/* PM: indicate IPD (Immediate Power Down) bit state as D0/D2 */
+	/* PM: indicate IPD (Immediate Power Down) bit state as D0/D3 */
 	Method (_PSC) {
-		ENCM (0xFF)
-		Store (IPD, Local0)
-		EXCM ()
-		If (Local0) { Return (2) }
+		ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+		Local0 = IPD
+		EXIT_CONFIG_MODE ()
+		If (Local0) { Return (3) }
 		Else { Return (0) }
 	}
 
-	/* PM: Switch to D0 by setting IPD low  */
+	/* PM: Switch to D0 by setting IPD low */
 	Method (_PS0) {
-		ENCM (0xFF)
-		Store (Zero, IPD)
-		EXCM ()
+		ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+		IPD = 0
+		EXIT_CONFIG_MODE ()
 	}
 
-	/* PM: Switch to D2 by setting IPD high  */
-	Method (_PS2) {
-		ENCM (0xFF)
-		Store (One, IPD)
-		EXCM ()
+	/* PM: Switch to D3 by setting IPD high */
+	Method (_PS3) {
+		ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+		IPD = 1
+		EXIT_CONFIG_MODE ()
 	}
 
 	#ifndef NO_W83627HF_FDC
@@ -210,16 +199,16 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (0)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (0)
 			If (ACTR) {
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 			}
-			ElseIf (LOr (IO1H, IO1L))
+			ElseIf (IO1H || IO1L)
 			{
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
@@ -227,32 +216,32 @@ Device(SIO) {
 		 * 2 if whole chip is powered down), 0 else
 		 */
 		Method (_PSC) {
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (FDPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = FDPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 		/* Disable power saving mode */
 		Method (_PS0) {
-			ENCM (0xFF)
-			Store (One, FDPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			FDPW = 1
+			EXIT_CONFIG_MODE ()
 		}
 		/* Enable power saving mode */
-		Method (_PS1) {
-			ENCM (0xFF)
-			Store (Zero, FDPW)
-			EXCM ()
+		Method (_PS3) {
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			FDPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_DIS)
 		{
-			ENCM (0)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (0)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS)
@@ -264,19 +253,19 @@ Device(SIO) {
 			})
 
 			/* Get IO port info */
-			ENCM (0)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			EXCM ()
+			ENTER_CONFIG_MODE (0)
+			Local0 = IO1L
+			Local1 = IO1H
+			EXIT_CONFIG_MODE ()
 
 			/* Calculate full IO port address */
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			Local0 |= Local1 << 8
 
 			/* Modify the resource template and return it */
 			CreateWordField (CRS, IO0._MIN, IMIN)
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMIN)
-			Store (Local0, IMAX)
+			IMIN = Local0
+			IMAX = Local0
 			Return (CRS)
 		}
 
@@ -310,14 +299,14 @@ Device(SIO) {
 			CreateByteField (FDE, 12, FD4)
 
 			// Get resources from logical device
-			ENCM (0)
-			Store (ACTR, Local0)
-			Store (IO1H, Local1)
-			Store (IO1L, Local2)
-			EXCM ()
-			ShiftLeft(Local1, 8, Local1)
-			Or(Local1, Local2, Local1)
-			If (LNot(Local0)) {
+			ENTER_CONFIG_MODE (0)
+			Local0 = ACTR
+			Local1 = IO1H
+			Local2 = IO1L
+			EXIT_CONFIG_MODE ()
+			Local1 <<= 8
+			Local1 |= Local2
+			If (!Local0) {
 				Return (FDE)
 			}
 
@@ -325,23 +314,23 @@ Device(SIO) {
 			Field (FIO1, ByteAcc, NoLock, Preserve)
 			{
 				Offset(0x02),
-				SELE,  2,
-				RSTL,  1,
-				IDMA,  1,
-				ACT1,  1,
-				ACT2,  1,
-				ACT3,  1,
-				ACT4,  1,
+				SELE,	2,
+				RSTL,	1,
+				IDMA,	1,
+				ACT1,	1,
+				ACT2,	1,
+				ACT3,	1,
+				ACT4,	1,
 				Offset(0x04),
-				BSY1,  1,
-				BSY2,  1,
-				BSY3,  1,
-				BSY4,  1,
-				BUSY,  1,
-				NDMA,  1,
-				IODI,  1,
-				RDY,   1,
-				DATA,  8,
+				BSY1,	1,
+				BSY2,	1,
+				BSY3,	1,
+				BSY4,	1,
+				BUSY,	1,
+				NDMA,	1,
+				IODI,	1,
+				RDY,	1,
+				DATA,	8,
 			}
 			OperationRegion (FIO2, SystemIO, 0x3F7, 0x01)
 			Field (FIO2, ByteAcc, NoLock, Preserve)
@@ -349,30 +338,30 @@ Device(SIO) {
 				SIFR, 8
 			}
 
-			Store(One, ACT1)
-			Store(0, SELE)
+			ACT1 = 1
+			SELE = 0
 			Sleep(0x64)
-			If (SIFR) { Store (One, FD1) }
+			If (SIFR) { FD1 = 1 }
 
-			Store(Zero, ACT1)
-			Store(One, ACT2)
-			Store(1, SELE)
+			ACT1 = 0
+			ACT2 = 1
+			SELE = 1
 			Sleep(0x64)
-			If (SIFR) { Store (One, FD2) }
+			If (SIFR) { FD2 = 1 }
 
-			Store(Zero, ACT2)
-			Store(One, ACT3)
-			Store(2, SELE)
+			ACT2 = 0
+			ACT3 = 1
+			SELE = 2
 			Sleep(0x64)
-			If (SIFR) { Store (One, FD3) }
+			If (SIFR) { FD3 = 1 }
 
-			Store(Zero, ACT3)
-			Store(One, ACT4)
-			Store(3, SELE)
+			ACT3 = 0
+			ACT4 = 1
+			SELE = 3
 			Sleep(0x64)
-			If (SIFR) { Store (One, FD4) }
-			Store(Zero, ACT4)
-			Store(Zero, SELE)
+			If (SIFR) { FD4 = 1 }
+			ACT4 = 0
+			SELE = 0
 
 			Return (FDE)
 		}
@@ -390,13 +379,14 @@ Device(SIO) {
 			CreateByteField (Arg0, IRQ0._INT, IRQL)
 			CreateByteField (Arg0, DMA0._DMA, DMCH)
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			ENCM (0)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (0)
+			IO1L = Local0
+			IO1H = Local1
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -410,11 +400,11 @@ Device(SIO) {
 		Name (_UID, "w83627hf-pport")
 
 		Method (MODE, 1) {
-			And(Arg0, 0x07, Local0)
-			ENCM (1)
-			And(OPT1, 0x3, Local1)
-			Or(Local1, Local0, OPT1)
-			EXCM()
+			Local0 = Arg0 & 7
+			ENTER_CONFIG_MODE (1)
+			Local1 = OPT1 & 3
+			OPT1 = Local1 | Local0
+			EXIT_CONFIG_MODE()
 		}
 
 		Method (_INI)
@@ -422,55 +412,55 @@ Device(SIO) {
 			/* Deactivate DMA, even if set by BIOS. We don't announce it
 			   through _CRS and it's only useful in ECP mode which we
 			   don't support at the moment. */
-			ENCM (1)
-			Store (0x04, DMA0)
-			EXCM ()
+			ENTER_CONFIG_MODE (1)
+			DMA0 = 0x04
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (1)
-			And(OPT1, 0x3, Local1)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (1)
+			Local1 = OPT1 & 3
 			If (ACTR) {
-				If (LNotEqual(Local1, 2)) {
-					Store (0x0D, Local0)
+				If (Local1 != 2) {
+					Local0 = 0x0D
 				} Else {
-					Store (0x0D, Local0)
+					Local0 = 0x0D
 				}
 			}
-			ElseIf (LOr (IO1H, IO1L))
+			ElseIf (IO1H || IO1L)
 			{
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_PSC) {
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (PRPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = PRPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 		Method (_PS0) {
-			ENCM (0xFF)
-			Store (One, PRPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			PRPW = 1
+			EXIT_CONFIG_MODE ()
 		}
-		Method (_PS1) {
-			ENCM (0xFF)
-			Store (Zero, PRPW)
-			EXCM ()
+		Method (_PS3) {
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			PRPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_DIS) {
-			ENCM (1)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (1)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS)
@@ -487,34 +477,34 @@ Device(SIO) {
 			CreateWordField (CRS, IRQX._INT, IRQW)
 
 			/* Get device settings */
-			ENCM (1)
-			Store (IO1L, Local0)
-			Store (IO1H, Local1)
-			Store (OPT1, Local2)
-			Store (IRQ0, Local5)
-			EXCM ()
+			ENTER_CONFIG_MODE (1)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = OPT1
+			Local5 = IRQ0
+			EXIT_CONFIG_MODE ()
 			/* Calculate IO port and modify template */
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
-			Store(Local1, IOP0)
-			Store(Local1, IOR0)
+			Local0 |= Local1 << 8
+			IOP0 = Local1
+			IOR0 = Local1
 
 			/* Set align and length based on active parallel port mode */
-			And(Local2, 0x3, Local3)
-			And(Local2, 0x4, Local4)
+			Local3 = Local2 & 3
+			Local4 = Local2 & 4
 			If (Local4) {
-				Store(0x04, IOAL)
+				IOAL = 0x04
 			}
-			If (LEqual (Local0, 0xBC))
+			If (Local0 == 0xBC)
 			{
-				Store (0x04, IOLE)
+				IOLE = 0x04
 			}
 			Else
 			{
-				Store (0x08, IOLE)
+				IOLE = 0x08
 			}
 			/* Calculate IRQ bitmap */
-			Store (One, Local0)
-			ShiftLeft (Local0, Local5, IRQW)
+			Local0 = 1
+			IRQW = Local0 << Local5
 			/* Return resource template */
 			Return (CRS)
 		}
@@ -575,29 +565,30 @@ Device(SIO) {
 			CreateByteField (Arg0, IO0._LEN, IOLE)
 			CreateWordField (Arg0, IRQX._INT, IRQL)
 
-			If (LEqual(IOAL, 4)) {
-				Store(0x0, Local2)
-			} else  {
-				Store(0x1, Local2)
+			If (IOAL == 4) {
+				Local2 = 0x0
+			} else {
+				Local2 = 0x1
 			}
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			ENCM (1)
+			ENTER_CONFIG_MODE (1)
 			/* IO port */
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
+			IO1L = Local0
+			IO1H = Local1
 			/* Mode */
-			Store (OPT1, Local3)
-			And (Local3, 0xF8, Local3)
-			Or (Local2, Local3, OPT1)
+			Local3 = OPT1
+			Local3 &= 0xF8
+			OPT1 = Local2 | Local3
 			/* DMA off */
-			Store (0x04, DMA0)
+			DMA0 = 0x04
 			/* IRQ */
-			Subtract(FindSetLeftBit (IRQL), 1, IRQ0)
+			IRQ0 = FindSetLeftBit (IRQL) - 1
 			/* Activate */
-			Store (One, ACTR)
-			EXCM ()
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -611,44 +602,44 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (2)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (2)
 			If (ACTR) {
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 			}
-			ElseIf (LOr (IO1H, IO1L))
+			ElseIf (IO1H || IO1L)
 			{
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_PSC) {
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (UAPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = UAPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 		Method (_PS0) {
-			ENCM (0xFF)
-			Store (One, UAPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UAPW = 1
+			EXIT_CONFIG_MODE ()
 		}
-		Method (_PS1) {
-			ENCM (0xFF)
-			Store (Zero, UAPW)
-			EXCM ()
+		Method (_PS3) {
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UAPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_DIS)
 		{
-			ENCM (2)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (2)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS, 0, Serialized)
@@ -657,21 +648,21 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x08, IO0)
 				IRQNoFlags (IRQX) {6}
 			})
-			ENCM (2)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IRQ0, Local2)
-			EXCM ()
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			ENTER_CONFIG_MODE (2)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IRQ0
+			EXIT_CONFIG_MODE ()
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
-			Store (Local0, IMIN)
+			IMIN = Local0
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMAX)
+			IMAX = Local0
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local3)
-			ShiftLeft (Local3, Local2, IRQW)
+			Local3 = 1
+			IRQW = Local3 << Local2
 
 			Return (CRS)
 		}
@@ -710,16 +701,17 @@ Device(SIO) {
 			CreateWordField (Arg0, IO0._MIN, IOA0)
 			CreateWordField (Arg0, IRQX._INT, IRQL)
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local3)
+			Local3 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (2)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (Local3, IRQ0)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (2)
+			IO1L = Local0
+			IO1H = Local1
+			IRQ0 = Local3
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -733,47 +725,47 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (3)
-			If (LNot(And(OPT2, 0x30)))
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (3)
+			If (!(OPT2 & 0x30))
 			{
 				If (ACTR) {
-					Store (0x0F, Local0)
+					Local0 = 0x0F
 				}
-				ElseIf (LOr (IO1H, IO1L))
+				ElseIf (IO1H || IO1L)
 				{
-					Store (0x0D, Local0)
+					Local0 = 0x0D
 				}
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_PSC) {
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (UBPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = UBPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 		Method (_PS0) {
-			ENCM (0xFF)
-			Store (One, UBPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UBPW = 1
+			EXIT_CONFIG_MODE ()
 		}
-		Method (_PS1) {
-			ENCM (0xFF)
-			Store (Zero, UBPW)
-			EXCM ()
+		Method (_PS3) {
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UBPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_DIS)
 		{
-			ENCM (3)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (3)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS)
@@ -782,21 +774,21 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x08, IO0)
 				IRQNoFlags (IRQX) {6}
 			})
-			ENCM (3)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IRQ0, Local2)
-			EXCM ()
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			ENTER_CONFIG_MODE (3)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IRQ0
+			EXIT_CONFIG_MODE ()
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
-			Store (Local0, IMIN)
+			IMIN = Local0
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMAX)
+			IMAX = Local0
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local3)
-			ShiftLeft (Local3, Local2, IRQW)
+			Local3 = 1
+			IRQW = Local3 << Local2
 
 			Return (CRS)
 		}
@@ -835,16 +827,17 @@ Device(SIO) {
 			CreateWordField (Arg0, IO0._MIN, IOA0)
 			CreateByteField (Arg0, IRQX._INT, IRQL)
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local3)
+			Local3 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (3)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (Local3, IRQ0)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (3)
+			IO1L = Local0
+			IO1H = Local1
+			IRQ0 = Local3
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -858,47 +851,47 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (3)
-			If (And(OPT2, 0x30))
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (3)
+			If (OPT2 & 0x30)
 			{
 				If (ACTR) {
-					Store (0x0F, Local0)
+					Local0 = 0x0F
 				}
-				ElseIf (LOr (IO1H, IO1L))
+				ElseIf (IO1H || IO1L)
 				{
-					Store (0x0D, Local0)
+					Local0 = 0x0D
 				}
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_PSC) {
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (UBPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = UBPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 		Method (_PS0) {
-			ENCM (0xFF)
-			Store (One, UBPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UBPW = 1
+			EXIT_CONFIG_MODE ()
 		}
-		Method (_PS1) {
-			ENCM (0xFF)
-			Store (Zero, UBPW)
-			EXCM ()
+		Method (_PS3) {
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			UBPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_DIS)
 		{
-			ENCM (3)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (3)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS)
@@ -907,21 +900,21 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x08, IO0)
 				IRQNoFlags (IRQX) {6}
 			})
-			ENCM (3)
-			Store(IO1H, Local1)
-			Store(IO1L, Local0)
-			Store(IRQ0, Local2)
-			EXCM ()
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			ENTER_CONFIG_MODE (3)
+			Local1 = IO1H
+			Local0 = IO1L
+			Local2 = IRQ0
+			EXIT_CONFIG_MODE ()
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
-			Store (Local0, IMIN)
+			IMIN = Local0
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMAX)
+			IMAX = Local0
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local3)
-			ShiftLeft (Local3, Local2, IRQW)
+			Local3 = 1
+			IRQW = Local3 << Local2
 
 			Return (CRS)
 		}
@@ -960,16 +953,17 @@ Device(SIO) {
 			CreateWordField (Arg0, IO0._MIN, IOA0)
 			CreateByteField (Arg0, IRQX._INT, IRQL)
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local3)
+			Local3 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (3)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (Local3, IRQ0)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (3)
+			IO1L = Local0
+			IO1H = Local1
+			IRQ0 = Local3
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -984,24 +978,24 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (6)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (6)
 			If (ACTR) {
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 			}
-			ElseIf (LOr (IO1H, IO1L))
+			ElseIf (IO1H || IO1L)
 			{
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_DIS)
 		{
-			ENCM (6)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (6)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS)
@@ -1010,21 +1004,21 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x08, IO0)
 				IRQNoFlags (IRQX) {6}
 			})
-			ENCM (6)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IRQ0, Local2)
-			EXCM ()
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			ENTER_CONFIG_MODE (6)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IRQ0
+			EXIT_CONFIG_MODE ()
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
-			Store (Local0, IMIN)
+			IMIN = Local0
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMAX)
+			IMAX = Local0
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local3)
-			ShiftLeft (Local3, Local2, IRQW)
+			Local3 = 1
+			IRQW = Local3 << Local2
 
 			Return (CRS)
 		}
@@ -1047,16 +1041,17 @@ Device(SIO) {
 			CreateWordField (Arg0, IO0._MIN, IOA0)
 			CreateByteField (Arg0, IRQX._INT, IRQL)
 
-			Divide(IOA0, 256, Local0, Local1)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local3)
+			Local3 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (6)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (Local3, IRQ0)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (6)
+			IO1L = Local0
+			IO1H = Local1
+			IRQ0 = Local3
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -1070,28 +1065,28 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (5)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (5)
 			If (ACTR) {
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 			}
-			ElseIf (Lor(LOr (IO1H, IO1L), LOr (IO2H, IO2L)))
+			ElseIf (IO1H || IO1L || IO2H || IO2L)
 			{
 				#ifdef W83627HF_KBC_COMPAT
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 				#else
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 				#endif
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_DIS)
 		{
-			ENCM (5)
-			Store (Zero, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (5)
+			ACTR = 0
+			EXIT_CONFIG_MODE ()
 			Notify(PS2M, 1)
 		}
 
@@ -1102,30 +1097,30 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x01, IO0)
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x01, IO1)
 			})
-			ENCM (5)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IO2L, Local2)
-			Store(IO2H, Local3)
-			Store(IRQ0, Local4)
-			EXCM ()
+			ENTER_CONFIG_MODE (5)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IO2L
+			Local3 = IO2H
+			Local4 = IRQ0
+			EXIT_CONFIG_MODE ()
 
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
-			Or(ShiftLeft(Local3, 8), Local2, Local2)
+			Local0 |= Local1 << 8
+			Local2 |= Local3 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
-			Store (Local0, IMIN)
+			IMIN = Local0
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMAX)
+			IMAX = Local0
 
 			CreateWordField (CRS, IO1._MIN, I1MI)
-			Store (Local2, I1MI)
+			I1MI = Local2
 			CreateWordField (CRS, IO1._MAX, I1MA)
-			Store (Local2, I1MA)
+			I1MA = Local2
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local5)
-			ShiftLeft (Local5, Local4, IRQW)
+			Local5 = 1
+			IRQW = Local5 << Local4
 
 			Return (CRS)
 		}
@@ -1151,19 +1146,21 @@ Device(SIO) {
 			CreateWordField (Arg0, IO1._MIN, IOA1)
 			CreateWordField (Arg0, IRQX._INT, IRQL)
 
-			Divide(IOA0, 256, Local0, Local1)
-			Divide(IOA1, 256, Local2, Local3)
+			Local0 = IOA0 % 256
+			Local1 = IOA0 / 256
+			Local2 = IOA1 % 256
+			Local3 = IOA1 / 256
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local4)
+			Local4 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (5)
-			Store (Local0, IO1L)
-			Store (Local1, IO1H)
-			Store (Local2, IO2L)
-			Store (Local3, IO2H)
-			Store (Local4, IRQ0)
-			Store (One, ACTR)
-			EXCM ()
+			ENTER_CONFIG_MODE (5)
+			IO1L = Local0
+			IO1H = Local1
+			IO2L = Local2
+			IO2H = Local3
+			IRQ0 = Local4
+			ACTR = 1
+			EXIT_CONFIG_MODE ()
 			Notify(PS2M, 1)
 		}
 	}
@@ -1175,28 +1172,28 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (5)
-			If (LAnd(ACTR, IRQ1) ) {
-				Store (0x0F, Local0)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (5)
+			If (ACTR && IRQ1) {
+				Local0 = 0x0F
 			}
-			ElseIf (Lor(LOr (IO1H, IO1L), LOr (IO2H, IO2L)))
+			ElseIf (IO1H || IO1L || IO2H || IO2L)
 			{
 				#ifdef W83627HF_KBC_COMPAT
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 				#else
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 				#endif
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_DIS)
 		{
-			ENCM (5)
-			Store (Zero, IRQ1)
-			EXCM ()
+			ENTER_CONFIG_MODE (5)
+			IRQ1 = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS, 0, Serialized)
@@ -1204,13 +1201,13 @@ Device(SIO) {
 			Name (CRS, ResourceTemplate () {
 				IRQNoFlags (IRQX) {}
 			})
-			ENCM (5)
-			Store(IRQ1, Local4)
-			EXCM ()
+			ENTER_CONFIG_MODE (5)
+			Local4 = IRQ1
+			EXIT_CONFIG_MODE ()
 
 			CreateWordField (CRS, IRQX._INT, IRQW)
-			Store (One, Local5)
-			ShiftLeft (Local5, Local4, IRQW)
+			Local5 = 1
+			IRQW = Local5 << Local4
 
 			Return (CRS)
 		}
@@ -1233,12 +1230,12 @@ Device(SIO) {
 			})
 			CreateWordField (Arg0, IRQX._INT, IRQL)
 
-			Subtract(FindSetLeftBit (IRQL), 1, Local0)
+			Local0 = FindSetLeftBit (IRQL) - 1
 
-			ENCM (5)
-			Store (Local0, IRQ1)
+			ENTER_CONFIG_MODE (5)
+			IRQ1 = Local0
 			/* Only activates if KBD is active */
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 		}
 	}
 	#endif
@@ -1253,17 +1250,17 @@ Device(SIO) {
 		Name (_UID, "w83627hf-game")
 
 		Method (_STA) {
-			Store(0, Local0)
-			ENCM (7)
-			If (LOr(IO1L, IO1H)) {
-				If (LOr(ACTR, ACT1)) {
-					Store (0x0F, Local0)
+			Local0 = 0
+			ENTER_CONFIG_MODE (7)
+			If (IO1L || IO1H) {
+				If (ACTR || ACT1) {
+					Local0 = 0x0F
 				}
 				Else {
-					Store (0x0D, Local0)
+					Local0 = 0x0D
 				}
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
@@ -1273,23 +1270,23 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x01, 0x01, IO0)
 				IRQNoFlags (IRQX) {}
 			})
-			ENCM (7)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IRQ0, Local2)
-			EXCM ()
+			ENTER_CONFIG_MODE (7)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IRQ0
+			EXIT_CONFIG_MODE ()
 
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMIN)
-			Store (Local0, IMAX)
+			IMIN = Local0
+			IMAX = Local0
 
 			If (Local2) {
 				CreateWordField (CRS, IRQX._INT, IRQW)
-				Store (One, Local3)
-				ShiftLeft (Local3, Local2, IRQW)
+				Local3 = 1
+				IRQW = Local3 << Local2
 			}
 
 			Return (CRS)
@@ -1308,17 +1305,17 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store(0, Local0)
-			ENCM (7)
-			If (LOr(IO2L, IO2H)) {
-				If (LOr(ACTR, ACT2)) {
-					Store (0x0F, Local0)
+			Local0 = 0
+			ENTER_CONFIG_MODE (7)
+			If (IO2L || IO2H) {
+				If (ACTR || ACT2) {
+					Local0 = 0x0F
 				}
 				Else {
-					Store (0x0D, Local0)
+					Local0 = 0x0D
 				}
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
@@ -1328,23 +1325,23 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x02, 0x02, IO0)
 				IRQNoFlags (IRQX) {}
 			})
-			ENCM (7)
-			Store(IO2L, Local0)
-			Store(IO2H, Local1)
-			Store(IRQ1, Local2)
-			EXCM ()
+			ENTER_CONFIG_MODE (7)
+			Local0 = IO2L
+			Local1 = IO2H
+			Local2 = IRQ1
+			EXIT_CONFIG_MODE ()
 
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMIN)
-			Store (Local0, IMAX)
+			IMIN = Local0
+			IMAX = Local0
 
 			If (Local2) {
 				CreateWordField (CRS, IRQX._INT, IRQW)
-				Store (One, Local3)
-				ShiftLeft (Local3, Local2, IRQW)
+				Local3 = 1
+				IRQW = Local3 << Local2
 			}
 
 			Return (CRS)
@@ -1356,21 +1353,21 @@ Device(SIO) {
 	/* ==== Suspend LED control if it is connected to the SuperIO ==== */
 	Method (SLED, 1)
 	{
-		ENCM (9)
-		Store(OPT4, Local0)
-		And(Local0, 63, Local0)
-		Or(Local0, ShiftLeft(And(Arg0, 0x03), 6), OPT4)
-		EXCM ()
+		ENTER_CONFIG_MODE (9)
+		Local0 = OPT4
+		Local0 &= 63
+		OPT4 = Local0 | ((Arg0 & 3) << 6)
+		EXIT_CONFIG_MODE ()
 	}
 
 	/* ===== Power LED control if it is connected to the SuperIO ===== */
 	Method (PLED, 1)
 	{
-		ENCM (8)
-		Store(OPT4, Local0)
-		And(Local0, 63, Local0)
-		Or(Local0, ShiftLeft(And(Arg0, 0x03), 6), OPT4)
-		EXCM ()
+		ENTER_CONFIG_MODE (8)
+		Local0 = OPT4
+		Local0 &= 63
+		OPT4 = Local0 | ((Arg0 & 3) << 6)
+		EXIT_CONFIG_MODE ()
 	}
 
 	#ifndef NO_W83627HF_HWMON
@@ -1383,42 +1380,42 @@ Device(SIO) {
 
 		Method (_STA)
 		{
-			Store (0x00, Local0)
-			ENCM (11)
+			Local0 = 0x00
+			ENTER_CONFIG_MODE (11)
 			If (ACTR) {
-				Store (0x0F, Local0)
+				Local0 = 0x0F
 			}
-			ElseIf (LOr (IO1H, IO1L))
+			ElseIf (IO1H || IO1L)
 			{
-				Store (0x0D, Local0)
+				Local0 = 0x0D
 			}
-			EXCM ()
+			EXIT_CONFIG_MODE ()
 			Return (Local0)
 		}
 
 		Method (_PSC)
 		{
-			Store(^^_PSC (), Local0)
+			Local0 = ^^_PSC ()
 			If (Local0) { Return (Local0) }
-			ENCM (0xFF)
-			Store (HWPW, Local0)
-			EXCM ()
-			If (Local0) { Return (1) }
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			Local0 = HWPW
+			EXIT_CONFIG_MODE ()
+			If (Local0) { Return (3) }
 			Else { Return (0) }
 		}
 
 		Method (_PS0)
 		{
-			ENCM (0xFF)
-			Store (One, HWPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			HWPW = 1
+			EXIT_CONFIG_MODE ()
 		}
 
-		Method (_PS1)
+		Method (_PS3)
 		{
-			ENCM (0xFF)
-			Store (Zero, HWPW)
-			EXCM ()
+			ENTER_CONFIG_MODE (PNP_NO_LDN_CHANGE)
+			HWPW = 0
+			EXIT_CONFIG_MODE ()
 		}
 
 		Method (_CRS, 0, Serialized)
@@ -1427,23 +1424,23 @@ Device(SIO) {
 				IO (Decode16, 0x0000, 0x0000, 0x08, 0x02, IO0)
 				IRQNoFlags (IRQX) {}
 			})
-			ENCM (11)
-			Store(IO1L, Local0)
-			Store(IO1H, Local1)
-			Store(IRQ1, Local2)
-			EXCM ()
+			ENTER_CONFIG_MODE (11)
+			Local0 = IO1L
+			Local1 = IO1H
+			Local2 = IRQ1
+			EXIT_CONFIG_MODE ()
 
-			Or(ShiftLeft(Local1, 8), Local0, Local0)
+			Local0 |= Local1 << 8
 
 			CreateWordField (CRS, IO0._MIN, IMIN)
 			CreateWordField (CRS, IO0._MAX, IMAX)
-			Store (Local0, IMIN)
-			Store (Local0, IMAX)
+			IMIN = Local0
+			IMAX = Local0
 
 			If (Local2) {
 				CreateWordField (CRS, IRQX._INT, IRQW)
-				Store (One, Local3)
-				ShiftLeft (Local3, Local2, IRQW)
+				Local3 = 1
+				IRQW = Local3 << Local2
 			}
 			Return (CRS)
 		}
@@ -1461,9 +1458,9 @@ Device(SIO) {
 	*/
 	Method (WAKS)
 	{
-		ENCM (10)
-		Store (CRE3, Local0)
-		EXCM ()
+		ENTER_CONFIG_MODE (10)
+		Local0 = CRE3
+		EXIT_CONFIG_MODE ()
 		Return (Local0)
 	}
 }

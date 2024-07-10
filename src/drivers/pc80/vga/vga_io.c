@@ -1,16 +1,4 @@
-/*
- * Copyright (C)  2007-2009  Luc Verhaegen <libv@skynet.be>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /*
  * All IO necessary to poke VGA registers.
@@ -102,7 +90,7 @@ unsigned char
 vga_sr_read(unsigned char index)
 {
 	outb(index, VGA_SR_INDEX);
-	return (inb(VGA_SR_VALUE));
+	return inb(VGA_SR_VALUE);
 }
 
 void
@@ -130,7 +118,7 @@ unsigned char
 vga_cr_read(unsigned char index)
 {
 	outb(index, VGA_CR_INDEX);
-	return (inb(VGA_CR_VALUE));
+	return inb(VGA_CR_VALUE);
 }
 
 void
@@ -159,10 +147,10 @@ vga_ar_read(unsigned char index)
 {
 	unsigned char ret;
 
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 	outb(index, VGA_AR_INDEX);
 	ret = inb(VGA_AR_VALUE_READ);
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 
 	return ret;
 }
@@ -170,10 +158,10 @@ vga_ar_read(unsigned char index)
 void
 vga_ar_write(unsigned char index, unsigned char value)
 {
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 	outb(index, VGA_AR_INDEX);
 	outb(value, VGA_AR_VALUE_WRITE);
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 }
 
 void
@@ -194,7 +182,7 @@ unsigned char
 vga_gr_read(unsigned char index)
 {
 	outb(index, VGA_GR_INDEX);
-	return (inb(VGA_GR_VALUE));
+	return inb(VGA_GR_VALUE);
 }
 
 void
@@ -221,17 +209,17 @@ vga_gr_mask(unsigned char index, unsigned char value, unsigned char mask)
 void
 vga_palette_enable(void)
 {
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 	outb(0x00, VGA_AR_INDEX);
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 }
 
 void
 vga_palette_disable(void)
 {
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 	outb(0x20, VGA_AR_INDEX);
-	(void) inb(VGA_STAT1);
+	(void)inb(VGA_STAT1);
 }
 
 unsigned char

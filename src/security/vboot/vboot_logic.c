@@ -1,64 +1,34 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/exception.h>
 #include <assert.h>
-#include <bootmode.h>
-#include <cbmem.h>
 #include <console/console.h>
-#include <console/vtxprintf.h>
+#include <bootmode.h>
+#include <ec/google/chromeec/ec.h>
+#include <fmap.h>
+#include <security/tpm/tspi/crtm.h>
+#include <security/tpm/tss/vendor/cr50/cr50.h>
+#include <security/tpm/tss_errors.h>
+#include <security/vboot/misc.h>
+#include <security/vboot/vbnv.h>
+#include <security/vboot/tpm_common.h>
 #include <string.h>
 #include <timestamp.h>
 #include <vb2_api.h>
-#include <security/vboot/misc.h>
-#include <security/vboot/vbnv.h>
-#include <security/vboot/vboot_crtm.h>
+#include <boot_device.h>
 
 #include "antirollback.h"
 
 /* The max hash size to expect is for SHA512. */
 #define VBOOT_MAX_HASH_SIZE VB2_SHA512_DIGEST_SIZE
 
-#define TODO_BLOCK_SIZE 1024
-
-static int is_slot_a(struct vb2_context *ctx)
-{
-	return !(ctx->flags & VB2_CONTEXT_FW_SLOT_B);
-}
-
 /* exports */
 
-void vb2ex_printf(const char *func, const char *fmt, ...)
-{
-	va_list args;
-
-	if (func)
-		printk(BIOS_INFO, "VB2:%s() ", func);
-
-	va_start(args, fmt);
-	vprintk(BIOS_INFO, fmt, args);
-	va_end(args);
-
-	return;
-}
-
-int vb2ex_read_resource(struct vb2_context *ctx,
-			enum vb2_resource_index index,
-			uint32_t offset,
-			void *buf,
-			uint32_t size)
+vb2_error_t vb2ex_read_resource(struct vb2_context *ctx,
+				enum vb2_resource_index index,
+				uint32_t offset,
+				void *buf,
+				uint32_t size)
 {
 	struct region_device rdev;
 	const char *name;
@@ -68,7 +38,7 @@ int vb2ex_read_resource(struct vb2_context *ctx,
 		name = "GBB";
 		break;
 	case VB2_RES_FW_VBLOCK:
-		if (is_slot_a(ctx))
+		if (vboot_is_firmware_slot_a(ctx))
 			name = "VBLOCK_A";
 		else
 			name = "VBLOCK_B";
@@ -77,7 +47,7 @@ int vb2ex_read_resource(struct vb2_context *ctx,
 		return VB2_ERROR_EX_READ_RESOURCE_INDEX;
 	}
 
-	if (vboot_named_region_device(name, &rdev))
+	if (fmap_locate_area_as_rdev(name, &rdev))
 		return VB2_ERROR_EX_READ_RESOURCE_SIZE;
 
 	if (rdev_readat(&rdev, buf, offset, size) != size)
@@ -86,26 +56,7 @@ int vb2ex_read_resource(struct vb2_context *ctx,
 	return VB2_SUCCESS;
 }
 
-/* No-op stubs that can be overridden by SoCs with hardware crypto support. */
-__weak int vb2ex_hwcrypto_digest_init(enum vb2_hash_algorithm hash_alg,
-				      uint32_t data_size)
-{
-	return VB2_ERROR_EX_HWCRYPTO_UNSUPPORTED;
-}
-
-__weak int vb2ex_hwcrypto_digest_extend(const uint8_t *buf, uint32_t size)
-{
-	BUG(); /* Should never get called if init() returned an error. */
-	return VB2_ERROR_UNKNOWN;
-}
-
-__weak int vb2ex_hwcrypto_digest_finalize(uint8_t *digest, uint32_t digest_size)
-{
-	BUG(); /* Should never get called if init() returned an error. */
-	return VB2_ERROR_UNKNOWN;
-}
-
-static int handle_digest_result(void *slot_hash, size_t slot_hash_sz)
+static vb2_error_t handle_digest_result(void *slot_hash, size_t slot_hash_sz)
 {
 	int is_resume;
 
@@ -114,14 +65,14 @@ static int handle_digest_result(void *slot_hash, size_t slot_hash_sz)
 	 * vboot_retrieve_hash(), if Chrome EC is not enabled then return.
 	 */
 	if (!CONFIG(EC_GOOGLE_CHROMEEC))
-		return 0;
+		return VB2_SUCCESS;
 
 	/*
 	 * Nothing to do since resuming on the platform doesn't require
 	 * vboot verification again.
 	 */
 	if (!CONFIG(RESUME_PATH_SAME_AS_BOOT))
-		return 0;
+		return VB2_SUCCESS;
 
 	/*
 	 * Assume that if vboot doesn't start in bootblock verified
@@ -129,26 +80,26 @@ static int handle_digest_result(void *slot_hash, size_t slot_hash_sz)
 	 * lives in RO CBFS.
 	 */
 	if (!CONFIG(VBOOT_STARTS_IN_BOOTBLOCK))
-		return 0;
+		return VB2_SUCCESS;
 
-	is_resume = vboot_platform_is_resuming();
+	is_resume = platform_is_resuming();
 
 	if (is_resume > 0) {
 		uint8_t saved_hash[VBOOT_MAX_HASH_SIZE];
 		const size_t saved_hash_sz = sizeof(saved_hash);
 
-		assert(slot_hash_sz == saved_hash_sz);
+		assert(slot_hash_sz <= saved_hash_sz);
 
 		printk(BIOS_DEBUG, "Platform is resuming.\n");
 
 		if (vboot_retrieve_hash(saved_hash, saved_hash_sz)) {
 			printk(BIOS_ERR, "Couldn't retrieve saved hash.\n");
-			return -1;
+			return VB2_ERROR_UNKNOWN;
 		}
 
 		if (memcmp(saved_hash, slot_hash, slot_hash_sz)) {
 			printk(BIOS_ERR, "Hash mismatch on resume.\n");
-			return -1;
+			return VB2_ERROR_UNKNOWN;
 		}
 	} else if (is_resume < 0)
 		printk(BIOS_ERR, "Unable to determine if platform resuming.\n");
@@ -162,22 +113,23 @@ static int handle_digest_result(void *slot_hash, size_t slot_hash_sz)
 		 * lead to a reboot loop. The consequence of this is that
 		 * we will most likely fail resuming because of EC issues or
 		 * the hash digest not matching. */
-		return 0;
+		return VB2_SUCCESS;
 	}
 
-	return 0;
+	return VB2_SUCCESS;
 }
 
-static int hash_body(struct vb2_context *ctx, struct region_device *fw_main)
+static vb2_error_t hash_body(struct vb2_context *ctx,
+			     struct region_device *fw_body)
 {
 	uint64_t load_ts;
-	uint32_t expected_size;
-	uint8_t block[TODO_BLOCK_SIZE];
+	uint32_t remaining;
+	uint8_t block[CONFIG_VBOOT_HASH_BLOCK_SIZE];
 	uint8_t hash_digest[VBOOT_MAX_HASH_SIZE];
 	const size_t hash_digest_sz = sizeof(hash_digest);
 	size_t block_size = sizeof(block);
 	size_t offset;
-	int rv;
+	vb2_error_t rc;
 
 	/* Clear the full digest so that any hash digests less than the
 	 * max have trailing zeros. */
@@ -190,189 +142,193 @@ static int hash_body(struct vb2_context *ctx, struct region_device *fw_main)
 	 * (This split won't make sense with memory-mapped media like on x86.)
 	 */
 	load_ts = timestamp_get();
-	timestamp_add(TS_START_HASH_BODY, load_ts);
+	timestamp_add(TS_HASH_BODY_START, load_ts);
 
-	expected_size = region_device_sz(fw_main);
+	remaining = region_device_sz(fw_body);
 	offset = 0;
 
 	/* Start the body hash */
-	rv = vb2api_init_hash(ctx, VB2_HASH_TAG_FW_BODY, &expected_size);
-	if (rv)
-		return rv;
-
-	/*
-	 * Honor vboot's RW slot size. The expected size is pulled out of
-	 * the preamble and obtained through vb2api_init_hash() above. By
-	 * creating sub region the RW slot portion of the boot media is
-	 * limited.
-	 */
-	if (rdev_chain(fw_main, fw_main, 0, expected_size)) {
-		printk(BIOS_ERR, "Unable to restrict CBFS size.\n");
-		return VB2_ERROR_UNKNOWN;
-	}
+	rc = vb2api_init_hash(ctx, VB2_HASH_TAG_FW_BODY);
+	if (rc)
+		return rc;
 
 	/* Extend over the body */
-	while (expected_size) {
+	while (remaining) {
 		uint64_t temp_ts;
-		if (block_size > expected_size)
-			block_size = expected_size;
+		if (block_size > remaining)
+			block_size = remaining;
 
 		temp_ts = timestamp_get();
-		if (rdev_readat(fw_main, block, offset, block_size) < 0)
+		if (rdev_readat(fw_body, block, offset, block_size) < 0)
 			return VB2_ERROR_UNKNOWN;
 		load_ts += timestamp_get() - temp_ts;
 
-		rv = vb2api_extend_hash(ctx, block, block_size);
-		if (rv)
-			return rv;
+		rc = vb2api_extend_hash(ctx, block, block_size);
+		if (rc)
+			return rc;
 
-		expected_size -= block_size;
+		remaining -= block_size;
 		offset += block_size;
 	}
 
-	timestamp_add(TS_DONE_LOADING, load_ts);
-	timestamp_add_now(TS_DONE_HASHING);
+	timestamp_add(TS_LOADING_END, load_ts);
+	timestamp_add_now(TS_HASHING_END);
 
 	/* Check the result (with RSA signature verification) */
-	rv = vb2api_check_hash_get_digest(ctx, hash_digest, hash_digest_sz);
-	if (rv)
-		return rv;
+	rc = vb2api_check_hash_get_digest(ctx, hash_digest, hash_digest_sz);
+	if (rc)
+		return rc;
 
-	timestamp_add_now(TS_END_HASH_BODY);
+	timestamp_add_now(TS_HASH_BODY_END);
 
-	if (handle_digest_result(hash_digest, hash_digest_sz))
-		return VB2_ERROR_UNKNOWN;
-
-	return VB2_SUCCESS;
+	return handle_digest_result(hash_digest, hash_digest_sz);
 }
 
-static int locate_firmware(struct vb2_context *ctx,
-			   struct region_device *fw_main)
+static tpm_result_t extend_pcrs(struct vb2_context *ctx)
 {
-	const char *name;
+	tpm_result_t rc;
+	rc = vboot_extend_pcr(ctx, CONFIG_PCR_BOOT_MODE, BOOT_MODE_PCR);
+	if (rc)
+		return rc;
+	rc = vboot_extend_pcr(ctx, CONFIG_PCR_HWID, HWID_DIGEST_PCR);
+	if (rc)
+		return rc;
+	return vboot_extend_pcr(ctx, CONFIG_PCR_FW_VER, FIRMWARE_VERSION_PCR);
+}
 
-	if (is_slot_a(ctx))
-		name = "FW_MAIN_A";
+#define EC_EFS_BOOT_MODE_VERIFIED_RW	0x00
+#define EC_EFS_BOOT_MODE_UNTRUSTED_RO	0x01
+#define EC_EFS_BOOT_MODE_TRUSTED_RO	0x02
+
+static const char *get_boot_mode_string(uint8_t boot_mode)
+{
+	if (boot_mode == EC_EFS_BOOT_MODE_TRUSTED_RO)
+		return "TRUSTED_RO";
+	else if (boot_mode == EC_EFS_BOOT_MODE_UNTRUSTED_RO)
+		return "UNTRUSTED_RO";
+	else if (boot_mode == EC_EFS_BOOT_MODE_VERIFIED_RW)
+		return "VERIFIED_RW";
 	else
-		name = "FW_MAIN_B";
-
-	return vboot_named_region_device(name, fw_main);
+		return "UNDEFINED";
 }
 
-/**
- * Save non-volatile and/or secure data if needed.
- */
-static void save_if_needed(struct vb2_context *ctx)
+static void check_boot_mode(struct vb2_context *ctx)
 {
-	if (ctx->flags & VB2_CONTEXT_NVDATA_CHANGED) {
-		printk(BIOS_INFO, "Saving nvdata\n");
-		save_vbnv(ctx->nvdata);
-		ctx->flags &= ~VB2_CONTEXT_NVDATA_CHANGED;
+	uint8_t boot_mode;
+	tpm_result_t rc;
+
+	rc = tlcl_cr50_get_boot_mode(&boot_mode);
+	switch (rc) {
+	case TPM_CB_NO_SUCH_COMMAND:
+		printk(BIOS_WARNING, "GSC does not support GET_BOOT_MODE.\n");
+		/* Proceed to legacy boot model. */
+		return;
+	case TPM_SUCCESS:
+		break;
+	default:
+		printk(BIOS_ERR,
+		       "Communication error(%#x) in getting GSC boot mode.\n", rc);
+		vb2api_fail(ctx, VB2_RECOVERY_GSC_BOOT_MODE, rc);
+		return;
 	}
-	if (ctx->flags & VB2_CONTEXT_SECDATA_CHANGED) {
-		printk(BIOS_INFO, "Saving secdata\n");
-		antirollback_write_space_firmware(ctx);
-		ctx->flags &= ~VB2_CONTEXT_SECDATA_CHANGED;
-	}
+
+	printk(BIOS_INFO, "GSC says boot_mode is %s(0x%02x).\n",
+	       get_boot_mode_string(boot_mode), boot_mode);
+
+	if (boot_mode == EC_EFS_BOOT_MODE_UNTRUSTED_RO)
+		ctx->flags |= VB2_CONTEXT_NO_BOOT;
+	else if (boot_mode == EC_EFS_BOOT_MODE_TRUSTED_RO)
+		ctx->flags |= VB2_CONTEXT_EC_TRUSTED;
 }
 
-static uint32_t extend_pcrs(struct vb2_context *ctx)
-{
-	return vboot_extend_pcr(ctx, 0, BOOT_MODE_PCR) ||
-		   vboot_extend_pcr(ctx, 1, HWID_DIGEST_PCR);
-}
-
-static void vboot_log_and_clear_recovery_mode_switch(int unused)
-{
-	/* Log the recovery mode switches if required, before clearing them. */
-	log_recovery_mode_switch();
-
-	/*
-	 * The recovery mode switch is cleared (typically backed by EC) here
-	 * to allow multiple queries to get_recovery_mode_switch() and have
-	 * them return consistent results during the verified boot path as well
-	 * as dram initialization. x86 systems ignore the saved dram settings
-	 * in the recovery path in order to start from a clean slate. Therefore
-	 * clear the state here since this function is called when memory
-	 * is known to be up.
-	 */
-	clear_recovery_mode_switch();
-}
-#if !CONFIG(VBOOT_STARTS_IN_ROMSTAGE)
-ROMSTAGE_CBMEM_INIT_HOOK(vboot_log_and_clear_recovery_mode_switch)
-#endif
-
-/**
- * Verify and select the firmware in the RW image
- *
- * TODO: Avoid loading a stage twice (once in hash_body & again in load_stage).
- * when per-stage verification is ready.
- */
+/* Verify and select the firmware in the RW image */
 void verstage_main(void)
 {
-	struct vb2_context ctx;
-	struct region_device fw_main;
-	int rv;
+	struct vb2_context *ctx;
+	tpm_result_t tpm_rc;
+	vb2_error_t rv;
 
-	timestamp_add_now(TS_START_VBOOT);
+	timestamp_add_now(TS_VBOOT_START);
+
+	/* Lockdown SPI flash controller if required */
+	if (CONFIG(BOOTMEDIA_LOCK_IN_VERSTAGE))
+		boot_device_security_lockdown();
 
 	/* Set up context and work buffer */
-	vboot_init_work_context(&ctx);
+	ctx = vboot_get_context();
 
 	/* Initialize and read nvdata from non-volatile storage. */
-	vbnv_init(ctx.nvdata);
+	vbnv_init();
 
 	/* Set S3 resume flag if vboot should behave differently when selecting
 	 * which slot to boot.  This is only relevant to vboot if the platform
 	 * does verification of memory init and thus must ensure it resumes with
 	 * the same slot that it booted from. */
 	if (CONFIG(RESUME_PATH_SAME_AS_BOOT) &&
-		vboot_platform_is_resuming())
-		ctx.flags |= VB2_CONTEXT_S3_RESUME;
+		platform_is_resuming())
+		ctx->flags |= VB2_CONTEXT_S3_RESUME;
+
+	if (!CONFIG(VBOOT_SLOTS_RW_AB))
+		ctx->flags |= VB2_CONTEXT_SLOT_A_ONLY;
 
 	/* Read secdata from TPM. Initialize TPM if secdata not found. We don't
 	 * check the return value here because vb2api_fw_phase1 will catch
 	 * invalid secdata and tell us what to do (=reboot). */
-	timestamp_add_now(TS_START_TPMINIT);
-	antirollback_read_space_firmware(&ctx);
-	timestamp_add_now(TS_END_TPMINIT);
-
-	/* Enable measured boot mode */
-	if (CONFIG(VBOOT_MEASURED_BOOT) &&
-		!(ctx.flags & VB2_CONTEXT_S3_RESUME)) {
-		if (vboot_init_crtm() != VB2_SUCCESS)
-			die_with_post_code(POST_INVALID_ROM,
-				"Initializing measured boot mode failed!");
+	timestamp_add_now(TS_TPMINIT_START);
+	rv = vboot_setup_tpm(ctx);
+	if (rv == TPM_SUCCESS) {
+		antirollback_read_space_firmware(ctx);
+		antirollback_read_space_kernel(ctx);
+	} else {
+		vb2api_fail(ctx, VB2_RECOVERY_RO_TPM_S_ERROR, rv);
+		if (CONFIG(TPM_SETUP_HIBERNATE_ON_ERR) &&
+				rv == TPM_CB_COMMUNICATION_ERROR) {
+			printk(BIOS_ERR, "Failed to communicate with TPM\n"
+					"Next reboot will hibernate to reset TPM");
+			/* Command the EC to hibernate on next AP shutdown */
+			if (google_chromeec_reboot(
+					EC_REBOOT_HIBERNATE,
+					EC_REBOOT_FLAG_ON_AP_SHUTDOWN)) {
+				printk(BIOS_ERR, "Failed to get EC to schedule hibernate");
+			}
+		}
 	}
+	timestamp_add_now(TS_TPMINIT_END);
 
 	if (get_recovery_mode_switch()) {
-		ctx.flags |= VB2_CONTEXT_FORCE_RECOVERY_MODE;
+		ctx->flags |= VB2_CONTEXT_FORCE_RECOVERY_MODE;
 		if (CONFIG(VBOOT_DISABLE_DEV_ON_RECOVERY))
-			ctx.flags |= VB2_CONTEXT_DISABLE_DEVELOPER_MODE;
+			ctx->flags |= VB2_CONTEXT_DISABLE_DEVELOPER_MODE;
 	}
 
 	if (CONFIG(VBOOT_WIPEOUT_SUPPORTED) &&
 		get_wipeout_mode_switch())
-		ctx.flags |= VB2_CONTEXT_FORCE_WIPEOUT_MODE;
+		ctx->flags |= VB2_CONTEXT_FORCE_WIPEOUT_MODE;
 
 	if (CONFIG(VBOOT_LID_SWITCH) && !get_lid_switch())
-		ctx.flags |= VB2_CONTEXT_NOFAIL_BOOT;
+		ctx->flags |= VB2_CONTEXT_NOFAIL_BOOT;
 
 	/* Mainboard/SoC always initializes display. */
-	if (!CONFIG(VBOOT_MUST_REQUEST_DISPLAY))
-		ctx.flags |= VB2_CONTEXT_DISPLAY_INIT;
+	if (!CONFIG(VBOOT_MUST_REQUEST_DISPLAY) || CONFIG(VBOOT_ALWAYS_ENABLE_DISPLAY))
+		ctx->flags |= VB2_CONTEXT_DISPLAY_INIT;
+
+	/*
+	 * Get boot mode from GSC. This allows us to refuse to boot OS
+	 * (with VB2_CONTEXT_NO_BOOT) or to switch to developer mode (with
+	 * !VB2_CONTEXT_EC_TRUSTED).
+	 *
+	 * If there is an communication error, a recovery reason will be set and
+	 * vb2api_fw_phase1 will route us to recovery mode.
+	 */
+	if (CONFIG(TPM_GOOGLE))
+		check_boot_mode(ctx);
+
+	if (get_ec_is_trusted())
+		ctx->flags |= VB2_CONTEXT_EC_TRUSTED;
 
 	/* Do early init (set up secdata and NVRAM, load GBB) */
 	printk(BIOS_INFO, "Phase 1\n");
-	rv = vb2api_fw_phase1(&ctx);
-
-	/* Jot down some information from vboot which may be required later on
-	   in coreboot boot flow. */
-	if (ctx.flags & VB2_CONTEXT_DISPLAY_INIT)
-		/* Mainboard/SoC should initialize display. */
-		vboot_get_working_data()->flags |= VBOOT_WD_FLAG_DISPLAY_INIT;
-	if (ctx.flags & VB2_CONTEXT_DEVELOPER_MODE)
-		vboot_get_working_data()->flags |= VBOOT_WD_FLAG_DEVELOPER_MODE;
+	rv = vb2api_fw_phase1(ctx);
 
 	if (rv) {
 		/*
@@ -382,98 +338,86 @@ void verstage_main(void)
 		 * For any other error code, save context if needed and reboot.
 		 */
 		if (rv == VB2_ERROR_API_PHASE1_RECOVERY) {
-			printk(BIOS_INFO, "Recovery requested (%x)\n", rv);
-			save_if_needed(&ctx);
-			extend_pcrs(&ctx); /* ignore failures */
+			printk(BIOS_INFO, "Recovery requested (%#x)\n", rv);
+			vboot_save_data(ctx);
+			extend_pcrs(ctx); /* ignore failures */
 			goto verstage_main_exit;
 		}
-
-		printk(BIOS_INFO, "Reboot requested (%x)\n", rv);
-		save_if_needed(&ctx);
-		vboot_reboot();
+		vboot_save_and_reboot(ctx, rv);
 	}
 
 	/* Determine which firmware slot to boot (based on NVRAM) */
 	printk(BIOS_INFO, "Phase 2\n");
-	rv = vb2api_fw_phase2(&ctx);
-	if (rv) {
-		printk(BIOS_INFO, "Reboot requested (%x)\n", rv);
-		save_if_needed(&ctx);
-		vboot_reboot();
-	}
+	rv = vb2api_fw_phase2(ctx);
+	if (rv)
+		vboot_save_and_reboot(ctx, rv);
 
 	/* Try that slot (verify its keyblock and preamble) */
 	printk(BIOS_INFO, "Phase 3\n");
-	timestamp_add_now(TS_START_VERIFY_SLOT);
-	rv = vb2api_fw_phase3(&ctx);
-	timestamp_add_now(TS_END_VERIFY_SLOT);
-	if (rv) {
-		printk(BIOS_INFO, "Reboot requested (%x)\n", rv);
-		save_if_needed(&ctx);
-		vboot_reboot();
-	}
+	timestamp_add_now(TS_VERIFY_SLOT_START);
+	rv = vb2api_fw_phase3(ctx);
+	timestamp_add_now(TS_VERIFY_SLOT_END);
+	if (rv)
+		vboot_save_and_reboot(ctx, rv);
 
 	printk(BIOS_INFO, "Phase 4\n");
-	rv = locate_firmware(&ctx, &fw_main);
-	if (rv)
-		die_with_post_code(POST_INVALID_ROM,
-			"Failed to read FMAP to locate firmware");
+	if (CONFIG(VBOOT_CBFS_INTEGRATION)) {
+		struct vb2_hash *metadata_hash;
+		rv = vb2api_get_metadata_hash(ctx, &metadata_hash);
+		if (rv == VB2_SUCCESS)
+			rv = handle_digest_result(metadata_hash->raw,
+						  vb2_digest_size(metadata_hash->algo));
+	} else {
+		struct region_device fw_body;
+		if (vboot_locate_firmware(ctx, &fw_body))
+			die_with_post_code(POSTCODE_INVALID_ROM,
+					   "Failed to read FMAP to locate firmware");
 
-	rv = hash_body(&ctx, &fw_main);
-	save_if_needed(&ctx);
-	if (rv) {
-		printk(BIOS_INFO, "Reboot requested (%x)\n", rv);
-		vboot_reboot();
+		rv = hash_body(ctx, &fw_body);
 	}
 
+	if (rv)
+		vboot_fail_and_reboot(ctx, VB2_RECOVERY_FW_GET_FW_BODY, rv);
+	vboot_save_data(ctx);
+
 	/* Only extend PCRs once on boot. */
-	if (!(ctx.flags & VB2_CONTEXT_S3_RESUME)) {
-		timestamp_add_now(TS_START_TPMPCR);
-		rv = extend_pcrs(&ctx);
-		if (rv) {
-			printk(BIOS_WARNING,
-			       "Failed to extend TPM PCRs (%#x)\n", rv);
-			vb2api_fail(&ctx, VB2_RECOVERY_RO_TPM_U_ERROR, rv);
-			save_if_needed(&ctx);
-			vboot_reboot();
+	if (!(ctx->flags & VB2_CONTEXT_S3_RESUME)) {
+		timestamp_add_now(TS_TPMPCR_START);
+		tpm_rc = extend_pcrs(ctx);
+		if (tpm_rc) {
+			printk(BIOS_WARNING, "Failed to extend TPM PCRs (%#x)\n",
+				tpm_rc);
+			vboot_fail_and_reboot(ctx,
+				VB2_RECOVERY_RO_TPM_U_ERROR,
+				tpm_rc);
 		}
-		timestamp_add_now(TS_END_TPMPCR);
+		timestamp_add_now(TS_TPMPCR_END);
 	}
 
 	/* Lock TPM */
 
-	timestamp_add_now(TS_START_TPMLOCK);
-	rv = antirollback_lock_space_firmware();
-	if (rv) {
-		printk(BIOS_INFO, "Failed to lock TPM (%x)\n", rv);
-		vb2api_fail(&ctx, VB2_RECOVERY_RO_TPM_L_ERROR, 0);
-		save_if_needed(&ctx);
-		vboot_reboot();
+	timestamp_add_now(TS_TPMLOCK_START);
+	tpm_rc = antirollback_lock_space_firmware();
+	if (tpm_rc) {
+		printk(BIOS_INFO, "Failed to lock TPM (%#x)\n", tpm_rc);
+		vboot_fail_and_reboot(ctx, VB2_RECOVERY_RO_TPM_L_ERROR, 0);
 	}
-	timestamp_add_now(TS_END_TPMLOCK);
+	timestamp_add_now(TS_TPMLOCK_END);
 
 	/* Lock rec hash space if available. */
 	if (CONFIG(VBOOT_HAS_REC_HASH_SPACE)) {
-		rv = antirollback_lock_space_rec_hash();
-		if (rv) {
-			printk(BIOS_INFO, "Failed to lock rec hash space(%x)\n",
-			       rv);
-			vb2api_fail(&ctx, VB2_RECOVERY_RO_TPM_REC_HASH_L_ERROR,
-				    0);
-			save_if_needed(&ctx);
-			vboot_reboot();
+		tpm_rc = antirollback_lock_space_mrc_hash(
+				MRC_REC_HASH_NV_INDEX);
+		if (tpm_rc) {
+			printk(BIOS_INFO, "Failed to lock rec hash space(%#x)\n",
+				tpm_rc);
+			vboot_fail_and_reboot(ctx, VB2_RECOVERY_RO_TPM_REC_HASH_L_ERROR, tpm_rc);
 		}
 	}
 
-	printk(BIOS_INFO, "Slot %c is selected\n", is_slot_a(&ctx) ? 'A' : 'B');
-	vboot_set_selected_region(region_device_region(&fw_main));
+	printk(BIOS_INFO, "Slot %c is selected\n",
+	       vboot_is_firmware_slot_a(ctx) ? 'A' : 'B');
 
  verstage_main_exit:
-	/* If CBMEM is not up yet, let the ROMSTAGE_CBMEM_INIT_HOOK take care
-	   of running this function. */
-	if (ENV_ROMSTAGE && CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
-		vboot_log_and_clear_recovery_mode_switch(0);
-
-	vboot_finalize_work_context(&ctx);
-	timestamp_add_now(TS_END_VBOOT);
+	timestamp_add_now(TS_VBOOT_END);
 }

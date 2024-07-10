@@ -1,13 +1,12 @@
 chip northbridge/intel/sandybridge
 	# IGD Displays
-	register "gfx.ndid" = "1"
-	register "gfx.did" = "{ 0x80000000, 0x80000000, 0x00000000, 0x00000000, 0x00000000 }"
+	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 
 	# Enable DisplayPort Hotplug with 6ms pulse
 	register "gpu_dp_d_hotplug" = "0x06"
 
 	# Enable Panel as eDP and configure power delays
-	register "gpu_panel_port_select" = "1"			# eDP_A
+	register "gpu_panel_port_select" = "PANEL_PORT_DP_A"
 	register "gpu_panel_power_cycle_delay" = "6"		# 500ms
 	register "gpu_panel_power_up_delay" = "2000"		# 200ms
 	register "gpu_panel_power_down_delay" = "500"		# 50ms
@@ -18,28 +17,31 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x00000200"
 	register "gpu_pch_backlight" = "0x04000000"
 
-	register "max_mem_clock_mhz" = "666"
+	register "ec_present" = "1"
+	register "ddr3lv_support" = "1"
+	# FIXME: Native raminit requires reduced max clock
+	register "max_mem_clock_mhz" = "CONFIG(USE_NATIVE_RAMINIT) ? 666 : 800"
 
-	device cpu_cluster 0 on
-		chip cpu/intel/model_206ax
-			# Magic APIC ID to locate this chip
-			device lapic 0x0 on end
-			device lapic 0xacac off end
-
-			register "c1_acpower" = "1"	# ACPI(C1) = MWAIT(C1)
-			register "c2_acpower" = "3"	# ACPI(C2) = MWAIT(C3)
-			register "c3_acpower" = "5"	# ACPI(C3) = MWAIT(C7)
-
-			register "c1_battery" = "1"	# ACPI(C1) = MWAIT(C1)
-			register "c2_battery" = "3"	# ACPI(C2) = MWAIT(C3)
-			register "c3_battery" = "5"	# ACPI(C3) = MWAIT(C7)
-		end
-	end
+	register "usb_port_config" = "{
+		{ 0, 3, 0x0000 },
+		{ 1, 0, 0x0040 },
+		{ 1, 1, 0x0040 },
+		{ 1, 3, 0x0040 },
+		{ 0, 3, 0x0000 },
+		{ 1, 3, 0x0040 },
+		{ 0, 3, 0x0000 },
+		{ 0, 3, 0x0000 },
+		{ 1, 4, 0x0040 },
+		{ 1, 4, 0x0040 },
+		{ 0, 4, 0x0000 },
+		{ 0, 4, 0x0000 },
+		{ 0, 4, 0x0000 },
+		{ 0, 4, 0x0000 },}"
 
 	device domain 0 on
 		subsystemid 0x1ae0 0xc000 inherit
-		device pci 00.0 on end # host bridge
-		device pci 02.0 on end # vga controller
+		device ref host_bridge on end # host bridge
+		device ref igd on end # vga controller
 
 		chip southbridge/intel/bd82x6x # Intel Series 6 Cougar Point PCH
 			# GPI routing
@@ -61,29 +63,26 @@ chip northbridge/intel/sandybridge
 			register "gen2_dec" = "0x00fc0901"
 
 			# Enable zero-based linear PCIe root port functions
-			register "pcie_port_coalesce" = "1"
+			register "pcie_port_coalesce" = "true"
 
-			register "c2_latency" = "1"
-			register "p_cnt_throttling_supported" = "0"
-
-			device pci 16.0 on end # Management Engine Interface 1
-			device pci 16.1 off end # Management Engine Interface 2
-			device pci 16.2 off end # Management Engine IDE-R
-			device pci 16.3 off end # Management Engine KT
-			device pci 19.0 off end # Intel Gigabit Ethernet
-			device pci 1a.0 on end # USB2 EHCI #2
-			device pci 1b.0 on end # High Definition Audio
-			device pci 1c.0 off end # PCIe Port #1 (WLAN remapped)
-			device pci 1c.1 off end # PCIe Port #2
-			device pci 1c.2 on end # PCIe Port #3 (WLAN actual)
-			device pci 1c.3 off end # PCIe Port #4
-			device pci 1c.4 off end # PCIe Port #5
-			device pci 1c.5 off end # PCIe Port #6
-			device pci 1c.6 off end # PCIe Port #7
-			device pci 1c.7 off end # PCIe Port #8
-			device pci 1d.0 on end # USB2 EHCI #1
-			device pci 1e.0 off end # PCI bridge
-			device pci 1f.0 on
+			device ref mei1 on end # Management Engine Interface 1
+			device ref mei2 off end # Management Engine Interface 2
+			device ref me_ide_r off end # Management Engine IDE-R
+			device ref me_kt off end # Management Engine KT
+			device ref gbe off end # Intel Gigabit Ethernet
+			device ref ehci2 on end # USB2 EHCI #2
+			device ref hda on end # High Definition Audio
+			device ref pcie_rp1 off end # PCIe Port #1 (WLAN remapped)
+			device ref pcie_rp2 off end # PCIe Port #2
+			device ref pcie_rp3 on end # PCIe Port #3 (WLAN actual)
+			device ref pcie_rp4 off end # PCIe Port #4
+			device ref pcie_rp5 off end # PCIe Port #5
+			device ref pcie_rp6 off end # PCIe Port #6
+			device ref pcie_rp7 off end # PCIe Port #7
+			device ref pcie_rp8 off end # PCIe Port #8
+			device ref ehci1 on end # USB2 EHCI #1
+			device ref pci_bridge off end # PCI bridge
+			device ref lpc on
 				chip drivers/pc80/tpm
 					device pnp 0c31.0 on end
 				end
@@ -95,10 +94,10 @@ chip northbridge/intel/sandybridge
 					end
 				end
 			end # LPC bridge
-			device pci 1f.2 on end # SATA Controller 1
-			device pci 1f.3 on end # SMBus
-			device pci 1f.5 off end # SATA Controller 2
-			device pci 1f.6 on end # Thermal
+			device ref sata1 on end # SATA Controller 1
+			device ref smbus on end # SMBus
+			device ref sata2 off end # SATA Controller 2
+			device ref thermal on end # Thermal
 		end
 	end
 end

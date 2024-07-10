@@ -1,24 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 The ChromiumOS Authors. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _CPU_INTEL_MODEL_2065X_H
 #define _CPU_INTEL_MODEL_2065X_H
 
-/* Nehalem bus clock is fixed at 133MHz */
-#define NEHALEM_BCLK		133
+/* Arrandale bus clock is fixed at 133MHz */
+#define IRONLAKE_BCLK		133
 
 #define MSR_CORE_THREAD_COUNT		0x35
 #define MSR_FEATURE_CONFIG		0x13c
@@ -29,12 +15,12 @@
 #define IA32_FERR_CAPABILITY		0x1f1
 #define   FERR_ENABLE			(1 << 0)
 
-#define MSR_PIC_MSG_CONTROL		0x2e
 #define MSR_PLATFORM_INFO		0xce
 #define  PLATFORM_INFO_SET_TDP		(1 << 29)
 
 #define MSR_MISC_PWR_MGMT		0x1aa
 #define  MISC_PWR_MGMT_EIST_HW_DIS	(1 << 0)
+#define MSR_TURBO_POWER_CURRENT_LIMIT	0x1ac
 #define MSR_TURBO_RATIO_LIMIT		0x1ad
 #define MSR_POWER_CTL			0x1fc
 
@@ -58,38 +44,18 @@
 #define  PKG_POWER_LIMIT_TIME_SHIFT	17
 #define  PKG_POWER_LIMIT_TIME_MASK	0x7f
 
-#define IVB_CONFIG_TDP_MIN_CPUID	0x306a2
-#define MSR_CONFIG_TDP_NOMINAL		0x648
-#define MSR_CONFIG_TDP_LEVEL1		0x649
-#define MSR_CONFIG_TDP_LEVEL2		0x64a
-#define MSR_CONFIG_TDP_CONTROL		0x64b
-#define MSR_TURBO_ACTIVATION_RATIO	0x64c
-
 /* P-state configuration */
 #define PSS_MAX_ENTRIES			16
 #define PSS_RATIO_STEP			1
 #define PSS_LATENCY_TRANSITION		10
 #define PSS_LATENCY_BUSMASTER		10
 
-#ifdef __SMM__
 /* Lock MSRs */
 void intel_model_2065x_finalize_smm(void);
-#else
-/* Configure power limits for turbo mode */
-void set_power_limits(u8 power_limit_1_time);
-int cpu_config_tdp_levels(void);
-#endif
-
-/*
- * Region of SMM space is reserved for multipurpose use. It falls below
- * the IED region and above the SMM handler.
- */
-#define RESERVED_SMM_SIZE CONFIG_SMM_RESERVED_SIZE
-#define RESERVED_SMM_OFFSET (CONFIG_SMM_TSEG_SIZE - RESERVED_SMM_SIZE)
 
 /* Sanity check config options. */
-#if (CONFIG_SMM_TSEG_SIZE <= RESERVED_SMM_SIZE)
-# error "CONFIG_SMM_TSEG_SIZE <= RESERVED_SMM_SIZE"
+#if (CONFIG_SMM_TSEG_SIZE <= CONFIG_SMM_RESERVED_SIZE)
+# error "CONFIG_SMM_TSEG_SIZE <= CONFIG_SMM_RESERVED_SIZE"
 #endif
 #if (CONFIG_SMM_TSEG_SIZE < 0x800000)
 # error "CONFIG_SMM_TSEG_SIZE must at least be 8MiB"

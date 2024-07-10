@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2015 Intel Corp.
- * (Written by Andrey Petrov <andrey.petrov@intel.com> for Intel Corp.)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef _SOC_APOLLOLAKE_IOMAP_H_
 #define _SOC_APOLLOLAKE_IOMAP_H_
@@ -38,7 +23,7 @@
 #define ACPI_PMIO_CST_REG	(ACPI_BASE_ADDRESS + 0x14)
 
 /* Accesses to these BARs are hardcoded in FSP */
-#define PMC_BAR0			0xfe042000
+#define PCH_PWRM_BASE_ADDRESS		0xfe042000
 #define PMC_BAR1			0xfe044000
 #define PMC_BAR0_SIZE			(8 * KiB)
 
@@ -46,6 +31,8 @@
 #define SRAM_SIZE_0			(8 * KiB)
 #define SRAM_BASE_2			0xfe902000
 #define SRAM_SIZE_2			(4 * KiB)
+#define SHARED_SRAM_BASE		0xfffe0000
+#define SHARED_SRAM_SIZE		(128 * KiB)
 
 #define HECI1_BASE_ADDRESS		0xfed1a000
 #define PSF3_BASE_ADDRESS		0x1e00

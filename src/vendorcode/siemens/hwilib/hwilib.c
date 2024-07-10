@@ -1,23 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014-2019 Siemens AG
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <cbfs.h>
 #include <string.h>
 #include <console/console.h>
 #include <device/mmio.h>
-#include <arch/early_variables.h>
 #include <types.h>
 
 #include "hwilib.h"
@@ -57,7 +43,7 @@ enum {
 struct param_pos {
 	uint8_t blk_type;	/* Valid for a specific block type */
 	uint32_t offset;	/* Offset in given block */
-	uint32_t len;		/* Length for the field in this block */
+	size_t len;		/* Length for the field in this block */
 };
 
 /* This structure holds all the needed information for a given field type
@@ -67,26 +53,23 @@ struct param_info {
 	struct param_pos pos[MAX_BLOCK_NUM];
 	uint64_t mask;
 	uint8_t mask_offset;
-	uint32_t (*get_field)(const struct param_info *param, uint8_t *dst,
-				uint32_t maxlen);
+	size_t (*get_field)(const struct param_info *param, uint8_t *dst, size_t dstsize);
 };
 
 /* Storage for pointers to the different blocks. The contents will be filled
  * in hwilib_find_blocks().
  */
-static uint8_t *all_blocks[MAX_BLOCK_NUM] CAR_GLOBAL;
+static uint8_t *all_blocks[MAX_BLOCK_NUM];
 
 /* As the length of extended block is variable, save all length to a global
  * variable so that they can be used later to check boundaries.
  */
-static uint16_t all_blk_size[MAX_BLOCK_NUM] CAR_GLOBAL;
+static uint16_t all_blk_size[MAX_BLOCK_NUM];
 
 /* Storage for the cbfs file name of the currently open hwi file. */
-static char current_hwi[HWI_MAX_NAME_LEN] CAR_GLOBAL;
+static char current_hwi[HWI_MAX_NAME_LEN];
 
-
-static uint32_t hwilib_read_bytes (const struct param_info *param, uint8_t *dst,
-					uint32_t maxlen);
+static size_t hwilib_read_bytes(const struct param_info *param, uint8_t *dst, size_t dstsize);
 
 /* Add all supported fields to this variable. It is important to use the
  * field type of a given field as the array index so that all the information
@@ -399,33 +382,31 @@ static const struct param_info params[] = {
  *         block
  * @param  *param	Parameter to read from hwinfo
  * @param  *dst		Pointer to memory where the data will be stored in
- * @return		number of copied bytes on success, 0 on error
+ * @param  dstsize	Size of the memory passed in via the *dst pointer
+ * @return		Number of copied bytes on success, 0 on error
  */
-static uint32_t hwilib_read_bytes (const struct param_info *param, uint8_t *dst,
-					uint32_t maxlen)
+static size_t hwilib_read_bytes(const struct param_info *param, uint8_t *dst, size_t dstsize)
 {
 	uint8_t i = 0, *blk = NULL;
-	uint8_t **blk_ptr = car_get_var_ptr(&all_blocks[0]);
-	uint16_t *all_blk_size_ptr = car_get_var_ptr(&all_blk_size[0]);
 
 	if (!param || !dst)
 		return 0;
 	/* Take the first valid block to get the parameter from */
 	do {
 		if ((param->pos[i].len) && (param->pos[i].offset) &&
-		     (blk_ptr[param->pos[i].blk_type])) {
-			blk =  blk_ptr[param->pos[i].blk_type];
+		     (all_blocks[param->pos[i].blk_type])) {
+			blk =  all_blocks[param->pos[i].blk_type];
 			break;
 		}
 		i++;
 	} while (i < MAX_BLOCK_NUM);
 
 	/* Ensure there is a valid block available for this parameter and
-	 * the length of the parameter do not exceed maxlen or block len.
+	 * the length of the parameter does not exceed dstsize or block len.
 	 */
-	if ((!blk) || (param->pos[i].len > maxlen) ||
+	if ((!blk) || (param->pos[i].len > dstsize) ||
 	    (param->pos[i].len + param->pos[i].offset >
-	     all_blk_size_ptr[param->pos[i].blk_type]))
+	     all_blk_size[param->pos[i].blk_type]))
 		return 0;
 	/* We can now copy the wanted data. */
 	memcpy(dst, (blk + param->pos[i].offset), param->pos[i].len);
@@ -468,13 +449,10 @@ static uint32_t hwilib_read_bytes (const struct param_info *param, uint8_t *dst,
  * @param  *hwi_filename	Name of the cbfs-file to use.
  * @return			CB_SUCCESS when no error, otherwise error code
  */
-enum cb_err hwilib_find_blocks (const char *hwi_filename)
+enum cb_err hwilib_find_blocks(const char *hwi_filename)
 {
 	uint8_t *ptr = NULL, *base = NULL;
 	uint32_t next_offset = 1;
-	uint8_t **blk_ptr = car_get_var_ptr(&all_blocks[0]);
-	uint16_t *all_blk_size_ptr = car_get_var_ptr(&all_blk_size[0]);
-	char *curr_hwi_name_ptr = car_get_var_ptr(&current_hwi);
 	size_t filesize = 0;
 
 	/* Check for a valid parameter */
@@ -482,14 +460,13 @@ enum cb_err hwilib_find_blocks (const char *hwi_filename)
 		return CB_ERR_ARG;
 	/* Check if this file is already open. If yes, just leave as there is
 	   nothing left to do here. */
-	if (curr_hwi_name_ptr &&
-	    !strncmp(curr_hwi_name_ptr, hwi_filename, HWI_MAX_NAME_LEN)) {
+	if (!strncmp(current_hwi, hwi_filename, HWI_MAX_NAME_LEN)) {
 		printk(BIOS_SPEW, "HWILIB: File \"%s\" already open.\n",
 			hwi_filename);
 		return CB_SUCCESS;
 	}
 
-	ptr = cbfs_boot_map_with_leak(hwi_filename, CBFS_TYPE_RAW, &filesize);
+	ptr = cbfs_map(hwi_filename, &filesize);
 	if (!ptr) {
 		printk(BIOS_ERR,"HWILIB: Missing file \"%s\" in cbfs.\n",
 			hwi_filename);
@@ -504,15 +481,15 @@ enum cb_err hwilib_find_blocks (const char *hwi_filename)
 	 *  in prior calls to this function.
 	 * This way the caller do not need to "close" already opened blocks.
 	 */
-	memset(blk_ptr, 0, (MAX_BLOCK_NUM * sizeof (uint8_t *)));
+	memset(all_blocks, 0, (MAX_BLOCK_NUM * sizeof (uint8_t *)));
 	/* Check which blocks are available by examining the length field. */
 	base = ptr;
 	/* Fill in sizes of all fixed length blocks. */
-	all_blk_size_ptr[BLK_HIB] = LEN_HIB;
-	all_blk_size_ptr[BLK_SIB] = LEN_SIB;
-	all_blk_size_ptr[BLK_EIB] = LEN_EIB;
+	all_blk_size[BLK_HIB] = LEN_HIB;
+	all_blk_size[BLK_SIB] = LEN_SIB;
+	all_blk_size[BLK_EIB] = LEN_EIB;
 	/* Length of BLK_XIB is variable and will be filled if block is found */
-	all_blk_size_ptr[BLK_XIB] = 0;
+	all_blk_size[BLK_XIB] = 0;
 	while(!(strncmp((char *)ptr, BLOCK_MAGIC, LEN_MAGIC_NUM)) &&
 		next_offset) {
 		uint16_t len = read16(ptr + LEN_OFFSET);
@@ -520,26 +497,26 @@ enum cb_err hwilib_find_blocks (const char *hwi_filename)
 		if ((ptr - base + len) > filesize)
 			break;
 		if (len == LEN_HIB) {
-			blk_ptr[BLK_HIB] = ptr;
+			all_blocks[BLK_HIB] = ptr;
 			next_offset = read32(ptr + NEXT_OFFSET_HIB);
 			if (next_offset)
 				ptr = base + next_offset;
 		} else if (len == LEN_SIB) {
-			blk_ptr[BLK_SIB] = ptr;
+			all_blocks[BLK_SIB] = ptr;
 			next_offset = read32(ptr + NEXT_OFFSET_SIB);
 			if (next_offset)
 				ptr = base + next_offset;
 		} else if (len == LEN_EIB) {
 			/* Skip preliminary blocks */
 			if (!(read16(ptr + EIB_FEATRUE_OFFSET) & 0x01))
-				blk_ptr[BLK_EIB] = ptr;
+				all_blocks[BLK_EIB] = ptr;
 			next_offset = read32(ptr + NEXT_OFFSET_EIB);
 			if (next_offset)
 				ptr = base + next_offset;
 		} else if (len >= MIN_LEN_XIB) {
-			blk_ptr[BLK_XIB] = ptr;
+			all_blocks[BLK_XIB] = ptr;
 			next_offset = read32(ptr + NEXT_OFFSET_XIB);
-			all_blk_size_ptr[BLK_XIB] = len;
+			all_blk_size[BLK_XIB] = len;
 			if (next_offset)
 				ptr = base + next_offset;
 		} else {
@@ -547,10 +524,10 @@ enum cb_err hwilib_find_blocks (const char *hwi_filename)
 		}
 	}
 	/* We should have found at least one valid block */
-	if (blk_ptr[BLK_HIB] || blk_ptr[BLK_SIB] || blk_ptr[BLK_EIB] ||
-	    blk_ptr[BLK_XIB]) {
+	if (all_blocks[BLK_HIB] || all_blocks[BLK_SIB] || all_blocks[BLK_EIB] ||
+	    all_blocks[BLK_XIB]) {
 		/* Save currently opened hwi filename. */
-		strncpy(curr_hwi_name_ptr, hwi_filename, HWI_MAX_NAME_LEN);
+		strncpy(current_hwi, hwi_filename, HWI_MAX_NAME_LEN);
 		return CB_SUCCESS;
 	}
 	else
@@ -561,13 +538,14 @@ enum cb_err hwilib_find_blocks (const char *hwi_filename)
  *         hwinfo block.
  * @param  field	Field type to read from hwinfo
  * @param  *dst		Pointer to memory where the data will be stored in
- * @return		number of copied bytes on success, 0 on error
+ * @param  dstsize	Size of the memory passed in via the *dst pointer
+ * @return		Number of copied bytes on success, 0 on error
  */
-uint32_t hwilib_get_field (hwinfo_field_t field, uint8_t *dst, uint32_t maxlen)
+size_t hwilib_get_field(hwinfo_field_t field, uint8_t *dst, size_t dstsize)
 {
 	/* Check the boundaries of params-variable */
 	if ((uint32_t)field < ARRAY_SIZE(params))
-		return params[field].get_field(&params[field], dst, maxlen);
+		return params[field].get_field(&params[field], dst, dstsize);
 	else
 		return 0;
 }

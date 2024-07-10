@@ -1,22 +1,18 @@
-#!/bin/sh
-# This file is part of the coreboot project.
-#
-# Copyright (C) 2014 Vladimir Serbinenko <phcoder@gmail.com>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; version 2 of the License, or (at your option)
-# any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+#!/usr/bin/env sh
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
 # DESCR: Check that every board has a meaningful board_info.txt
 
-LC_ALL=C export LC_ALL
-for mobodir in $(git ls-files src/mainboard | sed -n 's,^\(src/mainboard/[^/]*/[^/]*\)/.*$,\1,p'|sort|uniq); do
+
+LINTDIR="$(
+  cd -- "$(dirname "$0")" > /dev/null 2>&1 || return
+  pwd -P
+)"
+
+# shellcheck source=helper_functions.sh
+. "${LINTDIR}/helper_functions.sh"
+
+for mobodir in $(${FIND_FILES} src/mainboard | sed -n 's,^\(src/mainboard/[^/]*/[^/]*\)/.*$,\1,p'|sort|uniq); do
     board_info="$mobodir/board_info.txt"
     if ! [ -f "$board_info" ]; then
        echo "No $board_info found"

@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_LENOVO_T420
 
 config BOARD_SPECIFIC_OPTIONS
@@ -8,7 +10,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select SOUTHBRIDGE_INTEL_BD82X6X
 	select EC_LENOVO_PMH7
 	select EC_LENOVO_H8
-	select H8_HAS_BAT_TRESHOLDS_IMPL
+	select H8_HAS_BAT_THRESHOLDS_IMPL
 	select NO_UART_ON_SUPERIO
 	select BOARD_ROMSIZE_KB_8192
 	select HAVE_ACPI_TABLES
@@ -17,10 +19,10 @@ config BOARD_SPECIFIC_OPTIONS
 	select HAVE_ACPI_RESUME
 	select INTEL_INT15
 	select DRIVERS_RICOH_RCE822
-	select MAINBOARD_HAS_LPC_TPM
+	select MEMORY_MAPPED_TPM
 	select MAINBOARD_HAS_TPM1
 	select MAINBOARD_HAS_LIBGFXINIT
-	select GFX_GMA_INTERNAL_IS_LVDS
+	select GFX_GMA_PANEL_1_ON_LVDS
 	select DRIVERS_LENOVO_HYBRID_GRAPHICS
 	select INTEL_GMA_HAVE_VBT
 	select MAINBOARD_USES_IFD_GBE_REGION
@@ -29,7 +31,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select SERIRQ_CONTINUOUS_MODE
 
 config VBOOT
-	select VBOOT_VBNV_CMOS
+	select VBOOT_VBNV_FLASH
 	select GBB_FLAG_DISABLE_LID_SHUTDOWN
 	select GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
 	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
@@ -39,25 +41,14 @@ config VBOOT
 config VBOOT_SLOTS_RW_A
 	default y
 
-config VBOOT_VBNV_OFFSET
-	hex
-	default 0x2a
-
 config FMDFILE
-	string
-	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-rwa.fmd" if VBOOT
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/vboot-rwa.fmd" if VBOOT
 
 config MAINBOARD_DIR
-	string
-	default lenovo/t420
+	default "lenovo/t420"
 
 config MAINBOARD_PART_NUMBER
-	string
 	default "ThinkPad T420"
-
-config MAX_CPUS
-	int
-	default 8
 
 config USBDEBUG_HCD_INDEX
 	int
@@ -67,12 +58,17 @@ config DRAM_RESET_GATE_GPIO
 	int
 	default 10
 
-config VGA_BIOS_FILE
-	string
-	default "pci8086,0126.rom"
-
 config VGA_BIOS_ID
 	string
 	default "8086,0126"
+
+config PS2K_EISAID
+	default "PNP0303"
+
+config PS2M_EISAID
+	default "LEN0015"
+
+config THINKPADEC_HKEY_EISAID
+	default "LEN0068"
 
 endif # BOARD_LENOVO_T420

@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Scope (\_SB.PCI0.XHCI.HUB7.PRT2)
 {
@@ -17,15 +6,15 @@ Scope (\_SB.PCI0.XHCI.HUB7.PRT2)
 	Name (_UPC, Package (0x04)
 	{
 		0xFF,	// Connectable
-		Zero,	// USB Port
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// USB Port
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Visible
 	Method (_PLD, 0, NotSerialized)
 	{
-		Return (GPLD (One))
+		Return (GPLD (1))
 	}
 }
 Scope (\_SB.PCI0.XHCI.HUB7.PRT3)
@@ -35,14 +24,14 @@ Scope (\_SB.PCI0.XHCI.HUB7.PRT3)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 }
 Scope (\_SB.PCI0.XHCI.HUB7.PRT4)
@@ -52,14 +41,14 @@ Scope (\_SB.PCI0.XHCI.HUB7.PRT4)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 }
 Scope (\_SB.PCI0.XHCI.HUB7.PRT5)
@@ -68,15 +57,15 @@ Scope (\_SB.PCI0.XHCI.HUB7.PRT5)
 	Name (_UPC, Package (0x04)
 	{
 		0xFF,	// Connectable
-		Zero,	// USB Port
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// USB Port
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Visible
 	Method (_PLD, 0, NotSerialized)
 	{
-		Return (GPLD (One))
+		Return (GPLD (1))
 	}
 }
 Scope (\_SB.PCI0.XHCI.HUB7.PRT7)
@@ -86,14 +75,14 @@ Scope (\_SB.PCI0.XHCI.HUB7.PRT7)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 }
 Scope (\_SB.PCI0.XHCI.HUB7.SSP1)
@@ -103,7 +92,7 @@ Scope (\_SB.PCI0.XHCI.HUB7.SSP1)
 	{
 		0xFF,	// Connectable
 		0x03,	// USB 3.0 Port
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 }

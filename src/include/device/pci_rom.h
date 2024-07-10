@@ -1,11 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef PCI_ROM_H
 #define PCI_ROM_H
+
 #include <endian.h>
-#include <stddef.h>
-#include <arch/acpi.h>
+#include <acpi/acpi.h>
+#include <cbfs.h>
+#include <stdint.h>
 
 #define PCI_ROM_HDR 0xAA55
-#define PCI_DATA_HDR ((uint32_t) (('R' << 24) | ('I' << 16) | ('C' << 8) | 'P'))
+#define PCI_DATA_HDR ((uint32_t)(('R' << 24) | ('I' << 16) | ('C' << 8) | 'P'))
 
 #define PCI_RAM_IMAGE_START 0xD0000
 #define PCI_VGA_RAM_IMAGE_START 0xC0000
@@ -34,17 +38,25 @@ struct  pci_data {
 	uint16_t	reserved_2;
 };
 
-struct rom_header *pci_rom_probe(struct device *dev);
+void vga_oprom_preload(void);
+struct rom_header *pci_rom_probe(const struct device *dev);
 struct rom_header *pci_rom_load(struct device *dev,
 	struct rom_header *rom_header);
 
+static inline void pci_rom_free(struct rom_header *rom_header)
+{
+	cbfs_unmap(rom_header);
+}
+
 unsigned long
-pci_rom_write_acpi_tables(struct device *device,
+pci_rom_write_acpi_tables(const struct device *device,
 						  unsigned long current,
 						  struct acpi_rsdp *rsdp);
 
-void pci_rom_ssdt(struct device *device);
+void pci_rom_ssdt(const struct device *device);
 
+void map_oprom_vendev_rev(u32 *vendev, u8 *rev);
 u32 map_oprom_vendev(u32 vendev);
 
+int verified_boot_should_run_oprom(struct rom_header *rom_header);
 #endif

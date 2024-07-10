@@ -1,6 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <assert.h>
 #include <ctype.h>
-#include <rules.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -131,4 +132,91 @@ unsigned int skip_atoi(char **s)
 	while (isdigit(**s))
 		i = i*10 + *((*s)++) - '0';
 	return i;
+}
+
+int strspn(const char *str, const char *spn)
+{
+	int ret = 0;
+
+	while (*str != 0) {
+		const char *p;
+		for (p = spn; *str != *p; p++)
+			if (*p == '\0')
+				return ret;
+		ret++;
+		str++;
+	}
+	return ret;
+}
+
+int strcspn(const char *str, const char *spn)
+{
+	int ret = 0;
+
+	while (*str != 0) {
+		const char *p;
+		for (p = spn; *p != '\0'; p++)
+			if (*p == *str)
+				return ret;
+		ret++;
+		str++;
+	}
+	return ret;
+}
+
+char *strstr(const char *haystack, const char *needle)
+{
+	size_t needle_len = strlen(needle);
+	for (; *haystack; haystack++) {
+		if (!strncmp(haystack, needle, needle_len))
+			return (char *)haystack;
+	}
+	return NULL;
+}
+
+char *strtok_r(char *str, const char *delim, char **ptr)
+{
+	char *start;
+	char *end;
+
+	if (str == NULL)
+		str = *ptr;
+	start = str + strspn(str, delim);
+	if (start[0] == '\0')
+		return NULL;
+
+	end = start + strcspn(start, delim);
+	*ptr = end;
+	if (end[0] != '\0')
+		*(*ptr)++ = '\0';
+	return start;
+}
+
+char *strtok(char *str, const char *delim)
+{
+	static char *strtok_ptr;
+
+	return strtok_r(str, delim, &strtok_ptr);
+}
+
+long atol(const char *str)
+{
+	long ret = 0;
+	long sign = 1;
+
+	str += strspn(str, " \t\n\r\f\v");
+
+	if (*str == '+') {
+		sign = 1;
+		str++;
+	} else if (*str == '-') {
+		sign = -1;
+		str++;
+	}
+
+	while (isdigit(*str)) {
+		ret *= 10;
+		ret += *str++ - '0';
+	}
+	return ret * sign;
 }

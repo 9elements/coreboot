@@ -1,23 +1,8 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/device.h>
 #include <device/pnp.h>
 #include <console/console.h>
-#include <device/smbus.h>
-#include <stdlib.h>
 #include <pc80/keyboard.h>
 
 void m3885_configure_multikey(void);
@@ -60,6 +45,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_renesas_m3885x_ops = {
-	CHIP_NAME("Renesas M3885x Super I/O")
+	.name = "Renesas M3885x Super I/O",
 	.enable_dev = enable_dev,
 };

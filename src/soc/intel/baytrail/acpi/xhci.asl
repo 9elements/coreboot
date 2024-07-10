@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Device (XHCI)
 {
@@ -31,12 +17,12 @@ Device (XHCI)
 			})
 
 			// REV: Revision 0x02 for ACPI 5.0
-			CreateField (DerefOf (Index (PCKG, Zero)), Zero, 0x07, REV)
-			Store (0x02, REV)
+			CreateField (DerefOf (PCKG[0]), 0, 0x07, REV)
+			REV = 0x02
 
 			// VISI: Port visibility to user per port
-			CreateField (DerefOf (Index (PCKG, Zero)), 0x40, One, VISI)
-			Store (Arg0, VISI)
+			CreateField (DerefOf (PCKG[0]), 0x40, 1, VISI)
+			VISI = Arg0
 			Return (PCKG)
 		}
 

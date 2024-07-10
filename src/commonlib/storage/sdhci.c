@@ -1,37 +1,24 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright 2011, Marvell Semiconductor Inc.
- * Lei Wen <leiwen@marvell.com>
- *
- * Copyright 2017 Intel Corporation
- *
  * Secure Digital (SD) Host Controller interface specific code
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #include "bouncebuf.h"
 #include <commonlib/sd_mmc_ctrlr.h>
 #include <commonlib/sdhci.h>
+#include <commonlib/stdlib.h>
 #include <commonlib/storage.h>
 #include <delay.h>
 #include <endian.h>
+#include <lib.h>
 #include "sdhci.h"
 #include "sd_mmc.h"
 #include "storage.h"
 #include <timer.h>
-#include <commonlib/stdlib.h>
 
 #define DMA_AVAILABLE	((CONFIG(SDHCI_ADMA_IN_BOOTBLOCK) && ENV_BOOTBLOCK) \
-			|| (CONFIG(SDHCI_ADMA_IN_VERSTAGE) && ENV_VERSTAGE) \
-			|| (CONFIG(SDHCI_ADMA_IN_ROMSTAGE) && ENV_ROMSTAGE) \
+			|| (CONFIG(SDHCI_ADMA_IN_VERSTAGE) && ENV_SEPARATE_VERSTAGE) \
+			|| (CONFIG(SDHCI_ADMA_IN_ROMSTAGE) && ENV_SEPARATE_ROMSTAGE) \
 			|| ENV_POSTCAR || ENV_RAMSTAGE)
 
 __weak void *dma_malloc(size_t length_in_bytes)
@@ -149,7 +136,7 @@ static int sdhci_send_command_bounced(struct sd_mmc_ctrlr *ctrlr,
 	sdhci_writel(sdhci_ctrlr, SDHCI_INT_ALL_MASK, SDHCI_INT_STATUS);
 	mask = SDHCI_CMD_INHIBIT | SDHCI_DATA_INHIBIT;
 
-	/* We shouldn't wait for data inihibit for stop commands, even
+	/* We shouldn't wait for data inhibit for stop commands, even
 	   though they might use busy signaling */
 	if (cmd->flags & CMD_FLAG_IGNORE_INHIBIT)
 		mask &= ~SDHCI_DATA_INHIBIT;
@@ -333,8 +320,7 @@ static int sdhci_send_command(struct sd_mmc_ctrlr *ctrlr,
 		if (!dma_coherent(buf)) {
 			bbstate = &bbstate_val;
 			if (bounce_buffer_start(bbstate, buf, len, bbflags)) {
-				sdhc_error(
-					"ERROR: Failed to get bounce buffer.\n");
+				sdhc_error("Failed to get bounce buffer.\n");
 				return -1;
 			}
 		}
@@ -423,36 +409,6 @@ static int sdhci_set_clock(struct sdhci_ctrlr *sdhci_ctrlr, unsigned int clock)
 		ctrlr->bus_hz = actual;
 	}
 	return 0;
-}
-
-/* Find leftmost set bit in a 32 bit integer */
-static int fls(u32 x)
-{
-	int r = 32;
-
-	if (!x)
-		return 0;
-	if (!(x & 0xffff0000u)) {
-		x <<= 16;
-		r -= 16;
-	}
-	if (!(x & 0xff000000u)) {
-		x <<= 8;
-		r -= 8;
-	}
-	if (!(x & 0xf0000000u)) {
-		x <<= 4;
-		r -= 4;
-	}
-	if (!(x & 0xc0000000u)) {
-		x <<= 2;
-		r -= 2;
-	}
-	if (!(x & 0x80000000u)) {
-		x <<= 1;
-		r -= 1;
-	}
-	return r;
 }
 
 static void sdhci_set_power(struct sdhci_ctrlr *sdhci_ctrlr,
@@ -629,6 +585,16 @@ static int sdhci_pre_init(struct sdhci_ctrlr *sdhci_ctrlr)
 	struct sd_mmc_ctrlr *ctrlr = &sdhci_ctrlr->sd_mmc_ctrlr;
 	unsigned int caps, caps_1;
 
+	/*
+	 * If the device needs to do anything non-standard before
+	 * sdhci initialization, run it here.
+	 */
+	if (sdhci_ctrlr->attach) {
+		int rv = sdhci_ctrlr->attach(sdhci_ctrlr);
+		if (rv)
+			return rv;
+	}
+
 	/* Get controller version and capabilities */
 	ctrlr->version = sdhci_readw(sdhci_ctrlr, SDHCI_HOST_VERSION) & 0xff;
 	caps = sdhci_readl(sdhci_ctrlr, SDHCI_CAPABILITIES);
@@ -725,14 +691,14 @@ static int sdhci_init(struct sdhci_ctrlr *sdhci_ctrlr)
 	if (ctrlr->initialized)
 		return 0;
 
-	sdhc_debug("SDHCI Controller Base Address: 0x%p\n",
+	sdhc_debug("SDHCI Controller Base Address: %p\n",
 			sdhci_ctrlr->ioaddr);
 
 	rv = sdhci_pre_init(sdhci_ctrlr);
 	if (rv)
 		return rv; /* The error has been already reported */
 
-	sdhci_set_power(sdhci_ctrlr, fls(ctrlr->voltages) - 1);
+	sdhci_set_power(sdhci_ctrlr, __fls(ctrlr->voltages));
 
 	if (ctrlr->caps & DRVR_CAP_NO_CD) {
 		unsigned int status;

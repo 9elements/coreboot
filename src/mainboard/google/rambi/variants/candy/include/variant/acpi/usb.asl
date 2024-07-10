@@ -1,15 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 Scope (\_SB.PCI0.XHCI.RHUB.PRT1)
 {
@@ -17,15 +6,15 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT1)
 	Name (_UPC, Package (0x04)  // _UPC: USB Port Capabilities
 	{
 		0xFF,	// Connectable
-		Zero,	// USB Port
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// USB Port
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Visible
 	Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 	{
-		Return (GPLD (One))
+		Return (GPLD (1))
 	}
 }
 Scope (\_SB.PCI0.XHCI.RHUB.PRT2)
@@ -35,14 +24,14 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT2)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 
 	Device (USB1)
@@ -53,15 +42,15 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT2)
 		Name (_UPC, Package (0x04)  // _UPC: USB Port Capabilities
 		{
 			0xFF,	// Connectable
-			Zero,	// USB Port
-			Zero,	// Reserved
-			Zero	// Reserved
+			0,	// USB Port
+			0,	// Reserved
+			0	// Reserved
 		})
 
 		// Visible
 		Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 		{
-			Return (GPLD (One))
+			Return (GPLD (1))
 		}
 	}
 
@@ -74,14 +63,14 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT2)
 		{
 			0xFF,	// Connectable
 			0xFF,	// OEM Connector
-			Zero,	// Reserved
-			Zero	// Reserved
+			0,	// Reserved
+			0	// Reserved
 		})
 
 		// Not Visible
 		Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 		{
-			Return (GPLD (Zero))
+			Return (GPLD (0))
 		}
 	}
 }
@@ -92,14 +81,14 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT3)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 }
 Scope (\_SB.PCI0.XHCI.RHUB.PRT4)
@@ -109,14 +98,14 @@ Scope (\_SB.PCI0.XHCI.RHUB.PRT4)
 	{
 		0xFF,	// Connectable
 		0xFF,	// OEM Connector
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 
 	// Not Visible
 	Method (_PLD, 0, NotSerialized)  // _PLD: Physical Location of Device
 	{
-		Return (GPLD (Zero))
+		Return (GPLD (0))
 	}
 }
 Scope (\_SB.PCI0.XHCI.RHUB.SSP1)
@@ -126,7 +115,7 @@ Scope (\_SB.PCI0.XHCI.RHUB.SSP1)
 	{
 		0xFF,	// Connectable
 		0x03,	// USB 3.0 Port
-		Zero,	// Reserved
-		Zero	// Reserved
+		0,	// Reserved
+		0	// Reserved
 	})
 }

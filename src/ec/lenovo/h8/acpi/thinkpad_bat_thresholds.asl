@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (c) 2017 Arthur Heymans <arthur@aheymans.xyz>
- * Copyright (c) 2018 Evgeny Zinoviev <me@ch1p.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * This defines the battery charging thresholds setting methods tpacpi-bat can
@@ -32,7 +17,7 @@
  *    = 2: Secondary battery
  *    = Others: Reserved (0)
  * Bit 31-10: Reserved (0)
- *     Must be Zero
+ *     Must be 0
  *
  * Out Parameter:
  * DWORD
@@ -125,7 +110,7 @@ Method (BCCS, 1, NotSerialized)
  * DWORD
  * Bit 7-0:BatteryID
  * Bit 31-8: Reserved (0)
- *     Must be Zero
+ *     Must be 0
  *
  * Out Parameter:
  * DWORD

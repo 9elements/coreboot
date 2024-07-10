@@ -1,19 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Edward O'Callaghan <eocallaghan@alterapraxis.com>
- * Copyright (C) 2018 Eltan B.V.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /*
  * A generic pre-ram driver for Aspeed variant Super I/O chips.
@@ -35,13 +20,11 @@
  */
 
 #include <arch/io.h>
+#include <delay.h>
 #include <device/pnp_def.h>
 #include <device/pnp_ops.h>
 #include <stdint.h>
 #include "aspeed.h"
-
-#define ASPEED_ENTRY_KEY 0xA5
-#define ASPEED_EXIT_KEY 0xAA
 
 /* Enable configuration: pass entry key '0xA5' into index port dev. */
 void pnp_enter_conf_state(pnp_devfn_t dev)
@@ -67,4 +50,7 @@ void aspeed_enable_serial(pnp_devfn_t dev, u16 iobase)
 	pnp_set_iobase(dev, PNP_IDX_IO0, iobase);
 	pnp_set_enable(dev, 1);
 	pnp_exit_conf_state(dev);
+
+	if (CONFIG(SUPERIO_ASPEED_USE_UART_DELAY_WORKAROUND))
+		mdelay(500);
 }

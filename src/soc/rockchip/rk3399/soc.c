@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootmem.h>
 #include <bootmode.h>
@@ -22,8 +9,6 @@
 #include <soc/display.h>
 #include <soc/sdram.h>
 #include <soc/symbols.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <symbols.h>
 
 void bootmem_platform_add_ranges(void)
@@ -36,7 +21,7 @@ void bootmem_platform_add_ranges(void)
 
 static void soc_read_resources(struct device *dev)
 {
-	ram_resource(dev, 0, (uintptr_t)_dram / KiB, sdram_size_mb() * KiB);
+	ram_range(dev, 0, (uintptr_t)_dram, sdram_size_mb() * MiB);
 }
 
 static void soc_init(struct device *dev)
@@ -61,6 +46,6 @@ static void enable_soc_dev(struct device *dev)
 }
 
 struct chip_operations soc_rockchip_rk3399_ops = {
-	CHIP_NAME("SOC Rockchip RK3399")
-	    .enable_dev = enable_soc_dev,
+	.name = "SOC Rockchip RK3399",
+	.enable_dev = enable_soc_dev,
 };

@@ -1,18 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
- * This file is part of the coreboot project.
- *
- * Copyright 2017-present Facebook, Inc.
- * Copyright 2003-2017    Cavium Inc.  <support@cavium.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  * This file consists of data imported from bdk-config.c
  */
 
@@ -51,8 +39,8 @@ int64_t bdk_twsix_read_ia(bdk_node_t node, int twsi_id, uint8_t dev_addr,
 	struct i2c_msg seg[2];
 	u32 buf;
 
-	assert (num_bytes < 5);
-	assert (ia_width_bytes < 3);
+	assert(num_bytes < 5);
+	assert(ia_width_bytes < 3);
 
 	seg[0].flags = 0;
 	seg[0].slave = dev_addr;
@@ -93,8 +81,8 @@ int bdk_twsix_write_ia(bdk_node_t node, int twsi_id, uint8_t dev_addr,
 	struct i2c_msg seg;
 	u8 buf[10];
 
-	assert (num_bytes <= 8);
-	assert (ia_width_bytes < 3);
+	assert(num_bytes <= 8);
+	assert(ia_width_bytes < 3);
 
 	memcpy(buf, &internal_addr, ia_width_bytes);
 	memcpy(&buf[ia_width_bytes], &data, num_bytes);

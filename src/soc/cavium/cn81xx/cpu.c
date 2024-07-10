@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018-present  Facebook, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <types.h>
 #include <soc/addressmap.h>
@@ -24,7 +11,7 @@
 
 uint64_t cpu_get_available_core_mask(void)
 {
-	return read64((void *)RST_PP_AVAILABLE);
+	return read64p(RST_PP_AVAILABLE);
 }
 
 size_t cpu_get_num_available_cores(void)
@@ -48,7 +35,7 @@ void secondary_cpu_init(size_t core_id)
 
 size_t cpu_self_get_core_id(void)
 {
-	u32 mpidr_el1;
+	u64 mpidr_el1;
 	asm("mrs %0, MPIDR_EL1\n\t" : "=r" (mpidr_el1) :: "memory");
 
 	/* Core is 4 bits from AFF0 and rest from AFF1 */
@@ -85,10 +72,10 @@ size_t start_cpu(size_t cpu, void (*entry_64)(size_t core_id))
 		return 1;
 
 	/* Write the address of the main entry point */
-	write64((void *)MIO_BOOT_AP_JUMP, (uintptr_t)secondary_init);
+	write64p(MIO_BOOT_AP_JUMP, (uintptr_t)secondary_init);
 
 	/* Get coremask of cores in reset */
-	const uint64_t reset = read64((void *)RST_PP_RESET);
+	const uint64_t reset = read64p(RST_PP_RESET);
 	printk(BIOS_INFO, "CPU: Cores currently in reset: 0x%llx\n", reset);
 
 	/* Setup entry for secondary core */
@@ -99,18 +86,18 @@ size_t start_cpu(size_t cpu, void (*entry_64)(size_t core_id))
 	printk(BIOS_DEBUG, "CPU: Taking core %zu out of reset.\n", cpu);
 
 	/* Release core from reset */
-	write64((void *)RST_PP_RESET, reset & ~coremask);
+	write64p(RST_PP_RESET, reset & ~coremask);
 
 	/* Wait for cores to finish coming out of reset */
 	udelay(1);
 
 	stopwatch_init_usecs_expire(&sw, 1000000);
 	do {
-		pending = read64((void *)RST_PP_PENDING);
+		pending = read64p(RST_PP_PENDING);
 	} while (!stopwatch_expired(&sw) && (pending & coremask));
 
 	if (stopwatch_expired(&sw)) {
-		printk(BIOS_ERR, "ERROR: Timeout waiting for reset "
+		printk(BIOS_ERR, "Timeout waiting for reset "
 		       "pending to clear.");
 		return 1;
 	}
@@ -126,7 +113,7 @@ size_t start_cpu(size_t cpu, void (*entry_64)(size_t core_id))
 	dmb();
 
 	if (!read64(&secondary_booted)) {
-		printk(BIOS_ERR, "ERROR: Core %zu failed to start.\n", cpu);
+		printk(BIOS_ERR, "Core %zu failed to start.\n", cpu);
 		return 1;
 	}
 

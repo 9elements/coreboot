@@ -1,23 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2013 Google Inc.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef INTEL_COMMON_PMUTIL_H
 #define INTEL_COMMON_PMUTIL_H
 
 #include <cpu/x86/smm.h>
+
+#define GPE0_HAS_64_EVENTS \
+	(!(CONFIG(SOUTHBRIDGE_INTEL_I82801DX) || CONFIG(SOUTHBRIDGE_INTEL_I82801GX)))
 
 #define D31F0_PMBASE		0x40
 #define D31F0_GEN_PMCON_1	0xa0
@@ -39,7 +28,6 @@
 #define  GPI_IS_SMI		0x01
 #define  GPI_IS_SCI		0x02
 #define  GPI_IS_NMI		0x03
-
 
 #define MAINBOARD_POWER_OFF	0
 #define MAINBOARD_POWER_ON	1
@@ -69,13 +57,18 @@
 #define LV2		0x14
 #define LV3		0x15
 #define LV4		0x16
-#if CONFIG(SOUTHBRIDGE_INTEL_I82801GX)
+
+#if GPE0_HAS_64_EVENTS
+#define GPE0_STS	0x20
+#define GPE0_EN		0x28 // GPE0_STS + 8
+#define PM2_CNT		0x50 // mobile only
+#else
 #define PM2_CNT		0x20 // mobile only
 #define GPE0_STS	0x28
-#else
-#define PM2_CNT		0x50 // mobile only
-#define GPE0_STS	0x20
-#endif /* CONFIG(SOUTHBRIDGE_INTEL_I82801GX) */
+#define GPE0_EN		0x2c // GPE0_STS + 4
+#endif
+
+/* def	GPE0_STS */
 #define   USB4_STS	(1 << 14) /* i82801gx only */
 #define   PME_B0_STS	(1 << 13)
 #define   PME_STS	(1 << 11)
@@ -86,11 +79,8 @@
 #define   TCOSCI_STS	(1 << 6)
 #define   SWGPE_STS	(1 << 2)
 #define   HOT_PLUG_STS	(1 << 1)
-#if CONFIG(SOUTHBRIDGE_INTEL_I82801GX)
-#define GPE0_EN		0x2c
-#else
-#define GPE0_EN		0x28
-#endif /* CONFIG(SOUTHBRIDGE_INTEL_I82801GX) */
+
+/* def	GPE0_EN */
 #define   PME_B0_EN	(1 << 13)
 #define   PME_EN	(1 << 11)
 #define   TCOSCI_EN	(1 << 6)
@@ -113,8 +103,8 @@
 #define ALT_GP_SMI_STS	0x3a
 #define GPE_CNTL	0x42
 #define DEVACT_STS	0x44
-#define SS_CNT		0x50
-#define C3_RES		0x54
+
+#if CONFIG(TCO_SPACE_NOT_YET_SPLIT)
 #define TCO1_STS	0x64
 #define   DMISCI_STS	(1 << 9)
 #define   BOOT_STS	(1 << 18)
@@ -122,6 +112,7 @@
 #define TCO1_CNT	0x68
 #define   TCO_LOCK	(1 << 12)
 #define TCO2_CNT	0x6a
+#endif
 
 u16 get_pmbase(void);
 
@@ -135,16 +126,15 @@ void dump_smi_status(u32 smi_sts);
 u32 reset_smi_status(void);
 void gpe0_mask(u32 clr, u32 set);
 void alt_gpi_mask(u16 clr, u16 set);
-void smi_set_eos(void);
 void dump_alt_gp_smi_status(u16 alt_gp_smi_sts);
 u16 reset_alt_gp_smi_status(void);
+void dump_all_status(void);
+
 void southbridge_smm_xhci_sleep(u8 slp_type);
 void gpi_route_interrupt(u8 gpi, u8 mode);
 void southbridge_gate_memory_reset(void);
-void southbridge_update_gnvs(u8 apm_cnt, int *smm_done);
 void southbridge_finalize_all(void);
 void southbridge_smi_monitor(void);
-em64t101_smm_state_save_area_t *smi_apmc_find_state_save(u8 cmd);
 void pch_log_state(void);
 
 #endif /*INTEL_COMMON_PMUTIL_H */

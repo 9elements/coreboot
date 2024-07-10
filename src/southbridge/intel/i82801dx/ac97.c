@@ -1,26 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/io.h>
 #include <console/console.h>
+#include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <arch/io.h>
 #include <device/pci_ops.h>
-#include <delay.h>
+#include <stdint.h>
+
 #include "i82801dx.h"
 
 #define NAMBAR		0x10
@@ -46,7 +34,6 @@
 
 #define MBAR		0x14
 #define   SEC_CODEC	0x40
-
 
 /* FIXME. This table is probably mainboard specific */
 static u16 ac97_function[16*2][4] = {
@@ -97,9 +84,8 @@ static int ac97_semaphore(void)
 		reg8 = inb(nabmbar + CAS);
 		timeout--;
 	} while ((reg8 & 1) && timeout);
-	if (! timeout) {
+	if (!timeout)
 		printk(BIOS_DEBUG, "Timeout!\n");
-	}
 
 	return (!timeout);
 }
@@ -254,7 +240,6 @@ static struct device_operations ac97_audio_ops  = {
 	.enable_resources = pci_dev_enable_resources,
 	.enable           = i82801dx_enable,
 	.init             = ac97_audio_init,
-	.scan_bus         = 0,
 };
 
 static struct device_operations ac97_modem_ops  = {
@@ -263,18 +248,17 @@ static struct device_operations ac97_modem_ops  = {
 	.enable_resources = pci_dev_enable_resources,
 	.enable           = i82801dx_enable,
 	.init             = ac97_modem_init,
-	.scan_bus         = 0,
 };
 
 /* 82801DB/DBL/DBM (ICH4/ICH4-L/ICH4-M) */
 static const struct pci_driver i82801db_ac97_audio __pci_driver = {
 	.ops	= &ac97_audio_ops,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82801DB_AC97_AUDIO,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82801DB_AC97_AUDIO,
 };
 
 static const struct pci_driver i82801db_ac97_modem __pci_driver = {
 	.ops	= &ac97_modem_ops,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= PCI_DEVICE_ID_INTEL_82801DB_AC97_MODEM,
+	.vendor	= PCI_VID_INTEL,
+	.device	= PCI_DID_INTEL_82801DB_AC97_MODEM,
 };

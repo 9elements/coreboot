@@ -1,17 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef MTK_MT8183_SPI_H
 #define MTK_MT8183_SPI_H
@@ -20,39 +7,18 @@
 
 #define SPI_BUS_NUMBER 6
 
-/* SPI peripheral register map. */
-typedef struct mtk_spi_regs {
-	uint32_t spi_cfg0_reg;
-	uint32_t spi_cfg1_reg;
-	uint32_t spi_tx_src_reg;
-	uint32_t spi_rx_dst_reg;
-	uint32_t spi_tx_data_reg;
-	uint32_t spi_rx_data_reg;
-	uint32_t spi_cmd_reg;
-	uint32_t spi_status0_reg;
-	uint32_t spi_status1_reg;
-	uint32_t spi_pad_macro_sel_reg;
-	uint32_t spi_cfg2_reg;
-	uint32_t spi_tx_src_64_reg;
-	uint32_t spi_rx_dst_64_reg;
-} mtk_spi_regs;
+#define GET_SCK_REG(x) x->spi_cfg2_reg
+#define GET_TICK_DLY_REG(x) x->spi_cfg1_reg
 
-check_member(mtk_spi_regs, spi_pad_macro_sel_reg, 0x24);
+DEFINE_BITFIELD(SPI_CFG_CS_HOLD, 15, 0)
+DEFINE_BITFIELD(SPI_CFG_CS_SETUP, 31, 16)
 
-enum {
-	SPI_CFG0_CS_HOLD_SHIFT = 0,
-	SPI_CFG0_CS_SETUP_SHIFT = 16,
-};
+DEFINE_BITFIELD(SPI_CFG_SCK_LOW, 15, 0)
+DEFINE_BITFIELD(SPI_CFG_SCK_HIGH, 31, 16)
 
-enum {
-	SPI_CFG2_SCK_LOW_SHIFT = 0,
-	SPI_CFG2_SCK_HIGH_SHIFT = 16,
-};
-
-enum {
-	SPI_CFG1_TICK_DLY_SHIFT = 29,
-	SPI_CFG1_TICK_DLY_MASK = 0x7 << SPI_CFG1_TICK_DLY_SHIFT,
-
-};
+DEFINE_BITFIELD(SPI_CFG1_CS_IDLE, 7, 0)
+DEFINE_BITFIELD(SPI_CFG1_PACKET_LOOP, 15, 8)
+DEFINE_BITFIELD(SPI_CFG1_PACKET_LENGTH, 28, 16)
+DEFINE_BITFIELD(SPI_TICK_DLY, 31, 29)
 
 #endif

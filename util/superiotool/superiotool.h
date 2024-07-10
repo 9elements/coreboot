@@ -1,21 +1,4 @@
-/*
- * This file is part of the superiotool project.
- *
- * Copyright (C) 2007 Carl-Daniel Hailfinger
- * Copyright (C) 2007-2010 Uwe Hermann <uwe@hermann-uwe.de>
- * Copyright (C) 2008 Robinson P. Tryon <bishop.robinson@gmail.com>
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #ifndef SUPERIOTOOL_H
 #define SUPERIOTOOL_H
@@ -25,7 +8,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <getopt.h>
-#if defined(__GLIBC__)
+#include <commonlib/bsd/helpers.h>
+#if defined(__linux__)
 #include <sys/io.h>
 #endif
 #if (defined(__MACH__) && defined(__APPLE__))
@@ -40,6 +24,9 @@
 #include <pci/pci.h>
 # endif
 #endif
+
+#include <sys/types.h>
+#include <stdint.h>
 
 #if defined(__FreeBSD__)
 #include <sys/types.h>
@@ -123,8 +110,6 @@ and print its vendor, name, ID, revision, and config port.\n"
 
 #define NOTFOUND "  Failed. Returned data: "
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
-
 #define EOT		-1		/* End Of Table */
 #define NOLDN		-2		/* NO LDN needed */
 #define NANA		-3		/* Not Available:
@@ -190,6 +175,10 @@ void print_vendor_chips(const char *vendor,
 void probe_idregs_ali(uint16_t port);
 void print_ali_chips(void);
 
+/* aspeed.c */
+void probe_idregs_aspeed(uint16_t port);
+void print_aspeed_chips(void);
+
 /* amd.c */
 void probe_idregs_amd(uint16_t port);
 void print_amd_chips(void);
@@ -243,6 +232,7 @@ static const struct {
 	int ports[MAXNUMPORTS]; /* Signed, as we need EOT. */
 } superio_ports_table[] = {
 	{probe_idregs_ali,	{0x3f0, 0x370, EOT}},
+        {probe_idregs_aspeed,   {0x2e, 0x4e, EOT}},
 	{probe_idregs_exar,	{0x2e, 0x4e, EOT}},
 	{probe_idregs_fintek,	{0x2e, 0x4e, EOT}},
 	{probe_idregs_fintek_alternative,	{0x2e, 0x4e, EOT}},
@@ -278,6 +268,7 @@ static const struct {
 #ifdef PCI_SUPPORT
 	{print_via_chips},
 	{print_amd_chips},
+	{print_aspeed_chips},
 #endif
 	{print_serverengines_chips},
 	{print_infineon_chips},

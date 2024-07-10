@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 boot_option=Fallback
 debug_level=Debug
 power_on_after_fail=Disable
@@ -13,3 +15,4 @@ usb_always_on=Disable
 fn_ctrl_swap=Disable
 sticky_fn=Disable
 trackpoint=Enable
+me_state=Normal

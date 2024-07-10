@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2010 Keith Hui <buurin@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /* The L2 cache definitions here only apply to SECC/SECC2 P6 family CPUs
  * with Klamath (63x), Deschutes (65x) and Katmai (67x) cores.
@@ -26,6 +12,8 @@
 
 #ifndef __P6_L2_CACHE_H
 #define __P6_L2_CACHE_H
+
+#include <stdint.h>
 
 #define EBL_CR_POWERON	0x2A
 
@@ -56,7 +44,7 @@
 #define BBLCR3_L2_SIZE_2M          (0x08 << 13)
 #define BBLCR3_L2_SIZE_4M          (0x10 << 13)
 /* bits [22:20] */
-#define BBLCR3_L2_PHYSICAL_RANGE   (0x7 << 20);
+#define BBLCR3_L2_PHYSICAL_RANGE   (0x7 << 20)
 /* TODO: This bitmask does not agree with Intel's documentation.
  * Get confirmation one way or another.
  */
@@ -81,17 +69,17 @@
 #define L2CMD_MESI_S 1
 #define L2CMD_MESI_I 0
 
-extern int calculate_l2_latency(void);
-extern int signal_l2(u32 address_low, u32 data_high, u32 data_low, int way,
+int calculate_l2_latency(void);
+int signal_l2(u32 address_low, u32 data_high, u32 data_low, int way,
 	u8 command);
-extern int read_l2(u32 address);
-extern int write_l2(u32 address, u32 data);
-extern int test_l2_address_alias(u32 address1, u32 address2, u32 data_high,
+int read_l2(u32 address);
+int write_l2(u32 address, u32 data);
+int test_l2_address_alias(u32 address1, u32 address2, u32 data_high,
 	u32 data_low);
-extern int calculate_l2_cache_size(void);
-extern int calculate_l2_physical_address_range(void);
-extern int set_l2_ecc(void);
+int calculate_l2_cache_size(void);
+int calculate_l2_physical_address_range(void);
+int set_l2_ecc(void);
 
-extern int p6_configure_l2_cache(void);
+int p6_configure_l2_cache(void);
 
 #endif /* __P6_L2_CACHE_H */

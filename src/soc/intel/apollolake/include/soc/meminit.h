@@ -1,24 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2016 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_APOLLOLAKE_MEMINIT_H_
 #define _SOC_APOLLOLAKE_MEMINIT_H_
 
-#include <stddef.h>
-#include <stdint.h>
 #include <fsp/soc_binding.h>
+#include <types.h>
 
 /*
  * LPDDR4 helper routines for configuring the memory UPD for LPDDR4 operation.
@@ -64,9 +50,11 @@ enum {
 
 /* LPDDR4 module density in bits. */
 enum {
-	LP4_8Gb_DENSITY = 2,
-	LP4_12Gb_DENSITY,
-	LP4_16Gb_DENSITY,
+	LP4_4Gb_DENSITY = 4,
+	LP4_6Gb_DENSITY = 6,
+	LP4_8Gb_DENSITY = 8,
+	LP4_12Gb_DENSITY = 12,
+	LP4_16Gb_DENSITY = 16,
 };
 
 /*
@@ -106,7 +94,7 @@ void meminit_lpddr4(FSP_M_CONFIG *cfg, int speed);
  * to the memory reference code.
  */
 void meminit_lpddr4_enable_channel(FSP_M_CONFIG *cfg, int logical_chan,
-					int rank_density, int dual_rank,
+					int rank_density_gb, int dual_rank,
 					const struct lpddr4_swizzle_cfg *scfg);
 
 struct lpddr4_sku {

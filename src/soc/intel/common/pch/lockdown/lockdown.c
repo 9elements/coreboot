@@ -1,36 +1,23 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2018 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootstate.h>
-#include <intelblocks/chip.h>
+#include <intelblocks/cfg.h>
 #include <intelblocks/fast_spi.h>
+#include <intelblocks/lpc_lib.h>
 #include <intelblocks/pcr.h>
+#include <intelblocks/systemagent.h>
 #include <intelpch/lockdown.h>
+#include <intelblocks/gpmr.h>
 #include <soc/pci_devs.h>
 #include <soc/pcr_ids.h>
 #include <soc/soc_chip.h>
-
-#define PCR_DMI_GCS		0x274C
-#define PCR_DMI_GCS_BILD	(1 << 0)
 
 /*
  * This function will get lockdown config specific to soc.
  *
  * Return values:
- *  0 = CHIPSET_LOCKDOWN_FSP = use FSP's lockdown functionality to lockdown IPs
- *  1 = CHIPSET_LOCKDOWN_COREBOOT = Use coreboot to lockdown IPs
+ *  0 = CHIPSET_LOCKDOWN_COREBOOT = Use coreboot to lockdown IPs
+ *  1 = CHIPSET_LOCKDOWN_FSP = use FSP's lockdown functionality to lockdown IPs
  */
 int get_lockdown_config(void)
 {
@@ -40,10 +27,13 @@ int get_lockdown_config(void)
 	return common_config->chipset_lockdown;
 }
 
-static void dmi_lockdown_cfg(void)
+static void gpmr_lockdown_cfg(void)
 {
+	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_GPMR))
+		return;
+
 	/*
-	 * GCS reg of DMI
+	 * GCS reg
 	 *
 	 * When set, prevents GCS.BBS from being changed
 	 * GCS.BBS: (Boot BIOS Strap) This field determines the destination
@@ -52,7 +42,14 @@ static void dmi_lockdown_cfg(void)
 	 *	"0b": SPI
 	 *	"1b": LPC/eSPI
 	 */
-	pcr_or8(PID_DMI, PCR_DMI_GCS, PCR_DMI_GCS_BILD);
+	gpmr_or32(GPMR_GCS, GPMR_GCS_BILD);
+
+	/*
+	 * Set Secure Register Lock (SRL) bit in DMI control register to lock
+	 * DMI configuration and bypass when IOC instead of DMI
+	 */
+	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_IOC))
+		gpmr_or32(GPMR_DMICTL, GPMR_DMICTL_SRLOCK);
 }
 
 static void fast_spi_lockdown_cfg(int chipset_lockdown)
@@ -66,17 +63,62 @@ static void fast_spi_lockdown_cfg(int chipset_lockdown)
 	/* Discrete Lock Flash PR registers */
 	fast_spi_pr_dlock();
 
+	/* Check if SPI transaction is pending */
+	fast_spi_cycle_in_progress();
+
+	/* Clear any outstanding status bits like AEL, FCERR, FDONE, SAF etc. */
+	fast_spi_clear_outstanding_status();
+
 	/* Lock FAST_SPIBAR */
 	fast_spi_lock_bar();
 
-	/* Set Bios Interface Lock, Bios Lock */
+	/* Set Vendor Component Lock (VCL) */
+	fast_spi_vscc0_lock();
+
+	/* Set BIOS Interface Lock, BIOS Lock */
 	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
-		/* Bios Interface Lock */
+		/* BIOS Interface Lock */
 		fast_spi_set_bios_interface_lock_down();
 
-		/* Bios Lock */
+		/* Only allow writes in SMM */
+		if (CONFIG(BOOTMEDIA_SMM_BWP)) {
+			fast_spi_set_eiss();
+			fast_spi_enable_wp();
+		}
+
+		/* BIOS Lock */
 		fast_spi_set_lock_enable();
+
+		/* EXT BIOS Lock */
+		fast_spi_set_ext_bios_lock_enable();
 	}
+}
+
+static void lpc_lockdown_config(int chipset_lockdown)
+{
+	/* Set BIOS Interface Lock, BIOS Lock */
+	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
+		/* BIOS Interface Lock */
+		lpc_set_bios_interface_lock_down();
+
+		/* Only allow writes in SMM */
+		if (CONFIG(BOOTMEDIA_SMM_BWP)) {
+			lpc_set_eiss();
+			lpc_enable_wp();
+		}
+
+		/* BIOS Lock */
+		lpc_set_lock_enable();
+	}
+}
+
+static void sa_lockdown_config(int chipset_lockdown)
+{
+	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_SA))
+		return;
+
+	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT)
+		sa_lock_pam();
 }
 
 /*
@@ -93,8 +135,14 @@ static void platform_lockdown_config(void *unused)
 	/* SPI lock down configuration */
 	fast_spi_lockdown_cfg(chipset_lockdown);
 
-	/* DMI lock down configuration */
-	dmi_lockdown_cfg();
+	/* LPC/eSPI lock down configuration */
+	lpc_lockdown_config(chipset_lockdown);
+
+	/* GPMR lock down configuration */
+	gpmr_lockdown_cfg();
+
+	/* SA lock down configuration */
+	sa_lockdown_config(chipset_lockdown);
 
 	/* SoC lock down configuration */
 	soc_lockdown_config(chipset_lockdown);

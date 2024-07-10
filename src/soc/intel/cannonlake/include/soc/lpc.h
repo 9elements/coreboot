@@ -1,18 +1,4 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2014 Google Inc.
- * Copyright (C) 2017 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #ifndef _SOC_CANNONLAKE_LPC_H_
 #define _SOC_CANNONLAKE_LPC_H_
@@ -38,22 +24,7 @@
 #define LPC_GEN3_DEC		0x8c /* LPC IF Generic Decode Range 3 */
 #define LPC_GEN4_DEC		0x90 /* LPC IF Generic Decode Range 4 */
 #define LGMR			0x98 /* LPC Generic Memory Range */
-#define BIOS_CNTL		0xdc
-#define   LPC_BC_BILD		(1 << 7) /* BILD */
-#define   LPC_BC_LE		(1 << 1) /* LE */
-#define   LPC_BC_EISS		(1 << 5) /* EISS */
 #define PCCTL			0xE0 /* PCI Clock Control */
 #define   CLKRUN_EN		(1 << 0)
-
-/*
- * This function will help to differentiate between 2 PCH on single type of soc.
- * Since same soc may have LP series pch or H series PCH, we need to
- * differentiate by reading upper 8 bits of PCH device ids.
- *
- * Return:
- *	Return PCH_LP or PCH_H macro in case of respective device ID found.
- *	PCH_UNKNOWN_SERIES in case of invalid device ID.
- */
-uint8_t get_pch_series(void);
 
 #endif

@@ -1,26 +1,14 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2008-2009 coresystems GmbH
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; version 2 of
- * the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
 #include <arch/io.h>
 #include <delay.h>
 #include <ec/acpi/ec.h>
+#include <types.h>
+
 #include "ec_oem.h"
 
-int send_ec_oem_command(u8 command)
+enum cb_err send_ec_oem_command(u8 command)
 {
 	int timeout;
 
@@ -33,14 +21,14 @@ int send_ec_oem_command(u8 command)
 	if (!timeout) {
 		printk(BIOS_DEBUG, "Timeout while sending OEM command 0x%02x to EC!\n",
 				command);
-		// return -1;
+		// return CB_ERR;
 	}
 
 	outb(command, EC_OEM_SC);
-	return 0;
+	return CB_SUCCESS;
 }
 
-int send_ec_oem_data(u8 data)
+enum cb_err send_ec_oem_data(u8 data)
 {
 	int timeout;
 
@@ -53,19 +41,12 @@ int send_ec_oem_data(u8 data)
 	if (!timeout) {
 		printk(BIOS_DEBUG, "Timeout while sending OEM data 0x%02x to EC!\n",
 				data);
-		// return -1;
+		// return CB_ERR;
 	}
 
 	outb(data, EC_OEM_DATA);
 
-	return 0;
-}
-
-int send_ec_oem_data_nowait(u8 data)
-{
-	outb(data, EC_OEM_DATA);
-
-	return 0;
+	return CB_SUCCESS;
 }
 
 u8 recv_ec_oem_data(void)
@@ -99,13 +80,6 @@ u8 ec_oem_read(u8 addr)
 	send_ec_oem_data(addr);
 
 	return recv_ec_oem_data();
-}
-
-int ec_oem_write(u8 addr, u8 data)
-{
-	send_ec_oem_command(0x81);
-	send_ec_oem_data(addr);
-	return send_ec_oem_data(data);
 }
 
 int ec_oem_dump_status(void)

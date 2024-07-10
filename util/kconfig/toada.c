@@ -1,21 +1,10 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 static void print_bool(const char *const name, const bool val)
 {
@@ -115,12 +104,13 @@ int main(int argc, char *argv[])
 				print_bool(name, true);
 			} else if (strncmp(val, "0x", 2) == 0) {
 				print_hex(name, val + 2);
-			} else if (isdigit(val[0])) {
+			} else if (isdigit(val[0]) || (val[0] == '-' && isdigit(val[1]))) {
 				print_dec(name, val);
 			} else {
 				fprintf(stderr,
-					"couldn't parse value '%s' for '%s'\n",
+					"toada: Error: Couldn't parse value '%s' for '%s'\n",
 					val, name);
+				exit(1);
 			}
 			continue;
 		default:

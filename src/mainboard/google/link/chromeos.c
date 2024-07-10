@@ -1,33 +1,18 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright (C) 2011 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <string.h>
 #include <bootmode.h>
+#include <boot/coreboot_tables.h>
 #include <southbridge/intel/bd82x6x/pch.h>
 #include <southbridge/intel/common/gpio.h>
+#include <types.h>
 #include <vendorcode/google/chromeos/chromeos.h>
+#include "onboard.h"
 
-#ifndef __PRE_RAM__
-#include <boot/coreboot_tables.h>
+#define GPIO_EC_IN_RW 21
 
 void fill_lb_gpios(struct lb_gpios *gpios)
 {
 	struct lb_gpio chromeos_gpios[] = {
-		/* Write Protect: GPIO57 = PCH_SPI_WP_D */
-		{57, ACTIVE_HIGH, get_write_protect_state(), "write protect"},
-
 		/* Lid: the "switch" comes from the EC */
 		{-1, ACTIVE_HIGH, get_lid_switch(), "lid"},
 
@@ -41,19 +26,20 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	};
 	lb_add_gpios(gpios, chromeos_gpios, ARRAY_SIZE(chromeos_gpios));
 }
-#endif
 
 int get_write_protect_state(void)
 {
-	return get_gpio(57);
+	return get_gpio(GPIO_SPI_WP);
 }
 
 static const struct cros_gpio cros_gpios[] = {
-	CROS_GPIO_REC_AL(9, CROS_GPIO_DEVICE_NAME),
-	CROS_GPIO_WP_AH(57, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_REC_AL(GPIO_REC_MODE, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AH(GPIO_SPI_WP, CROS_GPIO_DEVICE_NAME),
 };
+DECLARE_CROS_GPIOS(cros_gpios);
 
-void mainboard_chromeos_acpi_generate(void)
+int get_ec_is_trusted(void)
 {
-	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
+	/* EC is trusted if not in RW. */
+	return !get_gpio(GPIO_EC_IN_RW);
 }

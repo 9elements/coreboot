@@ -1,19 +1,9 @@
-/*
- * This file is part of the coreboot project.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/bootblock.h>
 #include <bootblock_common.h>
-#include <cpu/intel/car/bootblock.h>
 #include <cpu/x86/bist.h>
+#include <stdint.h>
 
 static uint32_t saved_bist;
 
@@ -21,7 +11,7 @@ asmlinkage void bootblock_c_entry_bist(uint64_t base_timestamp, uint32_t bist)
 {
 	saved_bist = bist;
 	/* Call lib/bootblock.c main */
-	bootblock_main_with_timestamp(base_timestamp, NULL, 0);
+	bootblock_main_with_basetime(base_timestamp);
 }
 
 void __weak bootblock_early_northbridge_init(void) { }

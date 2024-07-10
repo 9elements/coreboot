@@ -1,9 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef VERSION_H
 #define VERSION_H
-
-/* Motherboard Information */
-extern const char mainboard_vendor[];
-extern const char mainboard_part_number[];
 
 /* coreboot Version */
 extern const char coreboot_version[];

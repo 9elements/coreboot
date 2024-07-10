@@ -3148,7 +3148,7 @@ int init_octeon3_ddr3_interface(bdk_node_t node,
         bank_bits = (2 + ((spd_banks >> 4) & 0x3)) + ((spd_banks >> 6) & 0x3);
         bank_bits = min((int)bank_bits, 4); /* Controller can only address 4 bits. */
 
-        spd_package = 0XFF & read_spd(node, &dimm_config_table[0], DDR4_SPD_PACKAGE_TYPE);
+        spd_package = 0xFF & read_spd(node, &dimm_config_table[0], DDR4_SPD_PACKAGE_TYPE);
         if (spd_package & 0x80) { // non-monolithic device
             is_stacked_die = (!disable_stacked_die) ? ((spd_package & 0x73) == 0x11) : 0;
             ddr_print("DDR4: Package Type 0x%x (%s), %d die\n", spd_package,
@@ -5895,7 +5895,6 @@ int init_octeon3_ddr3_interface(bdk_node_t node,
         bdk_lmcx_modereg_params1_t lmc_modereg_params1;
         unsigned char rodt_ctl;
         unsigned char rankx = 0;
-        int rlevel_rodt_errors = 0;
         unsigned char ecc_ena;
         unsigned char rtt_nom;
         unsigned char rtt_idx;
@@ -6200,7 +6199,6 @@ int init_octeon3_ddr3_interface(bdk_node_t node,
 #if PICK_BEST_RANK_SCORE_NOT_AVG
                         rlevel_best_rank_score = DEFAULT_BEST_RANK_SCORE;
 #endif
-                        rlevel_rodt_errors = 0;
                         lmc_comp_ctl2.u = BDK_CSR_READ(node, BDK_LMCX_COMP_CTL2(ddr_interface_num));
                         lmc_comp_ctl2.s.rodt_ctl = rodt_ctl;
                         DRAM_CSR_WRITE(node, BDK_LMCX_COMP_CTL2(ddr_interface_num), lmc_comp_ctl2.u);
@@ -6462,8 +6460,6 @@ int init_octeon3_ddr3_interface(bdk_node_t node,
                                 }
                             } /* for (byte_idx = 0; byte_idx < 9; ++byte_idx) */
 #endif /* PICK_BEST_RANK_SCORE_NOT_AVG */
-
-                            rlevel_rodt_errors += rlevel_rank_errors;
 
                         } /* for (average_loops = 0; average_loops < rlevel_avg_loops; average_loops++) */
 

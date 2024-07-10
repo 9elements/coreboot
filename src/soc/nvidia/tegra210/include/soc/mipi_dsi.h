@@ -1,30 +1,12 @@
-/*
- * This file is part of the coreboot project.
- *
- * Copyright 2014 Google Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * MIPI DSI Bus
  *
- * Copyright (C) 2012-2013, Samsung Electronics, Co., Ltd.
  * Andrzej Hajda <a.hajda@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
-#ifndef __MIPI_DSI_H__
-#define __MIPI_DSI_H__
+#ifndef __SOC_MIPI_DSI_H__
+#define __SOC_MIPI_DSI_H__
 
 #include <types.h>
 
@@ -297,4 +279,4 @@ struct tegra_mipi_device {
 struct tegra_mipi_device *tegra_mipi_request(struct tegra_mipi_device *device,
 						int device_index);
 int tegra_mipi_calibrate(struct tegra_mipi_device *device);
-#endif /* __MIPI_DSI_H__ */
+#endif /* __SOC_MIPI_DSI_H__ */
