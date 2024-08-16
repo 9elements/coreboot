@@ -5,7 +5,7 @@
 
 #include <gpio.h>
 
-/* Pad configuration was generated automatically using intelp2m utility */
+/* Pad configuration was created using odroid schematics (put link here) */
 static const struct pad_config gpio_table[] = {
 
 	/* ------- GPIO Community 0 ------- */
@@ -19,7 +19,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_B5, NONE),
 	PAD_NC(GPP_B6, NONE),
 	PAD_NC(GPP_B7, NONE),
-	PAD_CFG_NF(GPP_B8, NONE, DEEP, NF1),
+	PAD_CFG_GPI(GPP_B8, NONE, DEEP),
 	PAD_CFG_NF(GPP_B11, NONE, RSMRST, NF1),	/* PMCALERT# */
 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),	/* SLP_S0# */
 	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),	/* PLTRST# */
@@ -54,7 +54,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_A20, NONE),
 	PAD_NC(GPP_A21, NONE),
 	PAD_NC(GPP_A22, NONE),
-	PAD_NC(GP_A23, NONE),
+	PAD_NC(GPP_A23, NONE),
 
 	/* ------- GPIO Group GPP_S ------- */
 	PAD_NC(GPP_S0, NONE),
@@ -93,7 +93,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_H8, NONE),
 	PAD_NC(GPP_H9, NONE),
 	PAD_NC(GPP_H10, NONE),
-	PAD_CFG_NF(GPP_H11, NONE, DEEP, NF1),	/* UART0_TXD */
+	PAD_CFG_NF(GPP_H11, NONE, DEEP, NF2),	/* UART0_TXD */
 	PAD_NC(GPP_H12, NONE),
 	PAD_NC(GPP_H13, NONE),
 	PAD_CFG_NF(GPP_H15, NONE, DEEP, NF1),	/* DDPB_CTRLCLK */
@@ -118,7 +118,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_D9, NONE),
 	PAD_CFG_NF(GPP_D10, NONE, DEEP, NF2), /* DDP3_CTRLDATA */
 	PAD_NC(GPP_D11, NONE),
-	PAD_CFG_NF(GPP_D12, NONE, DEEP, NF2), /* BSSB_LS3_TX */
+	PAD_CFG_NF(GPP_D12, NONE, DEEP, NF5), /* BSSB_LS3_TX */
 	PAD_NC(GPP_D13, NONE),
 	PAD_NC(GPP_D14, NONE),
 	PAD_NC(GPP_D15, NONE),
